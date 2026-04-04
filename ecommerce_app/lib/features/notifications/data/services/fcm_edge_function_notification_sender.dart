@@ -1,9 +1,5 @@
-import 'dart:convert';
-
-import 'package:ecommerce_app/core/config/app_env.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FcmSendResult {
@@ -22,26 +18,41 @@ class FcmSendResult {
 
 class FcmEdgeFunctionNotificationSender {
   final SupabaseClient client;
-  final AppEnv env;
 
   const FcmEdgeFunctionNotificationSender({
     required this.client,
-    required this.env,
   });
 
-  FcmSendResult _parseOrThrow(http.Response res) {
-    Map<String, dynamic> json;
-    try {
-      json = (jsonDecode(res.body) as Map).cast<String, dynamic>();
-    } catch (_) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        throw Exception('Notification request failed (${res.statusCode}).');
+  static String _trimBody(Object? data) {
+    if (data == null) return '';
+    final s = data.toString().trim();
+    if (s.length <= 400) return s;
+    return '${s.substring(0, 400)}…';
+  }
+
+  FcmSendResult _parseFunctionResponse(int status, dynamic data) {
+    Map<String, dynamic>? json;
+    if (data is Map) {
+      json = Map<String, dynamic>.from(data);
+    }
+
+    if (json == null) {
+      if (status < 200 || status >= 300) {
+        throw Exception(
+          'Notification request failed (HTTP $status). ${_trimBody(data)}',
+        );
       }
       return const FcmSendResult(attempted: 0, success: 0, failure: 0);
     }
 
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      final err = json['error']?.toString() ?? 'request_failed';
+    if (status < 200 || status >= 300) {
+      final err = json['error']?.toString().trim().isNotEmpty == true
+          ? json['error'].toString()
+          : json['message']?.toString().trim().isNotEmpty == true
+              ? json['message'].toString()
+              : json['msg']?.toString().trim().isNotEmpty == true
+                  ? json['msg'].toString()
+                  : 'HTTP $status';
       final detail = json['detail']?.toString();
       throw Exception(
         detail == null || detail.isEmpty
@@ -56,6 +67,7 @@ class FcmEdgeFunctionNotificationSender {
       final failure = (fcm['failure'] as num?)?.toInt() ?? 0;
       final attempted = (fcm['attempted'] as num?)?.toInt() ?? 0;
       final success = (fcm['success'] as num?)?.toInt() ?? 0;
+      String? mergedNote = note;
       if (attempted > 0 && failure > 0) {
         final failures = fcm['failures'];
         String? detail;
@@ -63,20 +75,24 @@ class FcmEdgeFunctionNotificationSender {
           final first = failures.first;
           if (first is Map && first['detail'] != null) {
             detail = first['detail'].toString();
+            if (detail.length > 280) {
+              detail = '${detail.substring(0, 280)}…';
+            }
           }
         }
-        throw Exception(
-          detail == null || detail.isEmpty
-              ? 'FCM delivery failed for $failure/$attempted token(s).'
-              : 'FCM delivery failed for $failure/$attempted token(s): $detail',
-        );
+        final pushHint = detail == null || detail.isEmpty
+            ? '$failure of $attempted push token(s) failed (stale or invalid FCM tokens).'
+            : '$failure of $attempted push token(s) failed: $detail';
+        mergedNote = mergedNote == null || mergedNote.isEmpty
+            ? pushHint
+            : '$mergedNote $pushHint';
       }
 
       return FcmSendResult(
         attempted: attempted,
         success: success,
         failure: failure,
-        note: note,
+        note: mergedNote,
       );
     }
 
@@ -86,6 +102,30 @@ class FcmEdgeFunctionNotificationSender {
       failure: 0,
       note: note,
     );
+  }
+
+  Future<FcmSendResult> _invokeSendNotification(Map<String, dynamic> body) async {
+    try {
+      await client.auth.refreshSession();
+    } catch (_) {}
+
+    if (client.auth.currentSession == null) {
+      throw Exception('Sign in required to send notifications.');
+    }
+
+    // Do not pass a custom `Authorization` header. `functions.invoke` uses
+    // [AuthHttpClient], which sets `Authorization` via `putIfAbsent` only when
+    // missing — a manual Bearer token bypasses session refresh and causes
+    // 401 Invalid JWT after the access token expires (common on long-lived web tabs).
+    try {
+      final res = await client.functions.invoke(
+        'send-notification',
+        body: body,
+      );
+      return _parseFunctionResponse(res.status, res.data);
+    } on FunctionException catch (e) {
+      return _parseFunctionResponse(e.status, e.details);
+    }
   }
 
   Future<FcmSendResult> sendOrderStatusPush({
@@ -98,15 +138,7 @@ class FcmEdgeFunctionNotificationSender {
     required String redirectValue,
     String? notificationId,
   }) async {
-    final baseUrl = env.supabaseFunctionsBaseUrl.trim();
-    if (baseUrl.isEmpty) {
-      return const FcmSendResult(attempted: 0, success: 0, failure: 0);
-    } // Not configured.
-
-    final accessToken = client.auth.currentSession?.accessToken;
-    final endpoint = Uri.parse('$baseUrl/send-notification');
-
-    final payload = <String, dynamic>{
+    return _invokeSendNotification({
       'action': 'order_status',
       'user_id': userId,
       'order_id': orderId,
@@ -117,19 +149,7 @@ class FcmEdgeFunctionNotificationSender {
       'redirect_value': redirectValue,
       if (notificationId != null && notificationId.trim().isNotEmpty)
         'notification_id': notificationId,
-    };
-
-    final res = await http.post(
-      endpoint,
-      headers: {
-        'Content-Type': 'application/json',
-        if (accessToken != null && accessToken.isNotEmpty)
-          'Authorization': 'Bearer $accessToken',
-      },
-      body: jsonEncode(payload),
-    );
-
-    return _parseOrThrow(res);
+    });
   }
 
   Future<FcmSendResult> sendUserNotification({
@@ -141,15 +161,7 @@ class FcmEdgeFunctionNotificationSender {
     required bool broadcast,
     String? userId,
   }) async {
-    final baseUrl = env.supabaseFunctionsBaseUrl.trim();
-    if (baseUrl.isEmpty) {
-      return const FcmSendResult(attempted: 0, success: 0, failure: 0);
-    }
-
-    final accessToken = client.auth.currentSession?.accessToken;
-    final endpoint = Uri.parse('$baseUrl/send-notification');
-
-    final payload = <String, dynamic>{
+    return _invokeSendNotification({
       'action': 'user_notification',
       'title': title,
       'message': message,
@@ -158,19 +170,7 @@ class FcmEdgeFunctionNotificationSender {
       'redirect_value': redirectValue,
       'broadcast': broadcast,
       if (!broadcast) 'user_id': userId ?? '',
-    };
-
-    final res = await http.post(
-      endpoint,
-      headers: {
-        'Content-Type': 'application/json',
-        if (accessToken != null && accessToken.isNotEmpty)
-          'Authorization': 'Bearer $accessToken',
-      },
-      body: jsonEncode(payload),
-    );
-
-    return _parseOrThrow(res);
+    });
   }
 }
 
@@ -178,7 +178,5 @@ class FcmEdgeFunctionNotificationSender {
 final fcmNotificationSenderProvider = Provider<FcmEdgeFunctionNotificationSender>(
   (ref) => FcmEdgeFunctionNotificationSender(
     client: ref.watch(supabaseClientProvider),
-    env: ref.watch(appEnvProvider),
   ),
 );
-

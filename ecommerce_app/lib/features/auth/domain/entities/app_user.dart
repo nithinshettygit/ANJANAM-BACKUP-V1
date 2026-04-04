@@ -10,5 +10,8 @@ class AppUser {
     this.fullName,
     this.avatarUrl,
   });
+
+  /// Lowercase UUID for Supabase `.eq` / Realtime filters (matches Edge inserts).
+  String get idForSupabase => id.trim().toLowerCase();
 }
 

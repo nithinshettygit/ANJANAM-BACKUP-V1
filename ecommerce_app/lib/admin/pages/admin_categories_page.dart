@@ -347,13 +347,16 @@ class _AdminCategoriesBodyState extends ConsumerState<_AdminCategoriesBody> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        const Text(
+          'Categories',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            const Text(
-              'Categories',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-            ),
-            const Spacer(),
             FilledButton.tonalIcon(
               onPressed: () {
                 ref.invalidate(adminCatalogCategoriesProvider);
@@ -361,7 +364,6 @@ class _AdminCategoriesBodyState extends ConsumerState<_AdminCategoriesBody> {
               icon: const Icon(Icons.refresh),
               label: const Text('Refresh'),
             ),
-            const SizedBox(width: 8),
             FilledButton.icon(
               onPressed: () => _openEditor(null),
               icon: const Icon(Icons.add_circle_outline),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import '../utils/admin_android_ui.dart';
 import '../providers/admin_providers.dart';
 import '../services/admin_service.dart';
 import '../widgets/admin_cached_image.dart';
@@ -44,100 +45,175 @@ class _AdminInventoryPageState extends ConsumerState<AdminInventoryPage> {
         final lowStock = filtered.where((p) => p.inventoryCount > 0 && p.inventoryCount < 10).length;
         final outOfStock = filtered.where((p) => p.inventoryCount <= 0).length;
 
+        final theme = Theme.of(context);
+        final compact = kAdminAndroidCompactChrome;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const Text(
-                  'Inventory',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                ),
-                const Spacer(),
-                const AdminDeliverySettingsButton(),
-                const SizedBox(width: 8),
-                FilledButton.tonalIcon(
-                  onPressed: () {
-                    ref.invalidate(adminInventoryProvider);
-                    ref.invalidate(adminDashboardProvider);
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh'),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final slug = await showAdminNewCategoryDialog(
-                      context: context,
-                      ref: ref,
-                    );
-                    if (!mounted) return;
-                    if (slug != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Category “$slug” created. You can assign it when adding items.')),
+            Text('Inventory', style: adminSectionTitleStyle(theme)),
+            SizedBox(height: adminChromeGapAfterTitle),
+            if (compact)
+              Row(
+                children: [
+                  AdminDeliverySettingsButton(compact: true),
+                  adminAndroidToolbarIconButton(
+                    icon: Icons.refresh,
+                    tooltip: 'Refresh',
+                    onPressed: () {
+                      ref.invalidate(adminInventoryProvider);
+                      ref.invalidate(adminDashboardProvider);
+                    },
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'More',
+                    icon: const Icon(Icons.more_horiz, size: 22),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    onSelected: (v) async {
+                      if (v == 'cat') {
+                        final slug = await showAdminNewCategoryDialog(
+                          context: context,
+                          ref: ref,
+                        );
+                        if (!mounted) return;
+                        if (slug != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Category “$slug” created. You can assign it when adding items.',
+                              ),
+                            ),
+                          );
+                        }
+                      } else if (v == 'add') {
+                        _openProductForm(context: context, product: null);
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      const PopupMenuItem<String>(
+                        value: 'cat',
+                        child: Text('New category'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'add',
+                        child: Text('Add inventory item'),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const AdminDeliverySettingsButton(),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      ref.invalidate(adminInventoryProvider);
+                      ref.invalidate(adminDashboardProvider);
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final slug = await showAdminNewCategoryDialog(
+                        context: context,
+                        ref: ref,
                       );
-                    }
-                  },
-                  icon: const Icon(Icons.create_new_folder_outlined),
-                  label: const Text('New category'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: () => _openProductForm(context: context, product: null),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Inventory Item'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+                      if (!mounted) return;
+                      if (slug != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Category “$slug” created. You can assign it when adding items.',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.create_new_folder_outlined),
+                    label: const Text('New category'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => _openProductForm(context: context, product: null),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Inventory Item'),
+                  ),
+                ],
+              ),
+            SizedBox(height: compact ? 6 : 12),
             Wrap(
-              spacing: 10,
-              runSpacing: 10,
+              spacing: compact ? 6 : 10,
+              runSpacing: compact ? 6 : 10,
               children: [
                 _InventoryAlertCard(
                   title: 'Low Stock Alert',
                   value: lowStock.toString(),
                   color: AppColors.warningAmber,
+                  compact: compact,
                 ),
                 _InventoryAlertCard(
                   title: 'Out of Stock Alert',
                   value: outOfStock.toString(),
                   color: AppColors.errorRed,
+                  compact: compact,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: adminChromeGapBeforeList),
             Card(
+              margin: compact ? EdgeInsets.zero : null,
               child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
+                padding: adminFilterCardPadding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(
-                      width: 280,
-                      child: TextField(
-                        onChanged: (v) => setState(() => _query = v),
-                        decoration: const InputDecoration(
-                          labelText: 'Search inventory',
-                          prefixIcon: Icon(Icons.search),
-                        ),
+                    TextField(
+                      onChanged: (v) => setState(() => _query = v),
+                      decoration: InputDecoration(
+                        labelText: 'Search inventory',
+                        prefixIcon: const Icon(Icons.search),
+                        isDense: compact,
+                        contentPadding: compact
+                            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+                            : null,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    if (_selectedIds.isNotEmpty)
-                      FilledButton.icon(
-                        onPressed: () => _bulkUpdateStock(filtered),
-                        icon: const Icon(Icons.edit_outlined),
-                        label: Text('Bulk stock update (${_selectedIds.length})'),
+                    if (_selectedIds.isNotEmpty) ...[
+                      SizedBox(height: compact ? 6 : 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: compact
+                            ? TextButton.icon(
+                                onPressed: () => _bulkUpdateStock(filtered),
+                                icon: const Icon(Icons.edit_outlined, size: 18),
+                                label: Text('Bulk stock (${_selectedIds.length})'),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              )
+                            : FilledButton.icon(
+                                onPressed: () => _bulkUpdateStock(filtered),
+                                icon: const Icon(Icons.edit_outlined),
+                                label: Text('Bulk stock update (${_selectedIds.length})'),
+                              ),
                       ),
+                    ],
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: adminChromeGapBeforeList),
             Expanded(
               child: AdminDataTable<AdminProduct>(
                 rows: filtered,
-                initialRowsPerPage: 5,
+                initialRowsPerPage: compact ? 10 : 5,
                 emptyMessage: 'No inventory items found',
                 columns: [
                   AdminTableColumn<AdminProduct>(
@@ -436,41 +512,54 @@ class _InventoryAlertCard extends StatelessWidget {
   final String title;
   final String value;
   final Color color;
+  final bool compact;
 
   const _InventoryAlertCard({
     required this.title,
     required this.value,
     required this.color,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 240,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: color.withOpacity(0.15),
-                child: Icon(Icons.warning_amber_rounded, color: color),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title),
-                  Text(
-                    value,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-                  ),
-                ],
-              ),
-            ],
-          ),
+    final pad = compact ? 8.0 : 12.0;
+    final avatarR = compact ? 16.0 : 20.0;
+    final iconS = compact ? 18.0 : 24.0;
+    final valueSize = compact ? 15.0 : 18.0;
+    final titleStyle = compact
+        ? Theme.of(context).textTheme.labelMedium
+        : Theme.of(context).textTheme.bodyMedium;
+
+    final inner = Card(
+      margin: compact ? EdgeInsets.zero : null,
+      child: Padding(
+        padding: EdgeInsets.all(pad),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: avatarR,
+              backgroundColor: color.withOpacity(0.15),
+              child: Icon(Icons.warning_amber_rounded, color: color, size: iconS),
+            ),
+            SizedBox(width: compact ? 8 : 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: titleStyle),
+                Text(
+                  value,
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: valueSize),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
+    if (compact) return inner;
+    return SizedBox(width: 240, child: inner);
   }
 }

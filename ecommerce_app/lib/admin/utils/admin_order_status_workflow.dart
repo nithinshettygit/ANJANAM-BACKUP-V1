@@ -27,9 +27,34 @@ class AdminOrderNextAction {
 }
 
 /// Valid next actions only (strict lifecycle).
-List<AdminOrderNextAction> adminOrderNextActions(String rawStatus) {
+///
+/// [paymentMethodRaw] is `cod` or `razorpay` from [AdminOrderRow.paymentMethod].
+List<AdminOrderNextAction> adminOrderNextActions(
+  String rawStatus, {
+  String paymentMethodRaw = '',
+}) {
+  final pm = paymentMethodRaw.trim().toLowerCase();
   switch (canonicalAdminOrderStatus(rawStatus)) {
     case 'pending_payment':
+      if (pm == 'cod') {
+        return const [
+          AdminOrderNextAction(
+            buttonLabel: 'Mark as Processing',
+            targetStatusTitleCase: 'Processing',
+            confirmationTitle: 'Mark as Processing',
+            confirmationBody:
+                'Cash on delivery: move this order to processing so you can pack and ship it.',
+          ),
+          AdminOrderNextAction(
+            buttonLabel: 'Cancel order',
+            targetStatusTitleCase: 'Cancelled',
+            confirmationTitle: 'Cancel order',
+            confirmationBody:
+                'Cancel this order before it is packed or shipped.',
+            destructive: true,
+          ),
+        ];
+      }
       return const [
         AdminOrderNextAction(
           buttonLabel: 'Mark as Processing',

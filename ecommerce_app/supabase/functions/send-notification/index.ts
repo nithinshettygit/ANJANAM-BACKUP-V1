@@ -18,6 +18,20 @@ function getAuthHeader(req: Request): string | null {
   return h;
 }
 
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function jsonRes(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+}
+
 function requireString(v: unknown, name: string): string {
   if (typeof v !== "string") {
     throw new Error(`Missing/invalid '${name}'.`);
@@ -25,6 +39,26 @@ function requireString(v: unknown, name: string): string {
   const s = v.trim();
   if (!s) throw new Error(`Missing/empty '${name}'.`);
   return s;
+}
+
+/** Lowercase UUID strings so device rows and notification inserts always match Map lookups. */
+function normUserId(v: unknown): string {
+  if (v == null) return "";
+  const s = typeof v === "string" ? v.trim() : String(v).trim();
+  return s.toLowerCase();
+}
+
+/** FCM data values must be strings; keep sizes reasonable. */
+function withFcmTextPayload(
+  base: Record<string, string>,
+  title: string,
+  message: string,
+): Record<string, string> {
+  return {
+    ...base,
+    title: (title || "").slice(0, 512),
+    message: (message || "").slice(0, 2048),
+  };
 }
 
 async function sendFcm({
@@ -65,9 +99,16 @@ async function sendFcm({
             title,
             body: message,
           },
-          data,
+          data: Object.fromEntries(
+            Object.entries(data).map(([k, v]) => [k, String(v ?? "")]),
+          ),
           android: {
             priority: "HIGH",
+            notification: {
+              // Must match Flutter [LocalNotificationService] channel id (Android 8+).
+              channel_id: "high_importance_channel",
+              sound: "default",
+            },
           },
         },
       }),
@@ -140,45 +181,65 @@ async function getFcmAccessToken(sa: ServiceAccount): Promise<string> {
 }
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
   try {
     if (req.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
+      return jsonRes(405, { error: "Method not allowed" });
     }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      return new Response(JSON.stringify({ error: "Missing secrets." }), { status: 500 });
+      return jsonRes(500, { error: "Missing secrets." });
     }
     const serviceAccount = getServiceAccountFromEnv();
     const fcmAccessToken = await getFcmAccessToken(serviceAccount);
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      global: { headers: { "Content-Type": "application/json" } },
-    });
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    if (!SUPABASE_ANON_KEY) {
+      return jsonRes(500, { error: "Missing SUPABASE_ANON_KEY (needed for JWT verification)." });
+    }
 
     const authHeader = getAuthHeader(req);
-    const accessToken = authHeader?.replace(/^Bearer\s+/i, "") ?? "";
-    if (!accessToken) {
-      return new Response(JSON.stringify({ error: "Missing Authorization header." }), { status: 401 });
+    if (!authHeader?.trim()) {
+      return jsonRes(401, { error: "Missing Authorization header." });
     }
 
-    // Verify requester.
-    const { data: authUser, error: authErr } = await supabase.auth.getUser(accessToken);
-    if (authErr || !authUser?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized." }), { status: 401 });
+    // Anon client + forwarded Authorization header (Supabase Edge pattern).
+    // service_role + auth.getUser(jwt) often returns 401 for user access tokens
+    // (e.g. publishable key / ES256 sessions from supabase-flutter).
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+          apikey: SUPABASE_ANON_KEY,
+        },
+      },
+    });
+    const { data: userData, error: authErr } = await supabaseAuth.auth.getUser();
+    if (authErr || !userData?.user) {
+      return jsonRes(401, {
+        error: "Unauthorized.",
+        detail: authErr?.message ?? "getUser_failed",
+      });
     }
-    const requesterId = authUser.user.id;
+    const requesterId = userData.user.id;
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      global: { headers: { "Content-Type": "application/json" } },
+    });
 
     const body: Json = await req.json();
     const action = requireString(body["action"], "action").toLowerCase();
 
-    const { data: isAdminData, error: isAdminErr } = await supabase.rpc("is_admin", { uid: requesterId });
+    const { data: isAdminData, error: isAdminErr } = await supabaseAdmin.rpc("is_admin", { uid: requesterId });
     const isAdmin = !isAdminErr && Boolean(isAdminData);
 
     if (action === "user_notification") {
       if (!isAdmin) {
-        return new Response(JSON.stringify({ error: "Admin only." }), { status: 403 });
+        return jsonRes(403, { error: "Admin only." });
       }
 
       const title = requireString(body["title"], "title");
@@ -194,15 +255,15 @@ serve(async (req) => {
 
       if (broadcast) {
         // Build token map first; push is only possible for users with tokens.
-        const { data: devices, error: devErr } = await supabase
+        const { data: devices, error: devErr } = await supabaseAdmin
           .from("user_devices")
           .select("user_id,fcm_token");
         if (devErr) throw devErr;
 
         const userTokens = new Map<string, string[]>();
         for (const d of devices ?? []) {
-          const u = (d as any).user_id?.toString();
-          const t = (d as any).fcm_token?.toString();
+          const u = normUserId((d as any).user_id);
+          const t = (d as any).fcm_token?.toString()?.trim();
           if (!u || !t) continue;
           const prev = userTokens.get(u) ?? [];
           prev.push(t);
@@ -211,14 +272,14 @@ serve(async (req) => {
 
         // Broadcast should still save in-app notifications for all known users,
         // even when some/all users have no registered device token.
-        const { data: profiles, error: profilesErr } = await supabase
+        const { data: profiles, error: profilesErr } = await supabaseAdmin
           .from("profiles")
           .select("id");
         if (profilesErr) throw profilesErr;
 
         const allUserIds = new Set<string>();
         for (const p of profiles ?? []) {
-          const uid = (p as any).id?.toString();
+          const uid = normUserId((p as any).id);
           if (uid) allUserIds.add(uid);
         }
         for (const uid of userTokens.keys()) {
@@ -227,13 +288,11 @@ serve(async (req) => {
 
         const userIds = [...allUserIds];
         if (userIds.length === 0) {
-          return new Response(
-            JSON.stringify({
-              ok: true,
-              fcm: { attempted: 0, success: 0, failure: 0, failures: [] },
-              note: "No users found to notify.",
-            }),
-          );
+          return jsonRes(200, {
+            ok: true,
+            fcm: { attempted: 0, success: 0, failure: 0, failures: [] },
+            note: "No users found to notify.",
+          });
         }
 
         const insertRows = userIds.map((uid) => ({
@@ -248,7 +307,7 @@ serve(async (req) => {
           created_at: nowIso,
         }));
 
-        const { data: inserted, error: insErr } = await supabase
+        const { data: inserted, error: insErr } = await supabaseAdmin
           .from("user_notifications")
           .insert(insertRows)
           .select("id,user_id");
@@ -257,7 +316,7 @@ serve(async (req) => {
         const insertedByUser = new Map<string, string>();
         for (const r of inserted ?? []) {
           const id = (r as any).id?.toString();
-          const uid = (r as any).user_id?.toString();
+          const uid = normUserId((r as any).user_id);
           if (!id || !uid) continue;
           insertedByUser.set(uid, id);
         }
@@ -273,12 +332,16 @@ serve(async (req) => {
             registrationIds: tokens,
             title,
             message,
-            data: {
-              notification_id: notificationId,
-              kind,
-              redirect_type: redirectType,
-              redirect_value: redirectValue || "",
-            },
+            data: withFcmTextPayload(
+              {
+                notification_id: notificationId,
+                kind,
+                redirect_type: redirectType,
+                redirect_value: redirectValue || "",
+              },
+              title,
+              message,
+            ),
           });
           sendSummaries.push(summary);
         }
@@ -299,27 +362,29 @@ serve(async (req) => {
           ? `${usersWithoutTokens} user(s) had no device token; in-app notification saved.`
           : undefined;
 
-        return new Response(JSON.stringify({ ok: true, fcm: aggregate, note }));
+        return jsonRes(200, { ok: true, fcm: aggregate, note });
       }
 
       if (!targetUserId) {
-        return new Response(JSON.stringify({ error: "Missing user_id for target notification." }), { status: 400 });
+        return jsonRes(400, { error: "Missing user_id for target notification." });
       }
 
-      const { data: tokensRows } = await supabase
+      const targetNorm = normUserId(targetUserId);
+
+      const { data: tokensRows } = await supabaseAdmin
         .from("user_devices")
         .select("fcm_token")
-        .eq("user_id", targetUserId)
+        .eq("user_id", targetNorm)
         ;
 
       const tokens = (tokensRows ?? [])
         .map((r: any) => r.fcm_token?.toString())
         .filter((t: string | undefined) => !!t);
 
-      const { data: inserted, error: insErr } = await supabase
+      const { data: inserted, error: insErr } = await supabaseAdmin
         .from("user_notifications")
         .insert({
-          user_id: targetUserId,
+          user_id: targetNorm,
           kind,
           title,
           body: message,
@@ -334,16 +399,14 @@ serve(async (req) => {
       if (insErr) throw insErr;
 
       const notificationId = (inserted as any).id?.toString();
-      if (!notificationId) return new Response(JSON.stringify({ ok: true }));
+      if (!notificationId) return jsonRes(200, { ok: true });
 
       if (tokens.length === 0) {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            fcm: { attempted: 0, success: 0, failure: 0, failures: [] },
-            note: "Target user has no registered device token; in-app notification saved.",
-          }),
-        );
+        return jsonRes(200, {
+          ok: true,
+          fcm: { attempted: 0, success: 0, failure: 0, failures: [] },
+          note: "Target user has no registered device token; in-app notification saved.",
+        });
       }
 
       const summary = await sendFcm({
@@ -352,15 +415,19 @@ serve(async (req) => {
         registrationIds: tokens,
         title,
         message,
-        data: {
-          notification_id: notificationId,
-          kind,
-          redirect_type: redirectType,
-          redirect_value: redirectValue || "",
-        },
+        data: withFcmTextPayload(
+          {
+            notification_id: notificationId,
+            kind,
+            redirect_type: redirectType,
+            redirect_value: redirectValue || "",
+          },
+          title,
+          message,
+        ),
       });
 
-      return new Response(JSON.stringify({ ok: true, fcm: summary }));
+      return jsonRes(200, { ok: true, fcm: summary });
     }
 
     if (action === "order_status") {
@@ -375,26 +442,31 @@ serve(async (req) => {
       const notificationId = typeof notificationIdRaw === "string" ? notificationIdRaw.trim() : "";
 
       // Allow if requester is same user or admin.
-      if (!isAdmin && requesterId !== userId) {
-        return new Response(JSON.stringify({ error: "Unauthorized for this user." }), { status: 403 });
+      const userNorm = normUserId(userId);
+      if (!isAdmin && normUserId(requesterId) !== userNorm) {
+        return jsonRes(403, { error: "Unauthorized for this user." });
       }
 
-      const { data: tokensRows, error: tokErr } = await supabase
+      const { data: tokensRows, error: tokErr } = await supabaseAdmin
         .from("user_devices")
         .select("fcm_token")
-        .eq("user_id", userId);
+        .eq("user_id", userNorm);
       if (tokErr) throw tokErr;
 
       const tokens = (tokensRows ?? [])
         .map((r: any) => r.fcm_token?.toString())
         .filter((t: string | undefined) => !!t);
 
-      const data: Record<string, string> = {
-        kind,
-        order_id: orderId,
-        redirect_type: redirectType,
-        redirect_value: redirectValue,
-      };
+      const data: Record<string, string> = withFcmTextPayload(
+        {
+          kind,
+          order_id: orderId,
+          redirect_type: redirectType,
+          redirect_value: redirectValue,
+        },
+        title,
+        message,
+      );
       if (notificationId) data["notification_id"] = notificationId;
 
       const summary = await sendFcm({
@@ -406,13 +478,13 @@ serve(async (req) => {
         data,
       });
 
-      return new Response(JSON.stringify({ ok: true, fcm: summary }));
+      return jsonRes(200, { ok: true, fcm: summary });
     }
 
-    return new Response(JSON.stringify({ error: "Unknown action." }), { status: 400 });
+    return jsonRes(400, { error: "Unknown action." });
   } catch (e) {
     console.error(e);
-    return new Response(JSON.stringify({ error: "Failed.", detail: String(e) }), { status: 500 });
+    return jsonRes(500, { error: "Failed.", detail: String(e) });
   }
 });
 

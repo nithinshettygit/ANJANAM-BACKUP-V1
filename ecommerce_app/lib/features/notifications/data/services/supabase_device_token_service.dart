@@ -15,7 +15,8 @@ class SupabaseDeviceTokenService extends SupabaseServiceBase {
     required String deviceType,
   }) async {
     final token = fcmToken.trim();
-    final uid = userId.trim();
+    // Match Edge Function / Postgres UUID lookups (avoids mixed-case user_id mismatches).
+    final uid = userId.trim().toLowerCase();
     if (uid.isEmpty || token.isEmpty) return;
 
     try {

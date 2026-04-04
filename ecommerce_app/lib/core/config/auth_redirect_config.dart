@@ -4,20 +4,31 @@
 /// **Supabase checklist**
 /// - Site URL: e.g. `https://anjanam-app.web.app`
 /// - Redirect URLs must include:
-///   - `{your-web-origin}/auth-callback` (no literal `PORT`; use real ports for localhost)
-///   - `com.anjanam.app://login-callback` and `com.anjanam.app://login-callback/`
+///   - `{your-web-origin}/auth-callback` (signup / email confirm)
+///   - `{your-web-origin}/reset-password` (password reset from email)
+///   - `com.anjanam.app://login-callback` and `.../` (email confirm on APK)
+///   - `com.anjanam.app://reset-password` and `.../` (password reset on APK)
 ///
-/// For CI/web builds where `Uri.base` is wrong, set `--dart-define=SUPABASE_AUTH_REDIRECT_URL=https://.../auth-callback`.
+/// For CI/web builds where `Uri.base` is wrong, set `--dart-define=SUPABASE_AUTH_REDIRECT_URL=...` and
+/// `--dart-define=SUPABASE_PASSWORD_RESET_REDIRECT_URL=...`.
 abstract final class AuthRedirectConfig {
-  /// Path segment after origin for Flutter web (PathUrlStrategy). Router must handle this path.
+  /// Path for signup / email confirmation (PKCE callback).
   static const String webCallbackPath = '/auth-callback';
+
+  /// Path for “forgot password” email link — app routes here to set a new password (not home).
+  static const String webPasswordResetPath = '/reset-password';
 
   /// Custom URI scheme (matches typical reverse-DNS of `applicationId`).
   static const String androidScheme = 'com.anjanam.app';
 
-  /// Authority/host for the auth deep link (`scheme://host/...`).
+  /// Host for email-confirm deep links.
   static const String androidHost = 'login-callback';
 
-  /// Default `emailRedirectTo` / `redirectTo` on Android when `SUPABASE_AUTH_REDIRECT_URL` is unset.
+  /// Host for password-reset deep links.
+  static const String androidPasswordResetHost = 'reset-password';
+
   static String get androidRedirectUrl => '$androidScheme://$androidHost/';
+
+  static String get androidPasswordResetRedirectUrl =>
+      '$androidScheme://$androidPasswordResetHost/';
 }

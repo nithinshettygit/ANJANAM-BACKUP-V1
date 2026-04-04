@@ -7,8 +7,11 @@ import 'package:ecommerce_app/core/formatting/inr_format.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 
+import '../utils/admin_android_ui.dart';
+import '../../features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import '../providers/admin_providers.dart';
 import '../services/admin_service.dart';
+import '../utils/admin_order_status_push.dart';
 import '../utils/admin_order_status_workflow.dart';
 import '../widgets/admin_data_table.dart';
 import '../widgets/admin_state_view.dart';
@@ -76,19 +79,29 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
           return statusOk && dateOk;
         }).toList();
 
+        final theme = Theme.of(context);
+        final compact = kAdminAndroidCompactChrome;
+
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.only(bottom: compact ? 6 : 10),
               child: SearchBar(
                 controller: _searchCtrl,
-                hintText:
-                    'Search order id, customer, email, status, product title…',
-                leading: const Icon(Icons.search),
+                constraints: compact
+                    ? const BoxConstraints(minHeight: 40, maxHeight: 44)
+                    : null,
+                hintText: compact
+                    ? 'Search orders…'
+                    : 'Search order id, customer, email, status, product title…',
+                leading: const Icon(Icons.search, size: 22),
                 trailing: [
                   if (_searchCtrl.text.isNotEmpty)
                     IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: const Icon(Icons.clear, size: 22),
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      padding: EdgeInsets.zero,
                       onPressed: () {
                         _searchCtrl.clear();
                         _searchDebounce?.cancel();
@@ -108,13 +121,16 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
               ),
             ),
             Card(
+              margin: compact ? EdgeInsets.zero : null,
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: adminFilterCardPadding,
                 child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                  spacing: compact ? 6 : 10,
+                  runSpacing: compact ? 6 : 10,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     DropdownButton<String>(
+                      isDense: compact,
                       value: _kOrderStatusFilters.any((e) => e.$1 == _statusFilter)
                           ? _statusFilter
                           : 'all',
@@ -122,57 +138,106 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                           .map(
                             (e) => DropdownMenuItem<String>(
                               value: e.$1,
-                              child: Text('Status: ${e.$2}'),
+                              child: Text(
+                                compact ? e.$2 : 'Status: ${e.$2}',
+                              ),
                             ),
                           )
                           .toList(),
                       onChanged: (v) => setState(() => _statusFilter = v ?? 'all'),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final selected = await showDateRangePicker(
-                          context: context,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                          initialDateRange: _dateRange,
-                        );
-                        if (selected != null) {
-                          setState(() => _dateRange = selected);
-                        }
-                      },
-                      icon: const Icon(Icons.date_range_outlined),
-                      label: Text(
-                        _dateRange == null
-                            ? 'Date Range'
-                            : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
+                    if (compact)
+                      IconButton(
+                        tooltip: _dateRange == null
+                            ? 'Date range'
+                            : '${_dateRange!.start.toLocal().toString().split(' ').first} – '
                                 '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                        icon: Icon(
+                          Icons.date_range_outlined,
+                          color: _dateRange != null ? theme.colorScheme.primary : null,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        style: IconButton.styleFrom(
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () async {
+                          final selected = await showDateRangePicker(
+                            context: context,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                            initialDateRange: _dateRange,
+                          );
+                          if (selected != null) {
+                            setState(() => _dateRange = selected);
+                          }
+                        },
+                      )
+                    else
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final selected = await showDateRangePicker(
+                            context: context,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                            initialDateRange: _dateRange,
+                          );
+                          if (selected != null) {
+                            setState(() => _dateRange = selected);
+                          }
+                        },
+                        icon: const Icon(Icons.date_range_outlined),
+                        label: Text(
+                          _dateRange == null
+                              ? 'Date Range'
+                              : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
+                                  '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                        ),
                       ),
-                    ),
                     if (_dateRange != null)
                       TextButton(
+                        style: TextButton.styleFrom(
+                          visualDensity:
+                              compact ? VisualDensity.compact : VisualDensity.standard,
+                          padding: compact
+                              ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
+                              : null,
+                          tapTargetSize: compact
+                              ? MaterialTapTargetSize.shrinkWrap
+                              : null,
+                        ),
                         onPressed: () => setState(() => _dateRange = null),
-                        child: const Text('Clear Date'),
+                        child: Text(compact ? 'Clear' : 'Clear Date'),
                       ),
-                    FilledButton.tonalIcon(
-                      onPressed: () => ref.invalidate(adminOrdersProvider),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Refresh'),
-                    ),
+                    if (compact)
+                      adminAndroidToolbarIconButton(
+                        icon: Icons.refresh,
+                        tooltip: 'Refresh',
+                        onPressed: () => ref.invalidate(adminOrdersProvider),
+                      )
+                    else
+                      FilledButton.tonalIcon(
+                        onPressed: () => ref.invalidate(adminOrdersProvider),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Refresh'),
+                      ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: EdgeInsets.only(bottom: 6),
-                child: Text(
-                  'Tip: scroll horizontally to view all columns, including Actions.',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
+            SizedBox(height: adminChromeGapBeforeList),
+            if (!compact)
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'Tip: scroll horizontally to view all columns, including Actions.',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
                 ),
               ),
-            ),
             Expanded(
               child: AdminDataTable<AdminOrderRow>(
                 rows: filtered,
@@ -256,11 +321,14 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
 
   Widget _orderActionMenu(AdminOrderRow order) {
     final isUpdating = _updatingOrderIds.contains(order.id);
-    final actions = adminOrderNextActions(order.status);
+    final actions = adminOrderNextActions(
+      order.status,
+      paymentMethodRaw: order.paymentMethod,
+    );
     return PopupMenuButton<AdminOrderNextAction>(
       tooltip: 'Update order status',
       enabled: !isUpdating && actions.isNotEmpty,
-      onSelected: (a) => _applyOrderAction(order.id, a),
+      onSelected: (a) => _applyOrderAction(order, a),
       itemBuilder: (_) {
         if (actions.isEmpty) {
           return [
@@ -395,13 +463,17 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     );
   }
 
-  Future<void> _applyOrderAction(String orderId, AdminOrderNextAction action) async {
+  Future<void> _applyOrderAction(
+    AdminOrderRow order,
+    AdminOrderNextAction action,
+  ) async {
     final noteOutcome = await showAdminOrderStatusConfirmDialog(
       context,
       action: action,
     );
     if (!mounted || noteOutcome == null) return;
 
+    final orderId = order.id;
     setState(() => _updatingOrderIds.add(orderId));
     try {
       await ref.read(adminServiceProvider).updateOrderStatus(
@@ -409,6 +481,12 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
             status: action.targetStatusTitleCase,
             notes: noteOutcome.isEmpty ? null : noteOutcome,
           );
+      await trySendOrderStatusFcmForTarget(
+        ref.read(fcmNotificationSenderProvider),
+        userId: order.userId,
+        orderId: orderId,
+        targetStatusTitleCase: action.targetStatusTitleCase,
+      );
       ref.invalidate(adminOrdersProvider);
       ref.invalidate(adminDashboardProvider);
       ref.invalidate(adminOrderDetailsProvider(orderId));

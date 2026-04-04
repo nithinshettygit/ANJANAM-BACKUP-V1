@@ -63,7 +63,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
           .select(
             'id,title,body,kind,order_id,redirect_type,redirect_value,read_at,created_at',
           )
-          .eq('user_id', authUserId)
+          .eq('user_id', authUserId.trim().toLowerCase())
           .order('created_at', ascending: false)
           .range(offset, end);
       rows = (data as List).cast<Map<String, dynamic>>();
@@ -72,7 +72,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
       final data = await _client
           .from('user_notifications')
           .select('id,title,body,kind,order_id,read_at,created_at')
-          .eq('user_id', authUserId)
+          .eq('user_id', authUserId.trim().toLowerCase())
           .order('created_at', ascending: false)
           .range(offset, end);
       rows = (data as List).cast<Map<String, dynamic>>();
@@ -111,7 +111,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
     final rows = await _client
         .from('user_notifications')
         .select('id,read_at')
-        .eq('user_id', authUserId)
+        .eq('user_id', authUserId.trim().toLowerCase())
         .order('created_at', ascending: false)
         .range(0, 199);
 
@@ -135,7 +135,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
     }
 
     final page = await _fetchPage(
-      authUserId: authUser.id,
+      authUserId: authUser.idForSupabase,
       limit: _pageSize,
       offset: 0,
     );
@@ -157,7 +157,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
     }
 
     final page = await _fetchPage(
-      authUserId: authUser.id,
+      authUserId: authUser.idForSupabase,
       limit: _pageSize,
       offset: 0,
     );
@@ -184,7 +184,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
 
     try {
       final page = await _fetchPage(
-        authUserId: authUser.id,
+        authUserId: authUser.idForSupabase,
         limit: _pageSize,
         offset: current.notifications.length,
       );
@@ -251,7 +251,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
   Future<int> unreadCountApprox() async {
     final auth = ref.read(authSessionProvider).value;
     if (auth == null) return 0;
-    return _fetchUnreadCountApprox(authUserId: auth.id);
+    return _fetchUnreadCountApprox(authUserId: auth.idForSupabase);
   }
 }
 

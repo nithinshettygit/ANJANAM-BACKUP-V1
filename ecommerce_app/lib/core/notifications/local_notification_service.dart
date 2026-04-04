@@ -32,6 +32,9 @@ class LocalNotificationService {
       ),
     );
 
+    // Android 13+: required to show heads-up / tray from foreground FCM handling.
+    await android?.requestNotificationsPermission();
+
     _initialized = true;
   }
 

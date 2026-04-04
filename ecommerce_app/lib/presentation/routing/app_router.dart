@@ -20,9 +20,12 @@ import '../pages/order_history_page.dart';
 import '../pages/order_success_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/notifications_page.dart';
+import '../pages/catalog_page.dart';
 import '../pages/product_details_page.dart';
 import '../../features/search/pages/product_search_page.dart';
+import '../pages/email_confirmation_callback_page.dart';
 import '../pages/signup_page.dart';
+import '../pages/update_password_page.dart';
 import '../pages/videos_page.dart';
 import '../pages/wishlist_page.dart';
 import '../pages/write_review_page.dart';
@@ -95,9 +98,11 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const LoginPage());
       case '/signup':
         return MaterialPageRoute(builder: (_) => const SignupPage());
-      // Web email confirm / password recovery (PathUrlStrategy); SupabaseAuth handles session from URI on load.
+      // Email confirmation (PKCE on web). SupabaseAuth establishes session from URI on load.
       case AuthRedirectConfig.webCallbackPath:
-        return _customerRoute(const MainShell());
+        return _customerRoute(const EmailConfirmationCallbackPage());
+      case AuthRedirectConfig.webPasswordResetPath:
+        return MaterialPageRoute(builder: (_) => const UpdatePasswordPage());
       case '/profile':
         return _authCustomerRoute(const ProfilePage());
       case '/customer-details':
@@ -203,6 +208,42 @@ class AppRouter {
         );
       case '/notifications':
         return _customerRoute(const NotificationsPage());
+      case '/catalog/browse':
+        final browseArgs = settings.arguments;
+        if (browseArgs is Map) {
+          final mode = browseArgs['mode']?.toString() ?? 'all';
+          switch (mode) {
+            case 'home_popular':
+              return _customerRoute(
+                const CatalogPage(
+                  title: 'Popular Products',
+                  popularOnly: true,
+                ),
+              );
+            case 'home_recommended':
+              return _customerRoute(
+                const CatalogPage(
+                  title: 'Recommended For You',
+                  recommendedOnly: true,
+                ),
+              );
+            case 'home_festival':
+              return _customerRoute(
+                const CatalogPage(
+                  title: 'Festival Specials',
+                  festivalSpecialOnly: true,
+                ),
+              );
+            case 'home_new_arrivals':
+              return _customerRoute(
+                const CatalogPage(title: 'New Arrivals'),
+              );
+            case 'all':
+            default:
+              return _customerRoute(const CatalogPage());
+          }
+        }
+        return _customerRoute(const CatalogPage());
       case '/catalog/details':
         final productId = settings.arguments;
         if (productId is String && productId.isNotEmpty) {

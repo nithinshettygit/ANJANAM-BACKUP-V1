@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'local_notification_service.dart';
 import 'notification_navigation.dart';
+import 'notification_tap_navigator.dart';
 
 /// Routes incoming FCM messages into:
 /// - foreground in-app banner
@@ -60,63 +61,15 @@ class NotificationMessageRouter {
     await _markAsReadFromMessage(message);
     onNotificationsChanged?.call();
 
-    final data = message.data;
-    final redirectTypeRaw = data['redirect_type']?.toString().trim().toLowerCase();
-    final redirectValue = data['redirect_value']?.toString().trim();
-
-    // Order notifications: fall back to order_id if redirect info missing.
-    final orderId = data['order_id']?.toString().trim();
-    final kind = data['kind']?.toString().trim().toLowerCase();
-
-    final resolvedRedirectType = (redirectTypeRaw?.isEmpty ?? true)
-        ? (orderId != null && orderId.isNotEmpty ? 'order' : 'none')
-        : redirectTypeRaw!;
-
-    if (resolvedRedirectType == 'order' && (orderId?.isNotEmpty ?? false)) {
-      notificationNavigatorKey.currentState?.pushNamed(
-        '/order-details',
-        arguments: orderId,
-      );
-      return;
-    }
-
-    if (resolvedRedirectType == 'product') {
-      // ProductDetailsPage expects '/catalog/details' with productId as argument.
-      if (redirectValue == null || redirectValue.isEmpty) return;
-      notificationNavigatorKey.currentState?.pushNamed(
-        '/catalog/details',
-        arguments: redirectValue,
-      );
-      return;
-    }
-
-    if (resolvedRedirectType == 'category') {
-      // CatalogPage category-filtering uses `/products?category=<slug>`.
-      if (redirectValue == null || redirectValue.isEmpty) return;
-      notificationNavigatorKey.currentState?.pushNamed(
-        '/products?category=$redirectValue',
-      );
-      return;
-    }
-
-    // Announcements and fallbacks open Notifications history.
-    if (resolvedRedirectType == 'announcement' ||
-        resolvedRedirectType == 'promotion' ||
-        resolvedRedirectType == 'none') {
-      notificationNavigatorKey.currentState?.pushNamed('/notifications');
-      return;
-    }
-
-    // Unknown redirect types: try notifications page.
-    if (kind == 'order_status' && (orderId?.isNotEmpty ?? false)) {
-      notificationNavigatorKey.currentState?.pushNamed(
-        '/order-details',
-        arguments: orderId,
-      );
-      return;
-    }
-
-    notificationNavigatorKey.currentState?.pushNamed('/notifications');
+    final nav = notificationNavigatorKey.currentState;
+    final title = message.notification?.title;
+    final body = message.notification?.body;
+    await NotificationTapNavigator.handlePushData(
+      nav,
+      data: Map<String, dynamic>.from(message.data),
+      titleFallback: title,
+      bodyFallback: body,
+    );
   }
 
   static Future<void> onInitialMessageIfAny() async {

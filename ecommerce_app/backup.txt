@@ -93,9 +93,11 @@ C5. Authentication (match your Flutter app)
     - Site URL: e.g. https://anjanam-app.web.app
     - Redirect URLs (must match app config — see lib/core/config/auth_redirect_config.dart):
         - https://anjanam-app.web.app/auth-callback
-        - http://localhost:<actual-port>/auth-callback  (per dev machine; do not use literal PORT)
-        - com.anjanam.app://login-callback
-        - com.anjanam.app://login-callback/
+        - https://anjanam-app.web.app/reset-password
+        - http://localhost:<actual-port>/auth-callback
+        - http://localhost:<actual-port>/reset-password
+        - com.anjanam.app://login-callback and .../
+        - com.anjanam.app://reset-password and .../
     - Re-enable “Confirm email” if you use it; reconfigure SMTP if custom.
 
 C6. Storage

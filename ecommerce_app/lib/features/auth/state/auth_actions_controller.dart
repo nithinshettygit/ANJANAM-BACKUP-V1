@@ -67,6 +67,20 @@ class AuthActionsController extends AsyncNotifier<void> {
     }
     state = const AsyncData(null);
   }
+
+  Future<void> updatePasswordFromRecoverySession({
+    required String newPassword,
+  }) async {
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(
+      () => _repo.updatePasswordFromRecoverySession(newPassword: newPassword),
+    );
+    if (result.hasError) {
+      state = AsyncError(result.error!, result.stackTrace!);
+      throw result.error!;
+    }
+    state = const AsyncData(null);
+  }
 }
 
 final authActionsProvider =

@@ -6,10 +6,14 @@ import '../domain/entities/app_user.dart';
 import '../domain/repositories/auth_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => SupabaseAuthService(
-    ref.watch(supabaseClientProvider),
-    authEmailRedirectUrl: ref.watch(appEnvProvider).resolvedAuthEmailRedirectUrl,
-  ),
+  (ref) {
+    final env = ref.watch(appEnvProvider);
+    return SupabaseAuthService(
+      ref.watch(supabaseClientProvider),
+      authEmailRedirectUrl: env.resolvedAuthEmailRedirectUrl,
+      passwordResetRedirectUrl: env.resolvedPasswordResetRedirectUrl,
+    );
+  },
 );
 
 /// Emits `null` when signed out, and `AppUser` when signed in.

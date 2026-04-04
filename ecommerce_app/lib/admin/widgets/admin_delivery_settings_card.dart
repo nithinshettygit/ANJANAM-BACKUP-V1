@@ -7,11 +7,26 @@ import '../providers/admin_providers.dart';
 import '../services/admin_service.dart';
 
 /// Compact control that opens a dialog to edit checkout delivery rules ([store_settings]).
+///
+/// Set [compact] to true on Android admin only — web keeps the default outlined button.
 class AdminDeliverySettingsButton extends ConsumerWidget {
-  const AdminDeliverySettingsButton({super.key});
+  const AdminDeliverySettingsButton({super.key, this.compact = false});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (compact) {
+      return IconButton(
+        tooltip: 'Delivery charge & free-delivery threshold',
+        icon: const Icon(Icons.local_shipping_outlined, size: 22),
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.all(4),
+        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+        style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+        onPressed: () => _showDialog(context, ref),
+      );
+    }
     return Tooltip(
       message: 'Store-wide delivery charge and free-delivery threshold',
       child: OutlinedButton.icon(

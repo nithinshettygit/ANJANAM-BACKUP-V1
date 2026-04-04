@@ -60,3 +60,7 @@ unused-files/
 
 # Firebase Android client config — restore from Firebase Console; do not commit
 android/app/google-services.json
+
+# Google Cloud service account keys (private keys) — never commit
+eco-muse*.json
+*.base64.txt

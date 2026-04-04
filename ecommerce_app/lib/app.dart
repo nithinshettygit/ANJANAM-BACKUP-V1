@@ -1,16 +1,18 @@
 import 'dart:async';
 
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/config/auth_redirect_config.dart';
 import 'core/theme/app_theme.dart';
 import 'core/notifications/notification_message_router.dart';
 import 'core/notifications/notification_navigation.dart';
 import 'features/catalog/state/product_list_providers.dart';
+import 'features/auth/domain/entities/app_user.dart';
 import 'features/auth/state/auth_session_provider.dart';
 import 'features/notifications/data/services/supabase_device_token_service.dart';
 import 'features/notifications/state/notifications_controller.dart';
@@ -31,11 +33,56 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
   bool _authListenAttached = false;
   RealtimeChannel? _notificationsChannel;
   String? _notificationsChannelUserId;
+  StreamSubscription<AuthState>? _passwordRecoverySub;
+  StreamSubscription<Uri?>? _emailConfirmLinkSub;
+
+  bool _isAndroidEmailConfirmDeepLink(Uri uri) {
+    return uri.scheme == AuthRedirectConfig.androidScheme &&
+        uri.host == AuthRedirectConfig.androidHost;
+  }
+
+  void _navigateToEmailConfirmCallback() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final nav = notificationNavigatorKey.currentState;
+      if (nav == null || !nav.mounted) return;
+      nav.pushNamedAndRemoveUntil(
+        AuthRedirectConfig.webCallbackPath,
+        (_) => false,
+      );
+    });
+  }
+
+  void _listenAndroidEmailConfirmLinks() {
+    if (kIsWeb) return;
+    final appLinks = AppLinks();
+    void handleUri(Uri? uri) {
+      if (uri != null && _isAndroidEmailConfirmDeepLink(uri)) {
+        _navigateToEmailConfirmCallback();
+      }
+    }
+
+    _emailConfirmLinkSub = appLinks.uriLinkStream.listen(handleUri);
+    unawaited(appLinks.getInitialLink().then(handleUri));
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    _listenAndroidEmailConfirmLinks();
+
+    _passwordRecoverySub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (data.event != AuthChangeEvent.passwordRecovery) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final nav = notificationNavigatorKey.currentState;
+        if (nav == null || !nav.mounted) return;
+        nav.pushNamedAndRemoveUntil(
+          AuthRedirectConfig.webPasswordResetPath,
+          (route) => false,
+        );
+      });
+    });
 
     NotificationMessageRouter.onNotificationsChanged = _refreshNotificationUi;
 
@@ -55,19 +102,19 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     _authListenAttached = true;
 
     // Sync FCM token whenever user signs in.
-    ref.listenManual<AsyncValue<dynamic>>(authSessionProvider, (previous, next) {
+    ref.listenManual<AsyncValue<AppUser?>>(authSessionProvider, (previous, next) {
       final user = next.asData?.value;
       if (user == null) {
         _stopNotificationsRealtime();
         return;
       }
-      _startNotificationsRealtime(user.id);
+      _startNotificationsRealtime(user.idForSupabase);
       final token = _fcmToken;
       if (token == null || token.isEmpty) return;
 
       unawaited(
         _saveDeviceTokenToSupabase(
-          userId: user.id,
+          userId: user.idForSupabase,
           token: token,
         ),
       );
@@ -76,6 +123,8 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
 
   @override
   void dispose() {
+    _emailConfirmLinkSub?.cancel();
+    _passwordRecoverySub?.cancel();
     _stopNotificationsRealtime();
     NotificationMessageRouter.onNotificationsChanged = null;
     WidgetsBinding.instance.removeObserver(this);
@@ -154,18 +203,17 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     _fcmBootstrapped = true;
     if (kIsWeb) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    const permissionKey = 'fcm_permission_requested';
-
     try {
-      final alreadyRequested = prefs.getBool(permissionKey) ?? false;
-      if (!alreadyRequested) {
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      final auth = settings.authorizationStatus;
+      if (auth == AuthorizationStatus.notDetermined ||
+          auth == AuthorizationStatus.denied ||
+          auth == AuthorizationStatus.provisional) {
         await FirebaseMessaging.instance.requestPermission(
           alert: true,
           badge: true,
           sound: true,
         );
-        await prefs.setBool(permissionKey, true);
       }
     } catch (_) {
       // Permission failures should not break app startup.
@@ -174,6 +222,11 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     try {
       final token = await FirebaseMessaging.instance.getToken();
       _fcmToken = token;
+      if (kDebugMode && (token == null || token.isEmpty)) {
+        debugPrint(
+          'FCM: getToken() is empty. Notifications cannot work until Firebase returns a token.',
+        );
+      }
     } catch (_) {
       _fcmToken = null;
     }
@@ -185,7 +238,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
       if (user == null) return;
       unawaited(
         _saveDeviceTokenToSupabase(
-          userId: user.id,
+          userId: user.idForSupabase,
           token: newToken,
         ),
       );
@@ -195,7 +248,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     try {
       final user = ref.read(authSessionProvider).asData?.value;
       if (user != null && _fcmToken != null && _fcmToken!.isNotEmpty) {
-        await _saveDeviceTokenToSupabase(userId: user.id, token: _fcmToken!);
+        await _saveDeviceTokenToSupabase(userId: user.idForSupabase, token: _fcmToken!);
       }
     } catch (_) {
       // Best-effort.

@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
 
+import '../utils/admin_android_ui.dart';
 import '../providers/admin_providers.dart';
 import '../services/admin_service.dart';
 import '../widgets/admin_cached_image.dart';
@@ -83,117 +84,282 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
           }
         });
 
+        final compact = kAdminAndroidCompactChrome;
+        final theme = Theme.of(context);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const Text(
-                  'Products',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                ),
-                const Spacer(),
-                if (_selectedIds.isNotEmpty) ...[
-                  OutlinedButton.icon(
-                    onPressed: () => _bulkUpdateCategory(context, products),
-                    icon: const Icon(Icons.category_outlined),
-                    label: Text('Update Category (${_selectedIds.length})'),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => _bulkDelete(context, products),
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    label: Text('Delete Selected (${_selectedIds.length})'),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                const AdminDeliverySettingsButton(),
-                const SizedBox(width: 8),
-                FilledButton.tonalIcon(
-                  onPressed: () {
-                    ref.invalidate(adminProductsProvider);
-                    ref.invalidate(adminDashboardProvider);
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: () => _openProductForm(context: context, product: null),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Product'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 250,
-                      child: TextField(
-                        controller: _searchCtrl,
-                        onChanged: (v) => setState(() {
-                          _query = v;
-                        }),
-                        decoration: const InputDecoration(
-                          labelText: 'Search products',
-                          prefixIcon: Icon(Icons.search),
-                        ),
-                      ),
+            Text('Products', style: adminSectionTitleStyle(theme)),
+            SizedBox(height: adminChromeGapAfterTitle),
+            if (compact)
+              Row(
+                children: [
+                  if (_selectedIds.isNotEmpty) ...[
+                    adminAndroidToolbarIconButton(
+                      icon: Icons.category_outlined,
+                      tooltip: 'Update category (${_selectedIds.length})',
+                      onPressed: () => _bulkUpdateCategory(context, products),
                     ),
-                    DropdownButton<String>(
-                      value: _category,
-                      items: categories
-                          .map((c) => DropdownMenuItem(value: c, child: Text('Category: $c')))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v == null) return;
-                        setState(() {
-                          _category = v;
-                        });
-                      },
-                    ),
-                    DropdownButton<_StockFilter>(
-                      value: _stockFilter,
-                      items: const [
-                        DropdownMenuItem(value: _StockFilter.all, child: Text('Stock: All')),
-                        DropdownMenuItem(value: _StockFilter.inStock, child: Text('Stock: In Stock')),
-                        DropdownMenuItem(value: _StockFilter.lowStock, child: Text('Stock: Low')),
-                        DropdownMenuItem(value: _StockFilter.outOfStock, child: Text('Stock: Out of Stock')),
-                      ],
-                      onChanged: (v) {
-                        if (v == null) return;
-                        setState(() {
-                          _stockFilter = v;
-                        });
-                      },
-                    ),
-                    DropdownButton<String>(
-                      value: _sortBy,
-                      items: const [
-                        DropdownMenuItem(value: 'Date (Newest)', child: Text('Sort: Date (Newest)')),
-                        DropdownMenuItem(value: 'Date (Oldest)', child: Text('Sort: Date (Oldest)')),
-                        DropdownMenuItem(value: 'Price (Low to High)', child: Text('Sort: Price (Low to High)')),
-                        DropdownMenuItem(value: 'Price (High to Low)', child: Text('Sort: Price (High to Low)')),
-                      ],
-                      onChanged: (v) {
-                        if (v == null) return;
-                        setState(() {
-                          _sortBy = v;
-                        });
-                      },
+                    adminAndroidToolbarIconButton(
+                      icon: Icons.delete_outline,
+                      tooltip: 'Delete ${_selectedIds.length} selected',
+                      color: Colors.red,
+                      onPressed: () => _bulkDelete(context, products),
                     ),
                   ],
-                ),
+                  const AdminDeliverySettingsButton(compact: true),
+                  adminAndroidToolbarIconButton(
+                    icon: Icons.refresh,
+                    tooltip: 'Refresh',
+                    onPressed: () {
+                      ref.invalidate(adminProductsProvider);
+                      ref.invalidate(adminDashboardProvider);
+                    },
+                  ),
+                  adminAndroidToolbarIconButton(
+                    icon: Icons.add,
+                    tooltip: 'Add product',
+                    onPressed: () => _openProductForm(context: context, product: null),
+                  ),
+                ],
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (_selectedIds.isNotEmpty) ...[
+                    OutlinedButton.icon(
+                      onPressed: () => _bulkUpdateCategory(context, products),
+                      icon: const Icon(Icons.category_outlined),
+                      label: Text('Update Category (${_selectedIds.length})'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _bulkDelete(context, products),
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      label: Text('Delete Selected (${_selectedIds.length})'),
+                    ),
+                  ],
+                  const AdminDeliverySettingsButton(),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      ref.invalidate(adminProductsProvider);
+                      ref.invalidate(adminDashboardProvider);
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => _openProductForm(context: context, product: null),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Product'),
+                  ),
+                ],
+              ),
+            SizedBox(height: adminChromeGapBeforeList),
+            Card(
+              margin: compact ? EdgeInsets.zero : null,
+              child: Padding(
+                padding: adminFilterCardPadding,
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                            controller: _searchCtrl,
+                            onChanged: (v) => setState(() {
+                              _query = v;
+                            }),
+                            decoration: const InputDecoration(
+                              labelText: 'Search products',
+                              prefixIcon: Icon(Icons.search),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              DropdownButton<String>(
+                                isDense: true,
+                                value: _category,
+                                items: categories
+                                    .map(
+                                      (c) => DropdownMenuItem(
+                                        value: c,
+                                        child: Text('Cat: $c'),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() {
+                                    _category = v;
+                                  });
+                                },
+                              ),
+                              DropdownButton<_StockFilter>(
+                                isDense: true,
+                                value: _stockFilter,
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: _StockFilter.all,
+                                    child: Text('Stock: All'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _StockFilter.inStock,
+                                    child: Text('Stock: In'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _StockFilter.lowStock,
+                                    child: Text('Stock: Low'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _StockFilter.outOfStock,
+                                    child: Text('Stock: Out'),
+                                  ),
+                                ],
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() {
+                                    _stockFilter = v;
+                                  });
+                                },
+                              ),
+                              DropdownButton<String>(
+                                isDense: true,
+                                value: _sortBy,
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'Date (Newest)',
+                                    child: Text('Sort: Newest'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Date (Oldest)',
+                                    child: Text('Sort: Oldest'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Price (Low to High)',
+                                    child: Text('Sort: \$↑'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Price (High to Low)',
+                                    child: Text('Sort: \$↓'),
+                                  ),
+                                ],
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() {
+                                    _sortBy = v;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                    : Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 250,
+                            child: TextField(
+                              controller: _searchCtrl,
+                              onChanged: (v) => setState(() {
+                                _query = v;
+                              }),
+                              decoration: const InputDecoration(
+                                labelText: 'Search products',
+                                prefixIcon: Icon(Icons.search),
+                              ),
+                            ),
+                          ),
+                          DropdownButton<String>(
+                            value: _category,
+                            items: categories
+                                .map(
+                                  (c) => DropdownMenuItem(
+                                    value: c,
+                                    child: Text('Category: $c'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() {
+                                _category = v;
+                              });
+                            },
+                          ),
+                          DropdownButton<_StockFilter>(
+                            value: _stockFilter,
+                            items: const [
+                              DropdownMenuItem(
+                                value: _StockFilter.all,
+                                child: Text('Stock: All'),
+                              ),
+                              DropdownMenuItem(
+                                value: _StockFilter.inStock,
+                                child: Text('Stock: In Stock'),
+                              ),
+                              DropdownMenuItem(
+                                value: _StockFilter.lowStock,
+                                child: Text('Stock: Low'),
+                              ),
+                              DropdownMenuItem(
+                                value: _StockFilter.outOfStock,
+                                child: Text('Stock: Out of Stock'),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() {
+                                _stockFilter = v;
+                              });
+                            },
+                          ),
+                          DropdownButton<String>(
+                            value: _sortBy,
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Date (Newest)',
+                                child: Text('Sort: Date (Newest)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Date (Oldest)',
+                                child: Text('Sort: Date (Oldest)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Price (Low to High)',
+                                child: Text('Sort: Price (Low to High)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Price (High to Low)',
+                                child: Text('Sort: Price (High to Low)'),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() {
+                                _sortBy = v;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: adminChromeGapBeforeList),
             Expanded(
               child: AdminDataTable<AdminProduct>(
                 rows: filtered,

@@ -2,7 +2,7 @@ import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:flutter/material.dart';
 
 /// Where the auth error was surfaced (affects titles and secondary actions).
-enum AuthIssueFlow { login, signup, signOut }
+enum AuthIssueFlow { login, signup, signOut, passwordReset }
 
 /// Presents authentication failures in a clear dialog with retry and optional navigation.
 Future<void> presentAuthIssue(
@@ -60,6 +60,7 @@ Future<void> presentAuthIssue(
 
 bool _showRetry(AuthFailureKind kind, AuthIssueFlow flow) {
   if (flow == AuthIssueFlow.signOut) return true;
+  if (flow == AuthIssueFlow.passwordReset) return true;
   if (kind == AuthFailureKind.emailNotConfirmed) return true;
   if (kind == AuthFailureKind.accountExists && flow == AuthIssueFlow.signup) {
     return false;
@@ -69,6 +70,7 @@ bool _showRetry(AuthFailureKind kind, AuthIssueFlow flow) {
 
 String _retryLabel(AuthFailureKind kind, AuthIssueFlow flow) {
   if (flow == AuthIssueFlow.signOut) return 'Try again';
+  if (flow == AuthIssueFlow.passwordReset) return 'Try again';
   if (kind == AuthFailureKind.emailNotConfirmed) return 'Try again';
   return 'Try again';
 }
@@ -104,6 +106,19 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
           return 'Please wait';
         default:
           return 'Sign-in could not be completed';
+      }
+    case AuthIssueFlow.passwordReset:
+      switch (kind) {
+        case AuthFailureKind.weakPassword:
+          return 'Password requirements';
+        case AuthFailureKind.sessionExpired:
+          return 'Session ended';
+        case AuthFailureKind.network:
+          return 'Connection problem';
+        case AuthFailureKind.rateLimited:
+          return 'Please wait';
+        default:
+          return 'Could not update password';
       }
   }
 }
@@ -148,5 +163,10 @@ _Secondary? _secondaryFor(
       return null;
     case AuthIssueFlow.signOut:
       return null;
+    case AuthIssueFlow.passwordReset:
+      return _Secondary(
+        label: 'Back to sign in',
+        onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
+      );
   }
 }

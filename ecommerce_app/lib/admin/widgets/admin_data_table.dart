@@ -3,6 +3,167 @@ import 'package:flutter/gestures.dart';
 
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 
+/// Fixed-height horizontal scroll track under the table (always visible when scrollable).
+/// Synced to [controller]; brand saffron thumb on a light orange track.
+class _AdminBottomHorizontalScrollbar extends StatefulWidget {
+  const _AdminBottomHorizontalScrollbar({required this.controller});
+
+  final ScrollController controller;
+
+  @override
+  State<_AdminBottomHorizontalScrollbar> createState() =>
+      _AdminBottomHorizontalScrollbarState();
+}
+
+class _AdminBottomHorizontalScrollbarState extends State<_AdminBottomHorizontalScrollbar> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdminBottomHorizontalScrollbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onScroll);
+      widget.controller.addListener(_onScroll);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const barHeight = 16.0;
+    const trackRadius = 8.0;
+    final trackBg = AppColors.brandSaffron.withValues(alpha: 0.22);
+    final thumbColor = AppColors.brandSaffron;
+    final borderColor = AppColors.brandSaffronDeep.withValues(alpha: 0.35);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final controller = widget.controller;
+        if (!controller.hasClients) {
+          return SizedBox(
+            height: barHeight,
+            width: constraints.maxWidth,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: trackBg,
+                borderRadius: BorderRadius.circular(trackRadius),
+                border: Border.all(color: borderColor, width: 1),
+              ),
+            ),
+          );
+        }
+
+        final position = controller.position;
+        if (!position.hasContentDimensions) {
+          return SizedBox(height: barHeight, width: constraints.maxWidth);
+        }
+
+        final maxExtent = position.maxScrollExtent;
+        final width = constraints.maxWidth;
+        if (maxExtent <= 0 || !width.isFinite || width <= 0) {
+          return SizedBox(
+            height: barHeight,
+            width: width,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: trackBg,
+                borderRadius: BorderRadius.circular(trackRadius),
+                border: Border.all(color: borderColor, width: 1),
+              ),
+            ),
+          );
+        }
+
+        final contentExtent = maxExtent + position.viewportDimension;
+        final minThumb = 40.0;
+        final thumbW = ((position.viewportDimension / contentExtent) * width).clamp(minThumb, width);
+        final maxThumbTravel = (width - thumbW).clamp(0.0, double.infinity);
+        final thumbLeft = maxThumbTravel > 0
+            ? (position.pixels / maxExtent) * maxThumbTravel
+            : 0.0;
+
+        void jumpScrollToLocalX(double localX) {
+          if (maxThumbTravel <= 0) return;
+          final clamped = localX.clamp(0.0, width);
+          var targetLeft = clamped - thumbW / 2;
+          targetLeft = targetLeft.clamp(0.0, maxThumbTravel);
+          final targetPixels = (targetLeft / maxThumbTravel) * maxExtent;
+          controller.jumpTo(targetPixels.clamp(0.0, maxExtent));
+        }
+
+        return Semantics(
+          label: 'Scroll table horizontally',
+          child: SizedBox(
+            height: barHeight,
+            width: width,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => jumpScrollToLocalX(d.localPosition.dx),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: trackBg,
+                  borderRadius: BorderRadius.circular(trackRadius),
+                  border: Border.all(color: borderColor, width: 1),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      left: thumbLeft,
+                      top: 3,
+                      bottom: 3,
+                      width: thumbW,
+                      child: GestureDetector(
+                        onHorizontalDragUpdate: (details) {
+                          if (!controller.hasClients || maxThumbTravel <= 0) return;
+                          final pos = controller.position;
+                          final me = pos.maxScrollExtent;
+                          if (me <= 0) return;
+                          final deltaScroll = details.delta.dx * me / maxThumbTravel;
+                          controller.jumpTo((pos.pixels + deltaScroll).clamp(0.0, me));
+                        },
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: thumbColor,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.brandSaffronPressed.withValues(alpha: 0.45),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class AdminTableColumn<T> {
   final String label;
   final Widget Function(T row) cellBuilder;
@@ -116,20 +277,12 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                 child: SingleChildScrollView(
                   controller: _verticalController,
                   scrollDirection: Axis.vertical,
-                  child: Scrollbar(
+                  child: SingleChildScrollView(
                     controller: _horizontalController,
-                    thumbVisibility: true,
-                    trackVisibility: true,
-                    interactive: true,
-                    thickness: 12,
-                    radius: const Radius.circular(8),
-                    notificationPredicate: (notification) => notification.depth == 1,
-                    child: SingleChildScrollView(
-                      controller: _horizontalController,
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(minWidth: widget.minTableWidth),
-                        child: DataTable(
+                    scrollDirection: Axis.horizontal,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minWidth: widget.minTableWidth),
+                      child: DataTable(
                         headingRowColor:
                             WidgetStateProperty.all(AppColors.deepGold.withOpacity(0.08)),
                         sortColumnIndex: _sortColumnIndex,
@@ -159,46 +312,90 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                               ),
                             )
                             .toList(),
-                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: _AdminBottomHorizontalScrollbar(controller: _horizontalController),
+            ),
             const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Text('Rows: $start-${end == 0 ? 0 : end} of ${sortedRows.length}'),
-                  const Spacer(),
-                  DropdownButton<int>(
-                    value: _rowsPerPage,
-                    items: const [
-                      DropdownMenuItem(value: 5, child: Text('5 / page')),
-                      DropdownMenuItem(value: 10, child: Text('10 / page')),
-                      DropdownMenuItem(value: 20, child: Text('20 / page')),
-                      DropdownMenuItem(value: 50, child: Text('50 / page')),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final controls = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButton<int>(
+                        value: _rowsPerPage,
+                        isDense: true,
+                        items: const [
+                          DropdownMenuItem(value: 5, child: Text('5 / page')),
+                          DropdownMenuItem(value: 10, child: Text('10 / page')),
+                          DropdownMenuItem(value: 20, child: Text('20 / page')),
+                          DropdownMenuItem(value: 50, child: Text('50 / page')),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _rowsPerPage = value;
+                            _page = 0;
+                          });
+                        },
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                        onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      Text('Page ${_page + 1}/$totalPages'),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                        onPressed:
+                            _page < totalPages - 1 ? () => setState(() => _page += 1) : null,
+                        icon: const Icon(Icons.chevron_right),
+                      ),
                     ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _rowsPerPage = value;
-                        _page = 0;
-                      });
-                    },
-                  ),
-                  IconButton(
-                    onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Text('Page ${_page + 1}/$totalPages'),
-                  IconButton(
-                    onPressed: _page < totalPages - 1 ? () => setState(() => _page += 1) : null,
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
+                  );
+
+                  final summary = Text(
+                    'Rows: $start-${end == 0 ? 0 : end} of ${sortedRows.length}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  );
+
+                  // Narrow widths: avoid Row+Spacer overflow; keep next/prev reachable via scroll.
+                  if (constraints.maxWidth < 520) {
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          summary,
+                          const SizedBox(width: 12),
+                          controls,
+                        ],
+                      ),
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Flexible(child: summary),
+                      const Spacer(),
+                      controls,
+                    ],
+                  );
+                },
               ),
             ),
           ],

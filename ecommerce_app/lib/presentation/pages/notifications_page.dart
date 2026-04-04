@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:ecommerce_app/core/notifications/notification_tap_navigator.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/notifications/state/app_notification.dart';
 import 'package:ecommerce_app/features/notifications/state/notifications_controller.dart';
@@ -44,55 +45,26 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   Future<void> _openNotificationTarget(AppNotification n) async {
     await ref.read(notificationsControllerProvider.notifier).markAsRead(n.id);
+    if (!mounted) return;
 
-    final redirectType = n.redirectType?.toString().trim().toLowerCase();
-    final redirectValue = n.redirectValue?.toString().trim();
+    final data = <String, dynamic>{
+      'notification_id': n.id,
+      'kind': n.kind,
+      'title': n.title,
+      'message': n.message,
+      'redirect_type': n.redirectType ?? '',
+      'redirect_value': n.redirectValue ?? '',
+      if (n.orderId != null && n.orderId!.isNotEmpty) 'order_id': n.orderId!,
+      'created_at': n.createdAt.toUtc().toIso8601String(),
+    };
 
-    // Order notifications are already keyed by `order_id`.
-    if ((redirectType == null || redirectType.isEmpty) && n.orderId != null) {
-      if (!mounted) return;
-      Navigator.of(context).pushNamed(
-        '/order-details',
-        arguments: n.orderId!,
-      );
-      return;
-    }
-
-    switch (redirectType) {
-      case 'order':
-        if (n.orderId != null) {
-          if (!mounted) return;
-          Navigator.of(context).pushNamed(
-            '/order-details',
-            arguments: n.orderId!,
-          );
-        }
-        return;
-      case 'product':
-        if (redirectValue != null && redirectValue.isNotEmpty) {
-          if (!mounted) return;
-          Navigator.of(context).pushNamed(
-            '/catalog/details',
-            arguments: redirectValue,
-          );
-        }
-        return;
-      case 'category':
-        if (redirectValue != null && redirectValue.isNotEmpty) {
-          if (!mounted) return;
-          Navigator.of(context).pushNamed(
-            '/products?category=$redirectValue',
-          );
-        }
-        return;
-      case 'announcement':
-      case 'promotion':
-      case 'none':
-      case null:
-      default:
-        if (!mounted) return;
-        Navigator.of(context).pushNamed('/notifications');
-    }
+    await NotificationTapNavigator.handlePushData(
+      Navigator.of(context),
+      data: data,
+      titleFallback: n.title,
+      bodyFallback: n.message,
+      createdAt: n.createdAt,
+    );
   }
 
   @override

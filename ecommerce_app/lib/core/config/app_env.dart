@@ -20,15 +20,21 @@ class AppEnv {
   /// Add the resolved URL to Supabase → Authentication → URL Configuration → Redirect URLs.
   final String authEmailRedirectUrl;
 
+  /// Optional override from `--dart-define=SUPABASE_PASSWORD_RESET_REDIRECT_URL=...`.
+  /// If empty, [resolvedPasswordResetRedirectUrl] uses web origin + [AuthRedirectConfig.webPasswordResetPath]
+  /// or [AuthRedirectConfig.androidPasswordResetRedirectUrl] on mobile.
+  final String authPasswordResetRedirectUrl;
+
   const AppEnv({
     required this.supabaseUrl,
     required this.supabaseAnonKey,
     this.supabaseFunctionsBaseUrl = '',
     this.razorpayKeyId = '',
     this.authEmailRedirectUrl = '',
+    this.authPasswordResetRedirectUrl = '',
   });
 
-  /// Used for `signUp` / `resetPasswordForEmail` so confirmation links never fall back to a stale Site URL.
+  /// Used for `signUp` (email confirmation / PKCE callback).
   String get resolvedAuthEmailRedirectUrl {
     final explicit = authEmailRedirectUrl.trim();
     if (explicit.isNotEmpty) return explicit;
@@ -39,6 +45,19 @@ class AppEnv {
       }
     }
     return AuthRedirectConfig.androidRedirectUrl;
+  }
+
+  /// Used for `resetPasswordForEmail` only — must open the set-new-password screen, not the storefront.
+  String get resolvedPasswordResetRedirectUrl {
+    final explicit = authPasswordResetRedirectUrl.trim();
+    if (explicit.isNotEmpty) return explicit;
+    if (kIsWeb) {
+      final origin = Uri.base.origin;
+      if (origin.isNotEmpty) {
+        return '$origin${AuthRedirectConfig.webPasswordResetPath}';
+      }
+    }
+    return AuthRedirectConfig.androidPasswordResetRedirectUrl;
   }
 
   /// Test mode: app may call `capture-razorpay-payment` after checkout. Live mode skips that (auto-capture).
@@ -54,6 +73,24 @@ class AppEnv {
     return v;
   }
 
+  /// Default `https://<ref>.supabase.co/functions/v1` when [explicitFromDefine] is empty.
+  /// `--dart-define` does not read shell environment variables; Chrome runs often omit
+  /// `SUPABASE_FUNCTIONS_BASE_URL` even when `SUPABASE_URL` is set.
+  static String resolvedFunctionsBaseUrl({
+    required String supabaseUrl,
+    required String explicitFromDefine,
+  }) {
+    final explicit = _cleanDefine(explicitFromDefine);
+    if (explicit.isNotEmpty) return explicit;
+    final u = Uri.tryParse(_cleanDefine(supabaseUrl));
+    if (u == null || !u.hasScheme || u.host.isEmpty) return '';
+    final host = u.host.toLowerCase();
+    if (!host.endsWith('.supabase.co')) return '';
+    final ref = host.split('.').first;
+    if (ref.isEmpty || ref == 'supabase') return '';
+    return '${u.scheme}://$ref.supabase.co/functions/v1';
+  }
+
   static AppEnv fromEnvironment() {
     const urlRaw = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
     const anonKeyRaw = String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
@@ -67,13 +104,21 @@ class AppEnv {
       'SUPABASE_AUTH_REDIRECT_URL',
       defaultValue: '',
     );
+    const passwordResetRedirectRaw = String.fromEnvironment(
+      'SUPABASE_PASSWORD_RESET_REDIRECT_URL',
+      defaultValue: '',
+    );
     final url = _cleanDefine(urlRaw);
     final anonKey = _cleanDefine(anonKeyRaw);
-    final functionsBaseUrl = _cleanDefine(functionsBaseUrlRaw);
+    final functionsBaseUrl = resolvedFunctionsBaseUrl(
+      supabaseUrl: url,
+      explicitFromDefine: functionsBaseUrlRaw,
+    );
     final primary = _cleanDefine(razorpayPrimaryRaw);
     final legacy = _cleanDefine(razorpayLegacyRaw);
     final razorpayKeyId = primary.isNotEmpty ? primary : legacy;
     final authEmailRedirectUrl = _cleanDefine(authRedirectRaw);
+    final authPasswordResetRedirectUrl = _cleanDefine(passwordResetRedirectRaw);
 
     if (url.isEmpty || anonKey.isEmpty) {
       throw FlutterError(
@@ -89,6 +134,7 @@ class AppEnv {
       supabaseFunctionsBaseUrl: functionsBaseUrl,
       razorpayKeyId: razorpayKeyId,
       authEmailRedirectUrl: authEmailRedirectUrl,
+      authPasswordResetRedirectUrl: authPasswordResetRedirectUrl,
     );
   }
 }

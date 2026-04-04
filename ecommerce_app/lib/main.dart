@@ -8,14 +8,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'core/config/app_env.dart';
 import 'core/notifications/local_notification_service.dart';
+import 'firebase_options.dart';
 import 'core/notifications/notification_message_router.dart';
 import 'core/web/web_url_strategy_stub.dart'
     if (dart.library.html) 'core/web/web_url_strategy_web.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Background isolates still need Firebase init.
-  await Firebase.initializeApp();
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.android);
 }
 
 Future<void> main() async {
@@ -31,10 +32,10 @@ Future<void> main() async {
   // FCM + local notifications are mobile-only. For Firebase on web (Analytics, etc.),
   // add a Web app in the Firebase console and run: dart run flutterfire_cli:flutterfire configure
   if (!kIsWeb) {
-    await Firebase.initializeApp();
-    await LocalNotificationService.initialize();
-
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await FirebaseMessaging.instance.setAutoInitEnabled(true);
+    await LocalNotificationService.initialize();
     FirebaseMessaging.onMessage.listen((message) {
       NotificationMessageRouter.onMessage(message);
     });

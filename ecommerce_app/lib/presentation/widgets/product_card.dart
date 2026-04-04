@@ -108,6 +108,15 @@ class _ProductCardState extends State<ProductCard> {
     final blockBuy = outOfStock;
     final blockAddUnlessInCart = outOfStock && !widget.isInCart;
 
+    // Grid tiles can be ~160px wide with a tight aspect ratio; keep the lower
+    // block from overflowing the Expanded region (~210px).
+    final compact = widget.width < 172;
+    final bodyPadding =
+        compact ? const EdgeInsets.fromLTRB(6, 4, 6, 4) : const EdgeInsets.all(6);
+    final gapSm = compact ? 2.0 : 4.0;
+    final btnHeight = compact ? 30.0 : 32.0;
+    final starSize = compact ? 12.0 : 14.0;
+
     final card = SizedBox(
       width: widget.width,
       child: Card(
@@ -186,7 +195,7 @@ class _ProductCardState extends State<ProductCard> {
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(6),
+                  padding: bodyPadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -222,89 +231,125 @@ class _ProductCardState extends State<ProductCard> {
                               color: widget.isWishlisted
                                   ? AppColors.errorRed
                                   : Theme.of(context).colorScheme.onSurface,
-                              size: 22,
+                              size: compact ? 20 : 22,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        product.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                      if (product.averageRating != null && product.totalReviews > 0) ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            StarRatingDisplay(
-                              rating: product.averageRating!.round().clamp(1, 5),
-                              size: 14,
-                              color: AppColors.deepGold,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${product.averageRating!.toStringAsFixed(1)} (${product.totalReviews})',
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    fontWeight: FontWeight.w600,
+                      // Books (and similar) often show rating + promo + stock + stepper at once;
+                      // grid height is fixed — scale this block down when it would overflow.
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.topLeft,
+                            child: SizedBox(
+                              width: widget.width - bodyPadding.horizontal,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(height: gapSm),
+                                  Text(
+                                    product.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                   ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      if (pricing.showPromo)
-                        Text(
-                          formatRupeeCompact(pricing.mrp!),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                decoration: TextDecoration.lineThrough,
+                                  if (product.averageRating != null &&
+                                      product.totalReviews > 0) ...[
+                                    SizedBox(height: gapSm),
+                                    Row(
+                                      children: [
+                                        StarRatingDisplay(
+                                          rating:
+                                              product.averageRating!.round().clamp(1, 5),
+                                          size: starSize,
+                                          color: AppColors.deepGold,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '${product.averageRating!.toStringAsFixed(1)} (${product.totalReviews})',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: compact ? 10 : null,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (pricing.showPromo)
+                                    Text(
+                                      formatRupeeCompact(pricing.mrp!),
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            decoration: TextDecoration.lineThrough,
+                                            fontSize: compact ? 11 : null,
+                                          ),
+                                    ),
+                                  if (pricing.showPromo) SizedBox(height: compact ? 1 : 2),
+                                  Text(
+                                    formatRupeeCompact(pricing.salePrice),
+                                    style: (compact
+                                            ? Theme.of(context).textTheme.titleMedium
+                                            : Theme.of(context).textTheme.titleLarge)
+                                        ?.copyWith(
+                                          color: AppColors.deepGold,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                  if (stockBanner != null) ...[
+                                    SizedBox(height: compact ? 1 : 2),
+                                    Text(
+                                      stockBanner,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style:
+                                          Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: AppColors.marigoldOrange,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: compact ? 10 : null,
+                                              ),
+                                    ),
+                                  ],
+                                  SizedBox(height: gapSm),
+                                  if (!outOfStock)
+                                    Center(
+                                      child: ProductQuantityStepper(
+                                        quantity: _shownQty.clamp(1, _max),
+                                        minQuantity: 1,
+                                        maxQuantity: _max,
+                                        dense: true,
+                                        allowZeroOnDecrement:
+                                            widget.cartLineQuantity != null &&
+                                                widget.onRemoveFromCart != null,
+                                        onChanged: (q) {
+                                          // ignore: discarded_futures
+                                          _setQuantity(q);
+                                        },
+                                      ),
+                                    ),
+                                ],
                               ),
-                        ),
-                      if (pricing.showPromo) const SizedBox(height: 2),
-                      Text(
-                        formatRupeeCompact(pricing.salePrice),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.deepGold,
-                              fontWeight: FontWeight.w800,
                             ),
-                      ),
-                      if (stockBanner != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          stockBanner,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: AppColors.marigoldOrange,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ],
-                      const SizedBox(height: 4),
-                      if (!outOfStock)
-                        Center(
-                          child: ProductQuantityStepper(
-                            quantity: _shownQty.clamp(1, _max),
-                            minQuantity: 1,
-                            maxQuantity: _max,
-                            dense: true,
-                            allowZeroOnDecrement:
-                                widget.cartLineQuantity != null && widget.onRemoveFromCart != null,
-                            onChanged: (q) {
-                              // ignore: discarded_futures
-                              _setQuantity(q);
-                            },
                           ),
                         ),
-                      const Spacer(),
+                      ),
                       Row(
                         children: [
                           Expanded(
                             child: Tooltip(
                               message: 'Buy now',
                               child: SizedBox(
-                                height: 32,
+                                height: btnHeight,
                                 child: Material(
                                   color: blockBuy
                                       ? Theme.of(context).disabledColor.withOpacity(0.35)
@@ -322,7 +367,10 @@ class _ProductCardState extends State<ProductCard> {
                                       Icons.flash_on,
                                       size: 16,
                                       color: blockBuy
-                                          ? Theme.of(context).colorScheme.onSurface.withOpacity(0.38)
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.38)
                                           : AppColors.charcoalBlack,
                                     ),
                                   ),
@@ -335,7 +383,7 @@ class _ProductCardState extends State<ProductCard> {
                             child: Tooltip(
                               message: widget.isInCart ? 'Go to cart' : 'Add to cart',
                               child: SizedBox(
-                                height: 32,
+                                height: btnHeight,
                                 child: Material(
                                   color: widget.isInCart
                                       ? AppColors.forestGreen.withOpacity(0.85)

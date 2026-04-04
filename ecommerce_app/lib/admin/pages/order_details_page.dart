@@ -12,6 +12,7 @@ import 'package:ecommerce_app/presentation/utils/order_details_format.dart'
 
 import '../providers/admin_providers.dart';
 import '../services/admin_service.dart';
+import '../utils/admin_order_status_push.dart';
 import '../utils/admin_order_status_workflow.dart';
 import '../../features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import '../widgets/admin_cached_image.dart';
@@ -141,34 +142,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             notes: noteOutcome.isEmpty ? null : noteOutcome,
           );
 
-      // Best-effort push for customer order updates.
-      final target = action.targetStatusTitleCase.toLowerCase().trim();
-      if (target == 'processing' || target == 'shipped' || target == 'delivered') {
-        final (title, message) = switch (target) {
-          'processing' => (
-              'Order confirmed',
-              'We are preparing your order.',
-            ),
-          'shipped' => (
-              'Order shipped',
-              'Your order is on the way.',
-            ),
-          _ => (
-              'Order delivered',
-              'Your order has been delivered. Thank you for shopping with us!',
-            ),
-        };
-
-        await ref.read(fcmNotificationSenderProvider).sendOrderStatusPush(
-              userId: userId,
-              orderId: orderId,
-              title: title,
-              message: message,
-              kind: 'order_status',
-              redirectType: 'order',
-              redirectValue: orderId,
-            );
-      }
+      await trySendOrderStatusFcmForTarget(
+        ref.read(fcmNotificationSenderProvider),
+        userId: userId,
+        orderId: orderId,
+        targetStatusTitleCase: action.targetStatusTitleCase,
+      );
 
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(orderId));
@@ -208,15 +187,14 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             orderId: orderId,
             notes: noteOutcome.isEmpty ? null : noteOutcome,
           );
-      await ref.read(fcmNotificationSenderProvider).sendOrderStatusPush(
-            userId: userId,
-            orderId: orderId,
-            title: 'Order cancelled',
-            message: 'Your cancellation was approved. If you paid online, a refund has been initiated.',
-            kind: 'order_status',
-            redirectType: 'order',
-            redirectValue: orderId,
-          );
+      await trySendOrderStatusFcmCustom(
+        ref.read(fcmNotificationSenderProvider),
+        userId: userId,
+        orderId: orderId,
+        title: 'Order cancelled',
+        message:
+            'Your cancellation was approved. If you paid online, a refund has been initiated.',
+      );
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(orderId));
       ref.invalidate(adminOrdersProvider);
@@ -254,15 +232,14 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             orderId: orderId,
             notes: noteOutcome.isEmpty ? null : noteOutcome,
           );
-      await ref.read(fcmNotificationSenderProvider).sendOrderStatusPush(
-            userId: userId,
-            orderId: orderId,
-            title: 'Cancellation request declined',
-            message: 'Your order will continue processing. Open the order for details.',
-            kind: 'order_status',
-            redirectType: 'order',
-            redirectValue: orderId,
-          );
+      await trySendOrderStatusFcmCustom(
+        ref.read(fcmNotificationSenderProvider),
+        userId: userId,
+        orderId: orderId,
+        title: 'Cancellation request declined',
+        message:
+            'Your order will continue processing. Open the order for details.',
+      );
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(orderId));
       ref.invalidate(adminOrdersProvider);
@@ -406,7 +383,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
               data: (details) {
                     final order = details.order;
                     final shipmentEditable = _shipmentEditableForStatus(order.status);
-                    final actions = adminOrderNextActions(order.status);
+                    final actions = adminOrderNextActions(
+                      order.status,
+                      paymentMethodRaw: order.paymentMethod,
+                    );
                     return ListView(
                       children: [
                         Card(

@@ -20,5 +20,8 @@ abstract class AuthRepository {
   Future<AppUser?> getCurrentUser();
 
   Future<void> sendPasswordResetEmail({required String email});
+
+  /// After opening the password-recovery link (recovery session). Updates password then caller should sign out.
+  Future<void> updatePasswordFromRecoverySession({required String newPassword});
 }
 

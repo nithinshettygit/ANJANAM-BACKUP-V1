@@ -1,5 +1,6 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
+import 'package:gotrue/gotrue.dart' show UserAttributes;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../domain/entities/app_user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -10,12 +11,20 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   SupabaseAuthService(
     super.client, {
     String authEmailRedirectUrl = '',
-  }) : _authRedirect = authEmailRedirectUrl.trim();
+    String passwordResetRedirectUrl = '',
+  })  : _authRedirect = authEmailRedirectUrl.trim(),
+        _passwordResetRedirect = passwordResetRedirectUrl.trim();
 
-  /// Resolved redirect URL (web `/auth-callback`, mobile deep link, or dart-define override).
+  /// Sign-up / email-confirm PKCE callback.
   final String _authRedirect;
 
-  String? get _emailRedirectTo => _authRedirect.trim().isEmpty ? null : _authRedirect.trim();
+  /// Password-reset email link (separate from [_authRedirect] so we open set-password UI).
+  final String _passwordResetRedirect;
+
+  String? get _emailRedirectTo => _authRedirect.isEmpty ? null : _authRedirect;
+
+  String? get _passwordResetRedirectTo =>
+      _passwordResetRedirect.isEmpty ? null : _passwordResetRedirect;
 
   @override
   Stream<AppUser?> watchAuthState() {
@@ -174,8 +183,17 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
     try {
       await client.auth.resetPasswordForEmail(
         email.trim(),
-        redirectTo: _emailRedirectTo,
+        redirectTo: _passwordResetRedirectTo,
       );
+    } catch (e) {
+      throw resolvePresentableAuthError(e, isSignUp: false);
+    }
+  }
+
+  @override
+  Future<void> updatePasswordFromRecoverySession({required String newPassword}) async {
+    try {
+      await client.auth.updateUser(UserAttributes(password: newPassword));
     } catch (e) {
       throw resolvePresentableAuthError(e, isSignUp: false);
     }
