@@ -1,5 +1,10 @@
 # ANJANAM-NEW — clone → build (read once, then run in order)
 #
+# Quick path (PowerShell, after clone): fill tool\web_build.env and google-services.json, then:
+#   cd ecommerce_app
+#   flutter pub get
+#   .\scripts\build_admin_web.ps1
+#
 # Prerequisites
 #   - Git, Flutter SDK (stable, Dart >= 3.3), Chrome or an Android device/emulator
 #   - Optional: Node.js 18+ (Supabase CLI), Firebase CLI (only for deploy)
