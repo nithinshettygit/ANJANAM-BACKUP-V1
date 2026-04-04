@@ -12,6 +12,7 @@ import '../widgets/home_hero_carousel.dart';
 import '../widgets/home_horizontal_product_section.dart';
 import '../widgets/home_layout_metrics.dart';
 import '../widgets/home_top_categories_row.dart';
+import '../widgets/web_horizontal_rail_list.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/storefront_home_header.dart';
 import 'catalog_page.dart';
@@ -100,9 +101,9 @@ class _HomePageState extends ConsumerState<HomePage> {
             child: ListView.builder(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(
-              top: AppSpacing.cardGap,
-              bottom: AppSpacing.section,
+            padding: EdgeInsets.only(
+              top: HomeLayoutMetrics.homeListTopPadding(context),
+              bottom: HomeLayoutMetrics.homeListBottomPadding(context),
             ),
             itemCount: HomePage._sectionCount,
             itemBuilder: (context, index) {
@@ -196,7 +197,12 @@ class _HomeHeroSlot extends ConsumerWidget {
       data: (banners) {
         if (banners.isEmpty) {
           return Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, AppSpacing.page),
+            padding: EdgeInsets.fromLTRB(
+              HomeLayoutMetrics.pageHorizontal(context),
+              0,
+              HomeLayoutMetrics.pageHorizontal(context),
+              AppSpacing.page,
+            ),
             child: PageEmptyState(
               icon: Icons.photo_library_outlined,
               title: 'No banners yet',
@@ -209,7 +215,10 @@ class _HomeHeroSlot extends ConsumerWidget {
           );
         }
         return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.section),
+          padding: EdgeInsets.only(
+            top: HomeLayoutMetrics.homeHeroTopMargin(context),
+            bottom: HomeLayoutMetrics.homeHeroBottomMargin(context),
+          ),
           child: HomeHeroCarousel(
             banners: banners,
             height: HomeLayoutMetrics.heroHeight(context),
@@ -217,7 +226,12 @@ class _HomeHeroSlot extends ConsumerWidget {
         );
       },
       loading: () => Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, AppSpacing.page),
+        padding: EdgeInsets.fromLTRB(
+          HomeLayoutMetrics.pageHorizontal(context),
+          0,
+          HomeLayoutMetrics.pageHorizontal(context),
+          AppSpacing.page,
+        ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: Container(
@@ -236,7 +250,12 @@ class _HomeHeroSlot extends ConsumerWidget {
         ),
       ),
       error: (e, _) => Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, AppSpacing.page),
+        padding: EdgeInsets.fromLTRB(
+          HomeLayoutMetrics.pageHorizontal(context),
+          0,
+          HomeLayoutMetrics.pageHorizontal(context),
+          AppSpacing.page,
+        ),
         child: Text(
           'Could not load banners.',
           style: TextStyle(color: Theme.of(context).colorScheme.error),
@@ -258,7 +277,9 @@ class _HomeTopCategoriesSlot extends ConsumerWidget {
           return const SizedBox.shrink();
         }
         return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.section),
+          padding: EdgeInsets.only(
+            bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context),
+          ),
           child: HomeTopCategoriesRow(
             items: items,
             circleSize: HomeLayoutMetrics.categoryIconSize(context),
@@ -266,7 +287,12 @@ class _HomeTopCategoriesSlot extends ConsumerWidget {
         );
       },
       loading: () => Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, AppSpacing.section),
+        padding: EdgeInsets.fromLTRB(
+          HomeLayoutMetrics.pageHorizontal(context),
+          0,
+          HomeLayoutMetrics.pageHorizontal(context),
+          AppSpacing.section,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -279,33 +305,32 @@ class _HomeTopCategoriesSlot extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.cardGap),
-            SizedBox(
+            WebHorizontalRailList(
               height: 92,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: 8,
-                separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.page),
-                itemBuilder: (_, __) => Column(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
-                      ),
+              padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+              itemCount: 8,
+              separatorBuilder: (_, __) =>
+                  SizedBox(width: HomeLayoutMetrics.pageHorizontal(context)),
+              itemBuilder: (_, __) => Column(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 10,
-                      width: 44,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 10,
+                    width: 44,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],

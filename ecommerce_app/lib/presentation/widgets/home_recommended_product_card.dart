@@ -9,6 +9,7 @@ import '../utils/price_formatter.dart';
 import '../utils/product_availability.dart';
 import '../utils/product_price_display.dart';
 import 'app_network_image.dart';
+import 'home_layout_metrics.dart';
 import 'product_image.dart';
 import 'subtle_scale_on_pointer.dart';
 
@@ -122,10 +123,10 @@ class HomeRecommendedProductCard extends ConsumerWidget {
                           product.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                height: 1.2,
-                              ),
+                          style: HomeLayoutMetrics.homeRecommendedRailTitleStyle(
+                            context,
+                            Theme.of(context).textTheme,
+                          ),
                         ),
                         const Spacer(),
                         if (pricing.showPromo)

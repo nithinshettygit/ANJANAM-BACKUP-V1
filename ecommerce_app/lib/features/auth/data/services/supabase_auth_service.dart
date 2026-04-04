@@ -7,27 +7,36 @@ import '../auth_error_mapper.dart';
 import '../models/profile_model.dart';
 
 class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository {
-  SupabaseAuthService(super.client);
+  SupabaseAuthService(
+    super.client, {
+    String authEmailRedirectUrl = '',
+  }) : _authRedirect = authEmailRedirectUrl.trim();
+
+  /// Resolved redirect URL (web `/auth-callback`, mobile deep link, or dart-define override).
+  final String _authRedirect;
+
+  String? get _emailRedirectTo => _authRedirect.trim().isEmpty ? null : _authRedirect.trim();
 
   @override
   Stream<AppUser?> watchAuthState() {
     return () async* {
-      // Emit current session immediately so route guards work right after refresh/login.
-      final currentUser = client.auth.currentUser;
-      if (currentUser == null) {
+      // Drop sessions that exist before email confirmation (defense in depth vs server misconfiguration).
+      final initial = await _userIfEmailConfirmedOrSignOut(client.auth.currentUser);
+      if (initial == null) {
         yield null;
       } else {
-        final profile = await _fetchProfile(currentUser.id);
+        final profile = await _fetchProfile(initial.id);
         yield AppUser(
-          id: currentUser.id,
-          email: currentUser.email ?? '',
+          id: initial.id,
+          email: initial.email ?? '',
           fullName: profile?.fullName,
           avatarUrl: profile?.avatarUrl,
         );
       }
 
       await for (final event in client.auth.onAuthStateChange) {
-        final authUser = event.session?.user ?? client.auth.currentUser;
+        final raw = event.session?.user ?? client.auth.currentUser;
+        final authUser = await _userIfEmailConfirmedOrSignOut(raw);
         if (authUser == null) {
           yield null;
           continue;
@@ -63,6 +72,17 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
       throw const AuthException('Sign-in failed: missing user.');
     }
 
+    if (_isEmailPresentButUnconfirmed(authUser)) {
+      try {
+        await client.auth.signOut();
+      } catch (_) {}
+      throw const AuthException(
+        'You must confirm your email address before signing in. '
+        'Check your inbox for a confirmation link from us.',
+        kind: AuthFailureKind.emailNotConfirmed,
+      );
+    }
+
     await _ensureProfileRow(authUser);
 
     final profile = await _fetchProfile(authUser.id);
@@ -78,12 +98,18 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   Future<AppUser> signUpWithEmailAndPassword({
     required String email,
     required String password,
+    String userName = '',
   }) async {
     late final AuthResponse response;
+    final trimmedName = userName.trim();
+    final Map<String, dynamic>? meta =
+        trimmedName.isEmpty ? null : <String, dynamic>{'full_name': trimmedName};
     try {
       response = await client.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: _emailRedirectTo,
+        data: meta,
       );
     } catch (e) {
       throw resolvePresentableAuthError(e, isSignUp: true);
@@ -92,6 +118,19 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
     final authUser = response.user;
     if (authUser == null) {
       throw const AuthException('Sign-up failed: missing user.');
+    }
+
+    // With "confirm email" enabled, sign-up usually returns a user but no session until they
+    // confirm — that is not an error. Only block if we somehow got a session without confirmation.
+    final session = response.session;
+    if (session != null && _isEmailPresentButUnconfirmed(authUser)) {
+      try {
+        await client.auth.signOut();
+      } catch (_) {}
+      throw const AuthException(
+        'Please confirm your email address using the link we sent you, then sign in.',
+        kind: AuthFailureKind.emailNotConfirmed,
+      );
     }
 
     await _ensureProfileRow(authUser);
@@ -116,15 +155,15 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
 
   @override
   Future<AppUser?> getCurrentUser() async {
-    final authUser = client.auth.currentUser;
-    if (authUser == null) return null;
+    final confirmed = await _userIfEmailConfirmedOrSignOut(client.auth.currentUser);
+    if (confirmed == null) return null;
 
-    await _ensureProfileRow(authUser);
+    await _ensureProfileRow(confirmed);
 
-    final profile = await _fetchProfile(authUser.id);
+    final profile = await _fetchProfile(confirmed.id);
     return AppUser(
-      id: authUser.id,
-      email: authUser.email ?? '',
+      id: confirmed.id,
+      email: confirmed.email ?? '',
       fullName: profile?.fullName,
       avatarUrl: profile?.avatarUrl,
     );
@@ -133,7 +172,10 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   @override
   Future<void> sendPasswordResetEmail({required String email}) async {
     try {
-      await client.auth.resetPasswordForEmail(email.trim());
+      await client.auth.resetPasswordForEmail(
+        email.trim(),
+        redirectTo: _emailRedirectTo,
+      );
     } catch (e) {
       throw resolvePresentableAuthError(e, isSignUp: false);
     }
@@ -196,6 +238,22 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
       return email.split('@').first;
     }
     return 'User';
+  }
+
+  bool _isEmailPresentButUnconfirmed(User u) {
+    final email = u.email?.trim() ?? '';
+    if (email.isEmpty) return false;
+    final confirmed = u.emailConfirmedAt?.trim() ?? '';
+    return confirmed.isEmpty;
+  }
+
+  Future<User?> _userIfEmailConfirmedOrSignOut(User? u) async {
+    if (u == null) return null;
+    if (!_isEmailPresentButUnconfirmed(u)) return u;
+    try {
+      await client.auth.signOut();
+    } catch (_) {}
+    return null;
   }
 }
 

@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
@@ -46,6 +47,7 @@ class ProductCard extends StatefulWidget {
 
 class _ProductCardState extends State<ProductCard> {
   int _localQty = 1;
+  bool _webHover = false;
 
   @override
   void didUpdateWidget(covariant ProductCard oldWidget) {
@@ -106,13 +108,17 @@ class _ProductCardState extends State<ProductCard> {
     final blockBuy = outOfStock;
     final blockAddUnlessInCart = outOfStock && !widget.isInCart;
 
-    return SizedBox(
+    final card = SizedBox(
       width: widget.width,
       child: Card(
         color: Theme.of(context).cardColor,
         clipBehavior: Clip.antiAlias,
+        elevation: kIsWeb && _webHover ? 10 : 2,
+        shadowColor: Colors.black.withValues(alpha: kIsWeb && _webHover ? 0.14 : 0.08),
         child: InkWell(
           onTap: widget.onTap,
+          mouseCursor:
+              kIsWeb && widget.onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -368,5 +374,20 @@ class _ProductCardState extends State<ProductCard> {
         ),
       ),
     );
+
+    if (kIsWeb && widget.onTap != null) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _webHover = true),
+        onExit: (_) => setState(() => _webHover = false),
+        child: AnimatedScale(
+          scale: _webHover ? 1.01 : 1,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          child: card,
+        ),
+      );
+    }
+    return card;
   }
 }

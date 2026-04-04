@@ -1,3 +1,4 @@
+import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
 import 'package:ecommerce_app/features/catalog/domain/product_sort_option.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
@@ -18,6 +19,7 @@ import 'package:ecommerce_app/presentation/widgets/product_quantity_stepper.dart
 import 'package:ecommerce_app/features/product_questions/widgets/product_questions_section.dart';
 import 'package:ecommerce_app/presentation/widgets/product_reviews_section.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -72,22 +74,27 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
         }
         final displayQty = (lineQty ?? _pendingQty).clamp(1, maxQ);
 
-        return Scaffold(
-          appBar: AppBar(title: const Text('Product Details')),
-          body: RefreshIndicator(
+        Widget scrollBody() {
+          return RefreshIndicator(
             onRefresh: () async {
               ref.read(storefrontCatalogRevisionProvider.notifier).bump();
               await ref.read(productDetailsProvider(widget.productId).future);
             },
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-              children: [
-                Stack(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final useWide =
+                    kIsWeb && constraints.maxWidth > StorefrontBreakpoints.twoColumnDetail;
+                final galleryH = useWide
+                    ? (constraints.maxWidth * 0.28).clamp(300.0, 420.0)
+                    : 260.0;
+                final padH = kIsWeb && useWide ? 28.0 : 16.0;
+                final bottomPad = kIsWeb && useWide ? 140.0 : 120.0;
+
+                final gallery = Stack(
                   children: [
                     ProductImageCarousel(
                       imageUrls: product.imageUrls,
-                      height: 260,
+                      height: galleryH,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     if (pricing.showPromo)
@@ -126,151 +133,208 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  product.title,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                if (pricing.showPromo) ...[
-                  Text(
-                    'MRP',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  Text(
-                    formatRupee(pricing.mrp!),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          decoration: TextDecoration.lineThrough,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'You pay',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.marigoldOrange,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ],
-                Text(
-                  formatRupee(pricing.salePrice),
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.marigoldOrange,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                if (product.category != null) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.forestGreen.withOpacity(0.16),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      product.category!,
-                      style: const TextStyle(
-                        color: AppColors.lightGreen,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-                if (stockBanner != null) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: outOfStock
-                          ? AppColors.errorRed.withOpacity(0.12)
-                          : AppColors.marigoldOrange.withOpacity(0.16),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: outOfStock
-                            ? AppColors.errorRed.withOpacity(0.5)
-                            : AppColors.marigoldOrange.withOpacity(0.6),
-                      ),
-                    ),
-                    child: Text(
-                      stockBanner,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: outOfStock ? AppColors.errorRed : AppColors.charcoalBlack,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Text(
-                  product.description,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 20),
-                if (!outOfStock) ...[
-                  Row(
-                    children: [
+                );
+
+                List<Widget> titlePriceBlocks() => [
                       Text(
-                        'Quantity',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        product.title,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      if (pricing.showPromo) ...[
+                        Text(
+                          'MRP',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        Text(
+                          formatRupee(pricing.mrp!),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                decoration: TextDecoration.lineThrough,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'You pay',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: AppColors.marigoldOrange,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                      Text(
+                        formatRupee(pricing.salePrice),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppColors.marigoldOrange,
                               fontWeight: FontWeight.w700,
                             ),
                       ),
-                      const Spacer(),
-                      ProductQuantityStepper(
-                        quantity: displayQty,
-                        minQuantity: 1,
-                        maxQuantity: maxQ,
-                        allowZeroOnDecrement: lineQty != null,
-                        onChanged: (q) async {
-                          if (lineQty != null) {
-                            if (q <= 0) {
-                              await ref
-                                  .read(cartControllerProvider.notifier)
-                                  .removeItem(productId: product.id);
-                            } else {
-                              await ref
-                                  .read(cartControllerProvider.notifier)
-                                  .updateQuantity(
-                                    productId: product.id,
-                                    quantity: q,
-                                  );
-                            }
-                          } else {
-                            setState(() => _pendingQty = q.clamp(1, maxQ));
-                          }
-                        },
+                      if (product.category != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.forestGreen.withOpacity(0.16),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            product.category!,
+                            style: const TextStyle(
+                              color: AppColors.lightGreen,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (stockBanner != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: outOfStock
+                                ? AppColors.errorRed.withOpacity(0.12)
+                                : AppColors.marigoldOrange.withOpacity(0.16),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: outOfStock
+                                  ? AppColors.errorRed.withOpacity(0.5)
+                                  : AppColors.marigoldOrange.withOpacity(0.6),
+                            ),
+                          ),
+                          child: Text(
+                            stockBanner,
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  color:
+                                      outOfStock ? AppColors.errorRed : AppColors.charcoalBlack,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ];
+
+                List<Widget> quantityBlock() => [
+                      Row(
+                        children: [
+                          Text(
+                            'Quantity',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const Spacer(),
+                          ProductQuantityStepper(
+                            quantity: displayQty,
+                            minQuantity: 1,
+                            maxQuantity: maxQ,
+                            allowZeroOnDecrement: lineQty != null,
+                            onChanged: (q) async {
+                              if (lineQty != null) {
+                                if (q <= 0) {
+                                  await ref
+                                      .read(cartControllerProvider.notifier)
+                                      .removeItem(productId: product.id);
+                                } else {
+                                  await ref
+                                      .read(cartControllerProvider.notifier)
+                                      .updateQuantity(
+                                        productId: product.id,
+                                        quantity: q,
+                                      );
+                                }
+                              } else {
+                                setState(() => _pendingQty = q.clamp(1, maxQ));
+                              }
+                            },
+                          ),
+                        ],
                       ),
-                    ],
+                      const SizedBox(height: 16),
+                    ];
+
+                final belowFold = <Widget>[
+                  ProductReviewsSection(
+                    product: product,
+                    listMode: ProductReviewsListMode.embeddedPreview,
                   ),
                   const SizedBox(height: 16),
-                ],
-                ProductReviewsSection(
-                  product: product,
-                  listMode: ProductReviewsListMode.embeddedPreview,
-                ),
-                const SizedBox(height: 16),
-                ProductQuestionsSection(
-                  product: product,
-                  listMode: ProductQuestionsListMode.embeddedPreview,
-                ),
-                const SizedBox(height: 16),
-                SimilarProductsSection(
-                  currentProductId: product.id,
-                  category: product.category,
-                  title: product.title,
-                  tags: product.tags,
-                ),
-                const SizedBox(height: 16),
-                YouAlsoLikeSection(currentProductId: product.id),
-              ],
+                  ProductQuestionsSection(
+                    product: product,
+                    listMode: ProductQuestionsListMode.embeddedPreview,
+                  ),
+                  const SizedBox(height: 16),
+                  SimilarProductsSection(
+                    currentProductId: product.id,
+                    category: product.category,
+                    title: product.title,
+                    tags: product.tags,
+                  ),
+                  const SizedBox(height: 16),
+                  YouAlsoLikeSection(currentProductId: product.id),
+                ];
+
+                final top = <Widget>[
+                  if (useWide)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 5, child: gallery),
+                        const SizedBox(width: 28),
+                        Expanded(
+                          flex: 6,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ...titlePriceBlocks(),
+                              if (!outOfStock) ...[
+                                const SizedBox(height: 8),
+                                ...quantityBlock(),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  else ...[
+                    gallery,
+                    const SizedBox(height: 16),
+                    ...titlePriceBlocks(),
+                  ],
+                  SizedBox(height: useWide ? 24 : 16),
+                  Text(
+                    product.description,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  if (!useWide) ...[
+                    const SizedBox(height: 20),
+                    if (!outOfStock) ...quantityBlock(),
+                  ],
+                  const SizedBox(height: 16),
+                  ...belowFold,
+                ];
+
+                return ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(padH, padH, padH, bottomPad),
+                  children: top,
+                );
+              },
             ),
-          ),
+          );
+        }
+
+        final body = scrollBody();
+        return Scaffold(
+          appBar: AppBar(title: const Text('Product Details')),
+          body: kIsWeb
+              ? WebMaxWidthCenter(
+                  child: StorefrontWebTypography.wrapIfDesktop(context, body),
+                )
+              : body,
           bottomNavigationBar: SafeArea(
             top: false,
             child: Container(

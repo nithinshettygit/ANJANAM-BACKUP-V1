@@ -1,4 +1,6 @@
+import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/cart/domain/entities/cart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
 import 'package:ecommerce_app/features/catalog/domain/product_sort_option.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
@@ -318,7 +320,9 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
           ),
         ),
       ),
-      body: _buildBody(context, wishlist, cart),
+      body: kIsWeb
+          ? WebMaxWidthCenter(child: _buildBody(context, wishlist, cart))
+          : _buildBody(context, wishlist, cart),
     );
   }
 
@@ -327,14 +331,10 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
       return LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
-          final crossAxisCount = width >= 900
-              ? 4
-              : width >= 650
-                  ? 3
-                  : 2;
+          final crossAxisCount = catalogGridCrossAxisCount(width);
           return PageLoadingGrid(
             crossAxisCount: crossAxisCount,
-            childAspectRatio: 0.44,
+            childAspectRatio: catalogGridChildAspectRatio(width),
           );
         },
       );
@@ -370,14 +370,12 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final crossAxisCount = width >= 900
-            ? 4
-            : width >= 650
-                ? 3
-                : 2;
-        const spacing = 10.0;
+        final crossAxisCount = catalogGridCrossAxisCount(width);
+        final spacing = catalogGridSpacing(width);
+        final hPad = catalogHorizontalPadding(context);
+        final aspectRatio = catalogGridChildAspectRatio(width);
         final cardWidth =
-            (width - 24 - (crossAxisCount - 1) * spacing) / crossAxisCount;
+            (width - hPad * 2 - (crossAxisCount - 1) * spacing) / crossAxisCount;
 
         int? lineQty(String productId) {
           for (final e in cart?.items ?? []) {
@@ -396,7 +394,7 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: EdgeInsets.fromLTRB(hPad, kIsWeb ? 16 : 8, hPad, 8),
                 sliver: SliverToBoxAdapter(
                   child: Text(
                     '${_sort.storefrontLabel} · ${_items.length}${_hasMore ? '+' : ''} shown',
@@ -407,11 +405,11 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: EdgeInsets.symmetric(horizontal: hPad),
                 sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
-                    childAspectRatio: 0.44,
+                    childAspectRatio: aspectRatio,
                     crossAxisSpacing: spacing,
                     mainAxisSpacing: spacing,
                   ),

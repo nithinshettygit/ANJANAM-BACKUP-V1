@@ -1,0 +1,128 @@
+================================================================================
+ANJANAM — Supabase backup, disaster recovery, and project rebuild
+================================================================================
+
+This file documents (1) what to back up on an ongoing basis and (2) what to do
+if the Supabase project is deleted or otherwise lost, including how to rebuild
+a replacement project from your repository and backups.
+
+--------------------------------------------------------------------------------
+PART A — ONGOING BACKUPS (DO THIS BEFORE ANY DISASTER)
+--------------------------------------------------------------------------------
+
+A1. Source code and schema (already in Git)
+    - Keep the repository up to date, including:
+        supabase/migrations/*.sql
+        supabase/functions/** (Edge Function source, if present)
+    - Migrations recreate database structure (tables, RLS, triggers, functions)
+      but NOT necessarily row data unless you also dump/restore data.
+
+A2. Database logical backup (recommended)
+    - On a schedule (e.g. weekly) or before major changes, take a PostgreSQL
+      logical dump of the Supabase database using a tool that can connect with
+      the connection string from: Supabase Dashboard → Project Settings → Database.
+    - Store dumps outside Supabase only (your PC, S3, another cloud). Encrypted
+      storage is recommended if dumps contain personal data.
+    - Note: Restoring into a new Supabase project may require adjusting roles,
+      extensions, and the `auth` schema; test restores on a staging project if
+      you can.
+
+A3. Auth and “soft” configuration (manual checklist)
+    - Export or write down (not secrets in Git): Site URL, Redirect URLs list,
+      email confirmation settings, SMTP settings, OAuth provider configuration.
+    - Auth users and password hashes live in the database; a full DB backup is
+      the practical way to preserve them. Without that, users typically must
+      sign up again on a new project.
+
+A4. Storage (Supabase Storage buckets)
+    - If product images or uploads matter, mirror important files elsewhere or
+      script periodic downloads. Bucket policies are recreated via migrations or
+      dashboard after rebuild.
+
+A5. Secrets and third-party keys
+    - Edge Function secrets (Dashboard or `supabase secrets`) should be listed
+      in a secure password manager (names + where to rotate), not committed.
+    - After rebuild you will set new secrets on the new project.
+
+A6. Application environment
+    - Document every place the old SUPABASE_URL and keys appear: Flutter
+      dart-define, CI, Firebase, serverless env, etc., so you can swap in new
+      project credentials in one pass.
+
+--------------------------------------------------------------------------------
+PART B — IF THE SUPABASE PROJECT IS DELETED OR UNRECOVERABLE
+--------------------------------------------------------------------------------
+
+B1. What you usually lose
+    - The hosted project, its Postgres data, Storage files, and old API keys.
+    - Supabase does not guarantee restoring a deleted project; assume total loss
+      unless you have your own backups.
+
+B2. What you can still recover from
+    - Schema: Git migrations under supabase/migrations/
+    - Function code: Git under supabase/functions/
+    - Data: only if you have pg_dump or another export
+    - Files: only if you copied Storage elsewhere
+
+B3. Immediate actions
+    - Create a NEW Supabase project (new URL, new anon and service_role keys).
+    - Rotate any leaked keys if the loss was a security incident.
+    - Point staging or a test build at the new project first before production.
+
+--------------------------------------------------------------------------------
+PART C — REBUILDING THE SAME PROJECT (NEW SUPABASE INSTANCE)
+--------------------------------------------------------------------------------
+
+C1. Create project
+    - Supabase Dashboard → New project → note Project URL and anon key.
+
+C2. Apply database schema
+    - Link CLI to the new project (see Supabase CLI docs) OR run migration files
+      in numeric order from supabase/migrations/ in the SQL Editor.
+    - Resolve any migration errors (extensions, permissions) before continuing.
+
+C3. Restore data (if you have a dump)
+    - Restore according to PostgreSQL/Supabase guidance; verify RLS still matches
+      your app expectations.
+
+C4. Edge Functions
+    - Deploy from supabase/functions/ to the new project; re-set all secrets
+      (e.g. payment keys, FCM, service accounts).
+
+C5. Authentication (match your Flutter app)
+    - Site URL: e.g. https://anjanam-app.web.app
+    - Redirect URLs (must match app config — see lib/core/config/auth_redirect_config.dart):
+        - https://anjanam-app.web.app/auth-callback
+        - http://localhost:<actual-port>/auth-callback  (per dev machine; do not use literal PORT)
+        - com.anjanam.app://login-callback
+        - com.anjanam.app://login-callback/
+    - Re-enable “Confirm email” if you use it; reconfigure SMTP if custom.
+
+C6. Storage
+    - Recreate buckets and policies; re-upload or restore files.
+
+C7. Point the apps at the new backend
+    - Flutter: build/run with new --dart-define=SUPABASE_URL=... and
+      SUPABASE_ANON_KEY=...
+    - Update any other clients (web hosting env, scripts, admin tools).
+
+C8. Users and orders
+    - Without a DB backup, historical users and orders are gone; plan messaging
+      to customers and admins accordingly.
+
+--------------------------------------------------------------------------------
+QUICK CHECKLIST (PRINT OR COPY WHEN REBUILDING)
+--------------------------------------------------------------------------------
+
+[ ] New Supabase project created
+[ ] Migrations applied (ordered)
+[ ] Data restored from dump (if available)
+[ ] Edge Functions deployed + secrets set
+[ ] Auth: Site URL + Redirect URLs + email/SMTP
+[ ] Storage buckets + files
+[ ] App and CI updated with new URL and keys
+[ ] Smoke test: sign up, login, critical API paths
+
+================================================================================
+End of backup.txt
+================================================================================

@@ -14,6 +14,7 @@ class SignupPage extends ConsumerStatefulWidget {
 }
 
 class _SignupPageState extends ConsumerState<SignupPage> {
+  final _userNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
@@ -22,6 +23,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
 
   @override
   void dispose() {
+    _userNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
@@ -37,6 +39,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       await ref.read(authActionsProvider.notifier).signUp(
             email: _emailController.text.trim(),
             password: _passwordController.text,
+            userName: _userNameController.text.trim(),
           );
       if (!mounted) return;
       final session = ref.read(supabaseClientProvider).auth.currentSession;
@@ -84,6 +87,19 @@ class _SignupPageState extends ConsumerState<SignupPage> {
             key: _formKey,
             child: Column(
               children: [
+                TextFormField(
+                  controller: _userNameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(labelText: 'Username'),
+                  validator: (v) {
+                    final t = v?.trim() ?? '';
+                    if (t.isEmpty) return 'Username is required';
+                    if (t.length < 2) return 'Username must be at least 2 characters';
+                    if (t.length > 80) return 'Username is too long';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,

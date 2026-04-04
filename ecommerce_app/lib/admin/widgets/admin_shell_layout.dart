@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:ecommerce_app/core/theme/app_colors.dart';
@@ -50,7 +51,9 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = MediaQuery.of(context).size.width < 1100;
+    final w = MediaQuery.sizeOf(context).width;
+    final sidebarBreakpoint = kIsWeb ? 1000.0 : 1100.0;
+    final isCompact = w < sidebarBreakpoint;
     final showSidebar = !isCompact && _showDesktopSidebar;
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
@@ -119,7 +122,11 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
             ),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.all(isCompact ? 12 : 16),
+              padding: EdgeInsets.all(
+                isCompact
+                    ? 12
+                    : (kIsWeb ? 24 : 16),
+              ),
               child: widget.body,
             ),
           ),

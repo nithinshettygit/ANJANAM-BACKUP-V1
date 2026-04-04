@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'home_layout_metrics.dart';
 import '../../features/catalog/domain/entities/product.dart';
 import '../utils/price_formatter.dart';
 import '../utils/product_availability.dart';
@@ -13,7 +15,7 @@ import 'star_rating_display.dart';
 import 'subtle_scale_on_pointer.dart';
 
 /// Small / grid product card: **1:1** image, title, price, rating, wishlist.
-class HomeProductDiscoveryCard extends StatelessWidget {
+class HomeProductDiscoveryCard extends StatefulWidget {
   const HomeProductDiscoveryCard({
     super.key,
     required this.product,
@@ -31,11 +33,20 @@ class HomeProductDiscoveryCard extends StatelessWidget {
   final bool isWishlisted;
   final VoidCallback? onToggleWishlist;
 
+  @override
+  State<HomeProductDiscoveryCard> createState() => _HomeProductDiscoveryCardState();
+}
+
+class _HomeProductDiscoveryCardState extends State<HomeProductDiscoveryCard> {
   static const double _imageRadius = 12;
+  bool _webHover = false;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final product = widget.product;
+    final width = widget.width;
+    final height = widget.height;
     final imageUrl = product.imageUrls.isNotEmpty ? product.imageUrls.first : null;
     final dpr = MediaQuery.devicePixelRatioOf(context);
     const metaReserve = 92.0;
@@ -49,18 +60,21 @@ class HomeProductDiscoveryCard extends StatelessWidget {
     );
 
     const radius = 12.0;
-    return SubtleScaleOnPointer(
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Material(
-          color: Colors.transparent,
-          elevation: 2,
-          shadowColor: Colors.black.withValues(alpha: 0.07),
+    final webHoverLift = kIsWeb && _webHover && widget.onTap != null;
+    final core = SizedBox(
+      width: width,
+      height: height,
+      child: Material(
+        color: Colors.transparent,
+        elevation: webHoverLift ? 8 : 2,
+        shadowColor: Colors.black.withValues(alpha: webHoverLift ? 0.12 : 0.07),
+        borderRadius: BorderRadius.circular(radius),
+        child: InkWell(
+          onTap: widget.onTap,
+          mouseCursor: kIsWeb && widget.onTap != null
+              ? SystemMouseCursors.click
+              : MouseCursor.defer,
           borderRadius: BorderRadius.circular(radius),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(radius),
             child: Ink(
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor,
@@ -98,7 +112,7 @@ class HomeProductDiscoveryCard extends StatelessWidget {
                                     memCacheHeight: mem,
                                   ),
                                 ),
-                                if (onToggleWishlist != null)
+                                if (widget.onToggleWishlist != null)
                                   Positioned(
                                     top: 4,
                                     right: 4,
@@ -111,13 +125,15 @@ class HomeProductDiscoveryCard extends StatelessWidget {
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                                         icon: Icon(
-                                          isWishlisted ? Icons.favorite : Icons.favorite_border,
+                                          widget.isWishlisted
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
                                           size: 20,
-                                          color: isWishlisted
+                                          color: widget.isWishlisted
                                               ? AppColors.errorRed
                                               : AppColors.textSecondary,
                                         ),
-                                        onPressed: onToggleWishlist,
+                                        onPressed: widget.onToggleWishlist,
                                       ),
                                     ),
                                   ),
@@ -160,8 +176,8 @@ class HomeProductDiscoveryCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  height: 1.2,
-                                  fontSize: 13,
+                                  height: HomeLayoutMetrics.homeProductTitleLineHeight(context),
+                                  fontSize: HomeLayoutMetrics.homeProductTitleFontSize(context),
                                 ),
                           ),
                           const Spacer(),
@@ -215,7 +231,25 @@ class HomeProductDiscoveryCard extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
+
+    final wrapped = kIsWeb
+        ? core
+        : SubtleScaleOnPointer(child: core);
+
+    if (kIsWeb && widget.onTap != null) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _webHover = true),
+        onExit: (_) => setState(() => _webHover = false),
+        child: AnimatedScale(
+          scale: _webHover ? 1.015 : 1,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          child: wrapped,
+        ),
+      );
+    }
+    return wrapped;
   }
 }

@@ -18,7 +18,6 @@ import 'package:ecommerce_app/features/product_details/state/product_details_pro
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -326,35 +325,23 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       return;
     }
 
-    // Razorpay (online)
+    // Razorpay (online) — mobile uses razorpay_flutter; web uses Checkout.js.
     final env = ref.read(appEnvProvider);
-    final canOpenRazorpay = !kIsWeb && env.razorpayTestKey.isNotEmpty;
+    final canOpenRazorpay = env.razorpayKeyId.isNotEmpty;
 
     if (!canOpenRazorpay) {
       if (mounted) {
         setState(() => _checkoutPhase = _CheckoutPhase.idle);
         _releaseCheckoutLock();
-        if (kIsWeb) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              behavior: SnackBarBehavior.fixed,
-              content: Text(
-                'Online payment is not available in this browser. '
-                'Choose Cash on Delivery or use the Android or iOS app.',
-              ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            content: Text(
+              'Razorpay is not configured. Add RAZORPAY_KEY_ID (or RAZORPAY_TEST_KEY) '
+              'at build time, or choose Cash on Delivery.',
             ),
-          );
-        } else if (env.razorpayTestKey.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              behavior: SnackBarBehavior.fixed,
-              content: Text(
-                'Razorpay is not configured. Add RAZORPAY_TEST_KEY at build time, '
-                'or choose Cash on Delivery.',
-              ),
-            ),
-          );
-        }
+          ),
+        );
         _navigateOrderSuccess(order);
       } else {
         _releaseCheckoutLock();
@@ -362,7 +349,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       return;
     }
 
-    _razorpayService ??= RazorpayService(keyId: env.razorpayTestKey);
+    _razorpayService ??= RazorpayService(keyId: env.razorpayKeyId);
     final userEmail = ref.read(authSessionProvider).maybeWhen(
           data: (u) => u == null ? '' : u.email.trim(),
           orElse: () => '',
@@ -413,20 +400,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       customerEmail: userEmail,
       customerContact: ship.phone,
       razorpayOrderId: rzpCheckoutOrderId,
-      onPaymentSuccess: (paymentId, razorpayOrderId) async {
+      onPaymentSuccess: (paymentId, razorpayOrderId, razorpaySignature) async {
         if (!mounted) return;
         setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
         try {
           await paymentSvc.ensureTestPaymentCaptured(
             orderId: order.id,
             razorpayPaymentId: paymentId,
-            isTestMode: env.razorpayTestKey.trim().startsWith('rzp_test_'),
+            isTestMode: env.isRazorpayTestMode,
           );
-          await paymentSvc.updatePaymentStatus(
+          await paymentSvc.verifyRazorpayPaymentAndMarkPaid(
             orderId: order.id,
-            paymentStatus: 'paid',
             razorpayPaymentId: paymentId,
             razorpayOrderId: razorpayOrderId,
+            razorpaySignature: razorpaySignature,
           );
           if (!mounted) return;
           setState(() {

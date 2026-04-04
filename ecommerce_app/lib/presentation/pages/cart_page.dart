@@ -1,3 +1,4 @@
+import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/cart/domain/entities/cart.dart';
 import 'package:ecommerce_app/features/cart/domain/entities/cart_item.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
@@ -9,6 +10,7 @@ import 'package:ecommerce_app/presentation/widgets/product_quantity_stepper.dart
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/utils/storefront_product_navigation.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,7 +26,7 @@ class CartPage extends ConsumerWidget {
       body: cartAsync.when(
         data: (cart) {
           if (cart.items.isEmpty) {
-            return PageEmptyState(
+            final empty = PageEmptyState(
               icon: Icons.shopping_cart_outlined,
               title: 'Your cart is empty',
               subtitle: 'Browse the shop and add your first item.',
@@ -37,23 +39,73 @@ class CartPage extends ConsumerWidget {
                 child: const Text('Browse products'),
               ),
             );
+            return kIsWeb ? WebMaxWidthCenter(child: empty) : empty;
           }
 
-          return Column(
-            children: [
-              Expanded(
-                child: ListView.separated(
-                  itemCount: cart.items.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final item = cart.items[index];
-                    return _CartItemTile(item: item);
-                  },
-                ),
-              ),
-              _CartSummary(cart: cart),
-            ],
+          final list = ListView.separated(
+            itemCount: cart.items.length,
+            separatorBuilder: (_, __) => Divider(
+              height: 1,
+              color: kIsWeb ? Theme.of(context).dividerColor.withValues(alpha: 0.35) : null,
+            ),
+            itemBuilder: (context, index) {
+              final item = cart.items[index];
+              return _CartItemTile(item: item);
+            },
           );
+
+          final summary = _CartSummary(cart: cart);
+
+          Widget filled() {
+            if (!kIsWeb) {
+              return Column(
+                children: [
+                  Expanded(child: list),
+                  summary,
+                ],
+              );
+            }
+            return LayoutBuilder(
+              builder: (context, c) {
+                final wide = c.maxWidth > StorefrontBreakpoints.cartTwoColumn;
+                if (!wide) {
+                  return Column(
+                    children: [
+                      Expanded(child: list),
+                      summary,
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8, top: 8),
+                        child: list,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    SizedBox(
+                      width: 360,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 12, right: 12),
+                        child: summary,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
+
+          final core = filled();
+          return kIsWeb
+              ? WebMaxWidthCenter(
+                  child: StorefrontWebTypography.wrapIfDesktop(context, core),
+                )
+              : core;
         },
         loading: () => const PageLoading(message: 'Loading cart...'),
         error: (error, _) => PageErrorState(

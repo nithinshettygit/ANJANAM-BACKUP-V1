@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/config/auth_redirect_config.dart';
 import '../../admin/pages/admin_shell_page.dart';
 import '../../admin/pages/order_details_page.dart';
 import '../../admin/pages/user_details_page.dart';
@@ -28,6 +29,13 @@ import '../pages/write_review_page.dart';
 import '../pages/request_return_page.dart';
 import 'auth_guard.dart';
 import '../../features/order_history/domain/entities/order.dart';
+
+/// Strips `?query` from route names (Flutter web passes `/auth-callback?code=...` for Supabase PKCE).
+String? _routePathOnly(String? name) {
+  if (name == null || name.isEmpty) return name;
+  final q = name.indexOf('?');
+  return q < 0 ? name : name.substring(0, q);
+}
 
 /// Admin routes: no interactive edge-swipe-to-pop (avoids leaving admin accidentally on iOS/macOS).
 class _AdminMaterialPageRoute<T> extends MaterialPageRoute<T> {
@@ -76,7 +84,8 @@ class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     final productsRoute = _tryProductsRoute(settings);
     if (productsRoute != null) return productsRoute;
-    switch (settings.name) {
+    final path = _routePathOnly(settings.name);
+    switch (path) {
       case '/':
       case null:
         return _customerRoute(const MainShell());
@@ -86,6 +95,9 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const LoginPage());
       case '/signup':
         return MaterialPageRoute(builder: (_) => const SignupPage());
+      // Web email confirm / password recovery (PathUrlStrategy); SupabaseAuth handles session from URI on load.
+      case AuthRedirectConfig.webCallbackPath:
+        return _customerRoute(const MainShell());
       case '/profile':
         return _authCustomerRoute(const ProfilePage());
       case '/customer-details':

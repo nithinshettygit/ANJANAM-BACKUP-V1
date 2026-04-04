@@ -115,7 +115,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
           : 'Payment is pending. You can complete payment with Razorpay.';
 
   bool get _retryRazorpayConfigured =>
-      !kIsWeb && ref.read(appEnvProvider).razorpayTestKey.isNotEmpty;
+      ref.read(appEnvProvider).razorpayKeyId.isNotEmpty;
 
   bool get _hasShipmentInfo =>
       order.courierName != null ||
@@ -566,12 +566,12 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
   Future<void> _onRetryPayment(BuildContext context) async {
     if (_retryPaymentBusy) return;
     final env = ref.read(appEnvProvider);
-    if (kIsWeb || env.razorpayTestKey.isEmpty) {
+    if (env.razorpayKeyId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.fixed,
           content: Text(
-            'Razorpay is not available here. Use the Android or iOS app, or add RAZORPAY_TEST_KEY for this build.',
+            'Razorpay is not configured. Add RAZORPAY_KEY_ID (or RAZORPAY_TEST_KEY) for this build.',
           ),
         ),
       );
@@ -579,7 +579,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     }
 
     setState(() => _retryPaymentBusy = true);
-    final svc = RazorpayService(keyId: env.razorpayTestKey);
+    final svc = RazorpayService(keyId: env.razorpayKeyId);
     final completer = Completer<void>();
     final paymentSvc = ref.read(orderPaymentServiceProvider);
     final ship = widget.bundle.shipping;
@@ -623,18 +623,18 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
         customerEmail: userEmail,
         customerContact: phone,
         razorpayOrderId: rzpCheckoutOrderId,
-        onPaymentSuccess: (paymentId, razorpayOrderId) async {
+        onPaymentSuccess: (paymentId, razorpayOrderId, razorpaySignature) async {
           try {
             await paymentSvc.ensureTestPaymentCaptured(
               orderId: widget.orderId,
               razorpayPaymentId: paymentId,
-              isTestMode: env.razorpayTestKey.trim().startsWith('rzp_test_'),
+              isTestMode: env.isRazorpayTestMode,
             );
-            await paymentSvc.updatePaymentStatus(
+            await paymentSvc.verifyRazorpayPaymentAndMarkPaid(
               orderId: widget.orderId,
-              paymentStatus: 'paid',
               razorpayPaymentId: paymentId,
               razorpayOrderId: razorpayOrderId,
+              razorpaySignature: razorpaySignature,
             );
             if (context.mounted) {
               ref.invalidate(orderDetailBundleProvider(widget.orderId));
@@ -1493,9 +1493,7 @@ class _RetryPaymentCard extends StatelessWidget {
             if (!razorpayReady) ...[
               const SizedBox(height: 8),
               Text(
-                kIsWeb
-                    ? 'Use the mobile app to pay with Razorpay.'
-                    : 'Add RAZORPAY_TEST_KEY to this build to enable retry.',
+                'Add RAZORPAY_KEY_ID (live or test) at build time to enable Razorpay here.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),

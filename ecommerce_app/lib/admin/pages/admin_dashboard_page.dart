@@ -1,3 +1,5 @@
+import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,184 +35,244 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
       child: summaryAsync.when(
         data: (summary) => analyticsAsync.when(
           data: (analytics) {
-            return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Dashboard',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                    ),
-                    const Spacer(),
-                    FilledButton.tonalIcon(
-                      onPressed: () {
-                        ref.invalidate(adminDashboardProvider);
-                        ref.invalidate(adminDashboardAnalyticsProvider(_selectedDays));
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Refresh'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _StatCard(title: 'Total Products', value: summary.totalProducts.toString()),
-                    _StatCard(title: 'Total Orders', value: summary.totalOrders.toString()),
-                    _StatCard(title: 'Total Users', value: summary.totalUsers.toString()),
-                    _StatCard(
-                      title: 'Total Revenue',
-                      value: formatInrAmount(summary.totalRevenue),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _StatCard(
-                      title: 'Revenue Today',
-                      value: formatInrAmount(analytics.revenueToday),
-                    ),
-                    _StatCard(
-                      title: 'Revenue This Month',
-                      value: formatInrAmount(analytics.revenueThisMonth),
-                    ),
-                    _StatCard(title: 'Total Orders', value: analytics.totalOrders.toString()),
-                    _StatCard(title: 'Pending Orders', value: analytics.pendingOrders.toString()),
-                    _StatCard(title: 'Total Customers', value: analytics.totalCustomers.toString()),
-                    _StatCard(
-                      title: 'Average Order Value',
-                      value: formatInrAmount(analytics.averageOrderValue),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Text('Window:', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('Last 7 days'),
-                      selected: _selectedDays == 7,
-                      onSelected: (_) => setState(() => _selectedDays = 7),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('Last 30 days'),
-                      selected: _selectedDays == 30,
-                      onSelected: (_) => setState(() => _selectedDays = 30),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                AdminRevenueChart(
-                  points: analytics.revenueTrend,
-                  title: 'Revenue Trend ($_selectedDays days)',
-                ),
-                const SizedBox(height: 12),
-                AdminOrdersChart(points: analytics.ordersPerDay),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Top Selling Products',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              AppColors.deepGold.withOpacity(0.08),
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final wide =
+                    kIsWeb && constraints.maxWidth > StorefrontBreakpoints.tablet;
+                final sectionGap = wide ? 20.0 : 12.0;
+                final statGap = wide ? 20.0 : 16.0;
+                return SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Dashboard',
+                            style: TextStyle(
+                              fontSize: wide ? 26 : 22,
+                              fontWeight: FontWeight.w700,
                             ),
-                            columns: const [
-                              DataColumn(label: Text('Product')),
-                              DataColumn(label: Text('Quantity Sold')),
-                              DataColumn(label: Text('Revenue')),
-                            ],
-                            rows: analytics.topSellingProducts.map((p) {
-                              return DataRow(
-                                cells: [
-                                  DataCell(Text(p.title)),
-                                  DataCell(Text(p.quantitySold.toString())),
-                                  DataCell(Text(formatInrAmount(p.revenue))),
-                                ],
-                              );
-                            }).toList(),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Recent Orders',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 10),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              AppColors.deepGold.withOpacity(0.08),
+                          const Spacer(),
+                          FilledButton.tonalIcon(
+                            onPressed: () {
+                              ref.invalidate(adminDashboardProvider);
+                              ref.invalidate(
+                                adminDashboardAnalyticsProvider(_selectedDays),
+                              );
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Refresh'),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: sectionGap),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _StatCard(
+                            title: 'Total Products',
+                            value: summary.totalProducts.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Total Orders',
+                            value: summary.totalOrders.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Total Users',
+                            value: summary.totalUsers.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Total Revenue',
+                            value: formatInrAmount(summary.totalRevenue),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: statGap),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _StatCard(
+                            title: 'Revenue Today',
+                            value: formatInrAmount(analytics.revenueToday),
+                          ),
+                          _StatCard(
+                            title: 'Revenue This Month',
+                            value: formatInrAmount(analytics.revenueThisMonth),
+                          ),
+                          _StatCard(
+                            title: 'Total Orders',
+                            value: analytics.totalOrders.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Pending Orders',
+                            value: analytics.pendingOrders.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Total Customers',
+                            value: analytics.totalCustomers.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Average Order Value',
+                            value: formatInrAmount(analytics.averageOrderValue),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: statGap),
+                      Row(
+                        children: [
+                          const Text(
+                            'Window:',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Last 7 days'),
+                            selected: _selectedDays == 7,
+                            onSelected: (_) => setState(() => _selectedDays = 7),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Last 30 days'),
+                            selected: _selectedDays == 30,
+                            onSelected: (_) => setState(() => _selectedDays = 30),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: sectionGap),
+                      if (wide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: AdminRevenueChart(
+                                points: analytics.revenueTrend,
+                                title: 'Revenue Trend ($_selectedDays days)',
+                              ),
                             ),
-                            columns: const [
-                              DataColumn(label: Text('Order ID')),
-                              DataColumn(label: Text('Customer')),
-                              DataColumn(label: Text('Order total')),
-                              DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('Date')),
-                            ],
-                            rows: summary.recentOrders.isEmpty
-                                ? const [
-                                    DataRow(
-                                      cells: [
-                                        DataCell(Text('-')),
-                                        DataCell(Text('No recent orders')),
-                                        DataCell(Text('-')),
-                                        DataCell(Text('-')),
-                                        DataCell(Text('-')),
-                                      ],
-                                    ),
-                                  ]
-                                : summary.recentOrders.map((order) {
-                              return DataRow(
-                                cells: [
-                                  DataCell(Text(order.id)),
-                                  DataCell(Text(order.customerName)),
-                                  DataCell(
-                                    Text(formatInrAmount(order.totalAmount)),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: AdminOrdersChart(points: analytics.ordersPerDay),
+                            ),
+                          ],
+                        )
+                      else ...[
+                        AdminRevenueChart(
+                          points: analytics.revenueTrend,
+                          title: 'Revenue Trend ($_selectedDays days)',
+                        ),
+                        SizedBox(height: sectionGap),
+                        AdminOrdersChart(points: analytics.ordersPerDay),
+                      ],
+                      SizedBox(height: sectionGap),
+                      Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(wide ? 18 : 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Top Selling Products',
+                                style: TextStyle(
+                                  fontSize: wide ? 18 : 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: wide ? 12 : 8),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: DataTable(
+                                  headingRowColor: WidgetStateProperty.all(
+                                    AppColors.deepGold.withOpacity(0.08),
                                   ),
-                                  DataCell(Text(order.status)),
-                                  DataCell(Text(_formatDateTime(order.createdAt))),
-                                ],
-                              );
-                            }).toList(),
+                                  columns: const [
+                                    DataColumn(label: Text('Product')),
+                                    DataColumn(label: Text('Quantity Sold')),
+                                    DataColumn(label: Text('Revenue')),
+                                  ],
+                                  rows: analytics.topSellingProducts.map((p) {
+                                    return DataRow(
+                                      cells: [
+                                        DataCell(Text(p.title)),
+                                        DataCell(Text(p.quantitySold.toString())),
+                                        DataCell(Text(formatInrAmount(p.revenue))),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: sectionGap),
+                      Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(wide ? 18 : 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Recent Orders',
+                                style: TextStyle(
+                                  fontSize: wide ? 20 : 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: wide ? 14 : 10),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: DataTable(
+                                  headingRowColor: WidgetStateProperty.all(
+                                    AppColors.deepGold.withOpacity(0.08),
+                                  ),
+                                  columns: const [
+                                    DataColumn(label: Text('Order ID')),
+                                    DataColumn(label: Text('Customer')),
+                                    DataColumn(label: Text('Order total')),
+                                    DataColumn(label: Text('Status')),
+                                    DataColumn(label: Text('Date')),
+                                  ],
+                                  rows: summary.recentOrders.isEmpty
+                                      ? const [
+                                          DataRow(
+                                            cells: [
+                                              DataCell(Text('-')),
+                                              DataCell(Text('No recent orders')),
+                                              DataCell(Text('-')),
+                                              DataCell(Text('-')),
+                                              DataCell(Text('-')),
+                                            ],
+                                          ),
+                                        ]
+                                      : summary.recentOrders.map((order) {
+                                          return DataRow(
+                                            cells: [
+                                              DataCell(Text(order.id)),
+                                              DataCell(Text(order.customerName)),
+                                              DataCell(
+                                                Text(formatInrAmount(order.totalAmount)),
+                                              ),
+                                              DataCell(Text(order.status)),
+                                              DataCell(
+                                                Text(_formatDateTime(order.createdAt)),
+                                              ),
+                                            ],
+                                          );
+                                        }).toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
+                );
+              },
             );
           },
           loading: () => const SizedBox.shrink(),

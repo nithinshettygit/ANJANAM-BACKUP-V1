@@ -4,7 +4,8 @@ import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 
-/// Persists Razorpay outcome via [update_order_payment_status] RPC (RLS-safe).
+/// Persists Razorpay outcome: successful checkouts use [verifyRazorpayPaymentAndMarkPaid]
+/// (Edge Function: signature + payment API). Failures still use [update_order_payment_status].
 class OrderPaymentService extends SupabaseServiceBase {
   OrderPaymentService(super.client);
 
@@ -18,7 +19,7 @@ class OrderPaymentService extends SupabaseServiceBase {
   /// Creates a Razorpay Order (`order_...`) via Edge Function, or returns `null` if the
   /// function is not deployed (HTTP 404) so checkout can fall back to key+amount flow.
   ///
-  /// Use the same Razorpay Key Id in the app as `RAZORPAY_KEY_ID` in function secrets.
+  /// App `RAZORPAY_KEY_ID` / `RAZORPAY_TEST_KEY` must match Supabase secrets `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` (test or live pair).
   Future<String?> tryCreateRazorpayServerOrder({required String orderId}) async {
     try {
       await client.auth.refreshSession();
@@ -61,6 +62,15 @@ class OrderPaymentService extends SupabaseServiceBase {
     } catch (e) {
       if (e is RepositoryException) rethrow;
       final msg = e.toString().toLowerCase();
+      // Browser blocks cross-origin Edge Function calls without CORS (shows as ClientException: Failed to fetch).
+      if (msg.contains('failed to fetch')) {
+        developer.log(
+          'create-razorpay-order: network/CORS blocked (redeploy Edge Function with CORS headers). '
+          'Falling back to Razorpay checkout without server order_id.',
+          name: 'OrderPaymentService',
+        );
+        return null;
+      }
       if (msg.contains('status 401') || msg.contains('unauthorized')) {
         throw const RepositoryException(
           'Could not start payment (auth). Please sign in again and retry.',
@@ -105,7 +115,8 @@ class OrderPaymentService extends SupabaseServiceBase {
     }
   }
 
-  /// Test-mode safety: ensure Razorpay payment is captured before marking paid.
+  /// Test-mode only: Razorpay test payments often need an explicit capture before marking paid.
+  /// Live (`rzp_live_`) checkouts skip this — payments are typically auto-captured.
   Future<void> ensureTestPaymentCaptured({
     required String orderId,
     required String razorpayPaymentId,
@@ -189,6 +200,75 @@ class OrderPaymentService extends SupabaseServiceBase {
       if (msg.toLowerCase().contains('razorpay_order_mismatch')) {
         throw const RepositoryException(
           'Payment does not match this checkout session. Do not change payment apps mid-flow; place a new order if needed.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  /// Verifies payment on the server ([verify-razorpay-payment] Edge Function): Razorpay API check,
+  /// HMAC of `order_id|payment_id` when a Razorpay order exists, then sets `payment_status` paid.
+  Future<void> verifyRazorpayPaymentAndMarkPaid({
+    required String orderId,
+    required String razorpayPaymentId,
+    String? razorpayOrderId,
+    String? razorpaySignature,
+  }) async {
+    try {
+      await client.auth.refreshSession();
+    } catch (_) {}
+    final accessToken = client.auth.currentSession?.accessToken.trim() ?? '';
+    if (accessToken.isEmpty) {
+      throw const AuthException('Sign in required.');
+    }
+    final body = <String, dynamic>{
+      'order_id': orderId,
+      'razorpay_payment_id': razorpayPaymentId.trim(),
+      if (razorpayOrderId != null && razorpayOrderId.trim().isNotEmpty)
+        'razorpay_order_id': razorpayOrderId.trim(),
+      if (razorpaySignature != null && razorpaySignature.trim().isNotEmpty)
+        'razorpay_signature': razorpaySignature.trim(),
+    };
+    try {
+      final res = await client.functions.invoke(
+        'verify-razorpay-payment',
+        headers: <String, String>{
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: body,
+      );
+      final data = res.data;
+      if (res.status == 404) {
+        throw const RepositoryException(
+          'Payment verification is not deployed. Deploy the verify-razorpay-payment Edge Function.',
+        );
+      }
+      if (res.status < 200 || res.status >= 300) {
+        final err = (data is Map ? data['error']?.toString() : null) ?? 'verify_failed';
+        final detail = (data is Map ? data['detail']?.toString() : null) ?? '';
+        throw RepositoryException(
+          detail.isEmpty
+              ? 'Could not verify payment ($err).'
+              : 'Could not verify payment ($err): $detail',
+        );
+      }
+      if (data is Map && data['ok'] == true) return;
+      throw const RepositoryException('Could not verify payment.');
+    } on AuthException {
+      rethrow;
+    } on RepositoryException {
+      rethrow;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('failed to fetch')) {
+        throw const RepositoryException(
+          'Could not reach payment verification (network or CORS). '
+          'Deploy verify-razorpay-payment with CORS headers, same as other Razorpay functions.',
+        );
+      }
+      if (msg.contains('status 401') || msg.contains('unauthorized')) {
+        throw const RepositoryException(
+          'Payment verification failed (auth). Please sign in again and retry.',
         );
       }
       rethrow;

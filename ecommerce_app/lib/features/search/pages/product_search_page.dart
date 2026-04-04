@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
@@ -16,6 +17,7 @@ import 'package:ecommerce_app/presentation/utils/storefront_product_navigation.d
 import 'package:ecommerce_app/presentation/widgets/product_card.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:ecommerce_app/presentation/widgets/storefront_home_header.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -183,7 +185,8 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
           ),
         ),
       ),
-      body: Column(
+      body: _SearchBodyWrapper(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_showSuggestions)
@@ -250,15 +253,12 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final width = constraints.maxWidth;
-                    final crossAxisCount = width >= 900
-                        ? 4
-                        : width >= 650
-                            ? 3
-                            : 2;
-                    const horizontalPadding = 24.0;
-                    const spacing = 10.0;
+                    final crossAxisCount = catalogGridCrossAxisCount(width);
+                    final spacing = catalogGridSpacing(width);
+                    final horizontalPadding = catalogHorizontalPadding(context);
+                    final aspectRatio = catalogGridChildAspectRatio(width);
                     final cardWidth =
-                        (width - horizontalPadding - (crossAxisCount - 1) * spacing) /
+                        (width - horizontalPadding * 2 - (crossAxisCount - 1) * spacing) /
                             crossAxisCount;
 
                     int? lineQty(String productId) {
@@ -272,10 +272,10 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
                       onRefresh: () => _refresh(ref),
                       child: GridView.builder(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(12),
+                        padding: EdgeInsets.all(horizontalPadding),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: crossAxisCount,
-                          childAspectRatio: 0.44,
+                          childAspectRatio: aspectRatio,
                           crossAxisSpacing: spacing,
                           mainAxisSpacing: spacing,
                         ),
@@ -346,14 +346,9 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final width = constraints.maxWidth;
-                    final crossAxisCount = width >= 900
-                        ? 4
-                        : width >= 650
-                            ? 3
-                            : 2;
                     return PageLoadingGrid(
-                      crossAxisCount: crossAxisCount,
-                      childAspectRatio: 0.44,
+                      crossAxisCount: catalogGridCrossAxisCount(width),
+                      childAspectRatio: catalogGridChildAspectRatio(width),
                     );
                   },
                 );
@@ -374,6 +369,19 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
           ),
         ],
       ),
+      ),
     );
+  }
+}
+
+class _SearchBodyWrapper extends StatelessWidget {
+  const _SearchBodyWrapper({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!kIsWeb) return child;
+    return WebMaxWidthCenter(child: child);
   }
 }

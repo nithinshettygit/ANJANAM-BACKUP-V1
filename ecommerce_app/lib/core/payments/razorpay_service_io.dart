@@ -4,7 +4,7 @@ import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 /// Wraps [Razorpay] checkout: init, open, success / error / external wallet.
 ///
-/// Use only the **Key Id** (e.g. `rzp_test_...`). Never ship the Razorpay secret.
+/// Use only the **Key Id** (`rzp_test_...` or `rzp_live_...`). Never ship the Razorpay secret.
 ///
 /// IO / mobile only — web uses [razorpay_service_web.dart].
 class RazorpayService {
@@ -31,14 +31,15 @@ class RazorpayService {
     required String customerContact,
     /// From server: `order_...` (omit for legacy client-only amount checkout).
     String? razorpayOrderId,
-    void Function(String razorpayPaymentId, String? razorpayOrderId)? onPaymentSuccess,
+    void Function(String razorpayPaymentId, String? razorpayOrderId, String? razorpaySignature)?
+        onPaymentSuccess,
     void Function(String message)? onPaymentError,
     void Function(String walletName)? onExternalWallet,
   }) {
     if (_keyId.isEmpty) {
       onPaymentError?.call(
         'Payments are not configured. Add your test Key Id at build time '
-        '(--dart-define=RAZORPAY_TEST_KEY=...).',
+        '(--dart-define=RAZORPAY_KEY_ID=...).',
       );
       return;
     }
@@ -57,7 +58,12 @@ class RazorpayService {
         return;
       }
       final oid = response.orderId?.trim();
-      onPaymentSuccess?.call(id, oid != null && oid.isNotEmpty ? oid : null);
+      final sig = response.signature?.trim();
+      onPaymentSuccess?.call(
+        id,
+        oid != null && oid.isNotEmpty ? oid : null,
+        sig != null && sig.isNotEmpty ? sig : null,
+      );
     });
 
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {

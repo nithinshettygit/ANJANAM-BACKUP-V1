@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_spacing.dart';
 import '../../features/home_content/domain/home_top_category_item.dart';
 import 'app_network_image.dart';
+import 'home_layout_metrics.dart';
+import 'web_horizontal_rail_list.dart';
 
 /// Flipkart-style circular category chips in a horizontal scroller.
 class HomeTopCategoriesRow extends StatelessWidget {
@@ -26,7 +27,7 @@ class HomeTopCategoriesRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+          padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
           child: Row(
             children: [
               Container(
@@ -40,49 +41,49 @@ class HomeTopCategoriesRow extends StatelessWidget {
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: AppColors.brandSaffronDeep,
                     fontWeight: FontWeight.w700,
+                    fontSize: HomeLayoutMetrics.homeSectionBadgeFontSize(context),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 'Shop by category',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
+                style: HomeLayoutMetrics.homeCategoryRowTitleStyle(context, theme.textTheme) ??
+                    theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                    ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.cardGap + 2),
-        SizedBox(
+        SizedBox(height: HomeLayoutMetrics.homeCategoryHeaderToScrollerGap(context)),
+        WebHorizontalRailList(
           height: circleSize + 48,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.page),
-            itemBuilder: (context, index) {
-              final c = items[index];
-              final slug = c.categorySlug.trim().toLowerCase();
-              return _CategoryChip(
-                label: c.label,
-                iconUrl: c.iconUrl,
-                circleSize: circleSize,
-                onTap: slug.isEmpty
-                    ? null
-                    : () {
-                        Navigator.of(context).pushNamed(
-                          '/products',
-                          arguments: {
-                            'category': slug,
-                            'title': c.label,
-                          },
-                        );
-                      },
-              );
-            },
-          ),
+          padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+          itemCount: items.length,
+          separatorBuilder: (_, __) =>
+              SizedBox(width: HomeLayoutMetrics.homeCategoryScrollerGap(context)),
+          itemBuilder: (context, index) {
+            final c = items[index];
+            final slug = c.categorySlug.trim().toLowerCase();
+            return _CategoryChip(
+              label: c.label,
+              iconUrl: c.iconUrl,
+              circleSize: circleSize,
+              onTap: slug.isEmpty
+                  ? null
+                  : () {
+                      Navigator.of(context).pushNamed(
+                        '/products',
+                        arguments: {
+                          'category': slug,
+                          'title': c.label,
+                        },
+                      );
+                    },
+            );
+          },
         ),
       ],
     );

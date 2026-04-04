@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/layout/storefront_web_layout.dart';
+import '../../core/layout/storefront_web_sidebar.dart';
 import '../../features/addresses/state/user_addresses_provider.dart';
 import '../../features/auth/state/auth_session_provider.dart';
 import '../../features/cart/state/cart_controller.dart';
@@ -26,6 +29,14 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// Tabs at these indices require the user to be signed in.
   static const _authRequiredTabs = {3, 4}; // My Orders, Account
   bool _authListenAttached = false;
+
+  static const List<Widget> _tabPages = [
+    HomePage(),
+    ShopCategoriesPage(),
+    ExplorePage(),
+    OrderHistoryPage(),
+    ProfilePage(),
+  ];
 
   Future<void> _onTabTapped(int index) async {
     final currentIndex = ref.read(mainShellTabIndexProvider);
@@ -107,48 +118,73 @@ class _MainShellState extends ConsumerState<MainShell> {
               );
         }
       },
-      child: Scaffold(
-        body: IndexedStack(
-          index: currentIndex,
-          children: [
-            const HomePage(),
-            const ShopCategoriesPage(),
-            const ExplorePage(),
-            const OrderHistoryPage(),
-            const ProfilePage(),
-          ],
-        ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: currentIndex,
-          onDestinationSelected: _onTabTapped,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.storefront_outlined),
-              selectedIcon: Icon(Icons.storefront),
-              label: 'Shop',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.explore_outlined),
-              selectedIcon: Icon(Icons.explore),
-              label: 'Explore',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long),
-              label: 'My Orders',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Account',
-            ),
-          ],
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showWebRail = kIsWeb &&
+              constraints.maxWidth >= StorefrontBreakpoints.webNavigationRail;
+
+          final stack = IndexedStack(
+            index: currentIndex,
+            children: _tabPages,
+          );
+
+          final Widget body;
+          if (!kIsWeb) {
+            body = stack;
+          } else if (showWebRail) {
+            body = Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                StorefrontWebSidebar(
+                  selectedIndex: currentIndex,
+                  onDestinationSelected: _onTabTapped,
+                ),
+                Expanded(
+                  child: WebMainContentPanel(child: stack),
+                ),
+              ],
+            );
+          } else {
+            body = WebMaxWidthCenter(child: stack);
+          }
+
+          return Scaffold(
+            body: body,
+            bottomNavigationBar: showWebRail
+                ? null
+                : NavigationBar(
+                    selectedIndex: currentIndex,
+                    onDestinationSelected: _onTabTapped,
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.home_outlined),
+                        selectedIcon: Icon(Icons.home),
+                        label: 'Home',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.storefront_outlined),
+                        selectedIcon: Icon(Icons.storefront),
+                        label: 'Shop',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.explore_outlined),
+                        selectedIcon: Icon(Icons.explore),
+                        label: 'Explore',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.receipt_long_outlined),
+                        selectedIcon: Icon(Icons.receipt_long),
+                        label: 'My Orders',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.person_outline),
+                        selectedIcon: Icon(Icons.person),
+                        label: 'Account',
+                      ),
+                    ],
+                  ),
+          );
+        },
       ),
     );
   }

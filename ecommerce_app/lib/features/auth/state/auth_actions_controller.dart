@@ -27,10 +27,15 @@ class AuthActionsController extends AsyncNotifier<void> {
   Future<void> signUp({
     required String email,
     required String password,
+    String userName = '',
   }) async {
     state = const AsyncLoading();
     final result = await AsyncValue.guard(
-      () => _repo.signUpWithEmailAndPassword(email: email, password: password),
+      () => _repo.signUpWithEmailAndPassword(
+            email: email,
+            password: password,
+            userName: userName,
+          ),
     );
     if (result.hasError) {
       state = AsyncError(result.error!, result.stackTrace!);

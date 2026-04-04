@@ -2,10 +2,18 @@
 import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js";
 
+/** Required for Flutter Web / browser: preflight + cross-origin POST with Authorization. */
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 }
 
@@ -36,6 +44,9 @@ type RazorpayPayment = {
 };
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { status: 204, headers: corsHeaders });
+  }
   try {
     if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
 
@@ -49,12 +60,7 @@ serve(async (req) => {
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
       return json(500, { error: "missing_razorpay_secrets" });
     }
-    if (!RAZORPAY_KEY_ID.startsWith("rzp_test_")) {
-      return json(400, {
-        error: "invalid_razorpay_key_mode",
-        detail: "RAZORPAY_KEY_ID must be a test key (rzp_test_...) for this flow.",
-      });
-    }
+    // Supports both rzp_test_* (manual capture often needed) and rzp_live_* (usually auto-capture).
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: { headers: { "Content-Type": "application/json" } },

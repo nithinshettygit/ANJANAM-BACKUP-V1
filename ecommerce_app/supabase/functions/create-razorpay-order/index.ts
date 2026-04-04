@@ -2,10 +2,18 @@
 import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js";
 
+/** Required for Flutter Web / browser: preflight + cross-origin POST with Authorization. */
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 }
 
@@ -25,6 +33,9 @@ function basicAuthHeader(keyId: string, keySecret: string): string {
 }
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { status: 204, headers: corsHeaders });
+  }
   try {
     if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
 
