@@ -1,0 +1,61 @@
+# Build ecommerce_app for web and deploy to Firebase Hosting.
+# Repository secrets (Settings > Secrets): SUPABASE_URL, SUPABASE_ANON_KEY,
+# and a Firebase service account JSON in FIREBASE_SERVICE_ACCOUNT (full JSON as secret).
+#
+# Enable Hosting in Firebase Console for project anjanam-app (or override FIREBASE_PROJECT).
+name: Deploy admin web (Firebase Hosting)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "ecommerce_app/**"
+      - ".github/workflows/deploy-admin-web.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ecommerce_app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build web
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_FUNCTIONS_BASE_URL: ${{ secrets.SUPABASE_FUNCTIONS_BASE_URL }}
+          RAZORPAY_TEST_KEY: ${{ secrets.RAZORPAY_TEST_KEY }}
+        run: |
+          set -e
+          DEFINES=(
+            "--dart-define=SUPABASE_URL=${SUPABASE_URL}"
+            "--dart-define=SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}"
+          )
+          if [ -n "${SUPABASE_FUNCTIONS_BASE_URL:-}" ]; then
+            DEFINES+=("--dart-define=SUPABASE_FUNCTIONS_BASE_URL=${SUPABASE_FUNCTIONS_BASE_URL}")
+          fi
+          if [ -n "${RAZORPAY_TEST_KEY:-}" ]; then
+            DEFINES+=("--dart-define=RAZORPAY_TEST_KEY=${RAZORPAY_TEST_KEY}")
+          fi
+          flutter build web --release --base-href=/ "${DEFINES[@]}"
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: anjanam-app
+          entryPoint: ecommerce_app

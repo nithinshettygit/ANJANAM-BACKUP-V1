@@ -1,0 +1,65 @@
+# ANJANAM-NEW — clone → build (read once, then run in order)
+#
+# Prerequisites
+#   - Git, Flutter SDK (stable, Dart >= 3.3), Chrome or an Android device/emulator
+#   - Optional: Node.js 18+ (Supabase CLI), Firebase CLI (only for deploy)
+#
+# 1) Clone and enter the repo (replace YOUR_ORG/YOUR_REPO with your GitHub URL)
+#    git clone https://github.com/YOUR_ORG/YOUR_REPO.git
+#    cd YOUR_REPO
+#
+# ---------- Main app: Flutter (ecommerce_app) ----------
+#
+# 2) Web build config (required for build web / release defines)
+#    PowerShell:
+#      cd ecommerce_app
+#      Copy-Item tool\web_build.env.example tool\web_build.env
+#    Edit tool\web_build.env: set SUPABASE_URL and SUPABASE_ANON_KEY (see comments in that file).
+#    Optional lines: SUPABASE_FUNCTIONS_BASE_URL, RAZORPAY_TEST_KEY
+#
+# 3) Android: place Firebase google-services.json
+#    Download from Firebase Console → Project settings → Your apps → Android app.
+#    Save as: ecommerce_app/android/app/google-services.json
+#
+# 4) Fetch Dart / Flutter dependencies
+#    cd ecommerce_app
+#    flutter pub get
+#
+# 5) Run on a device (set YOUR_DEVICE_ID from `flutter devices`, or use chrome)
+#    PowerShell example (replace values with yours from web_build.env or env vars):
+#      $env:SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
+#      $env:SUPABASE_ANON_KEY="your_anon_key"
+#      flutter run -d chrome --dart-define=SUPABASE_URL=$env:SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$env:SUPABASE_ANON_KEY
+#
+# 6) Release web build (output: ecommerce_app\build\web)
+#    PowerShell (from ecommerce_app):
+#      .\scripts\build_admin_web.ps1
+#    Bash (from ecommerce_app):
+#      chmod +x scripts/build_admin_web.sh && ./scripts/build_admin_web.sh
+#
+# 7) Optional: deploy web to Firebase Hosting (needs firebase login + project)
+#    From ecommerce_app:
+#      .\scripts\build_admin_web.ps1 -Deploy
+#
+# ---------- Backend: Supabase (schema + Edge Functions) ----------
+#
+# 8) Optional — apply migrations to your Supabase project (needs Supabase CLI + login)
+#    cd ecommerce_app
+#    npx supabase@latest link --project-ref YOUR_PROJECT_REF
+#    npx supabase@latest db push
+#
+# 9) Optional — deploy Edge Functions (after link)
+#    cd ecommerce_app
+#    npx supabase@latest functions deploy
+#
+# ---------- Legacy: new-app (Expo / React Native sources) ----------
+#
+# This folder is source-only in this repo (no package.json). To run it you need a full Expo
+# project (package.json / lockfile) from your backup or EAS. Place google-services.json
+# locally for Android; never commit that file.
+#
+# ---------- CI ----------
+#
+# GitHub Actions: .github/workflows/deploy-admin-web.yml — set repo secrets:
+# SUPABASE_URL, SUPABASE_ANON_KEY, optional SUPABASE_FUNCTIONS_BASE_URL, RAZORPAY_TEST_KEY,
+# FIREBASE_SERVICE_ACCOUNT (full JSON).

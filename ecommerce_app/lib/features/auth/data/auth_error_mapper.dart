@@ -1,0 +1,194 @@
+import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:gotrue/gotrue.dart' as gt;
+
+/// Converts API and wrapper errors into [AuthException] with stable [AuthFailureKind].
+AuthException resolvePresentableAuthError(
+  Object error, {
+  required bool isSignUp,
+}) {
+  if (error is AuthException) return error;
+
+  if (error is RepositoryException) {
+    return _fromPlainText(error.message, isSignUp: isSignUp);
+  }
+
+  return _fromGotrue(error, isSignUp: isSignUp) ??
+      _fromPlainText(error.toString(), isSignUp: isSignUp);
+}
+
+AuthException _fromPlainText(String raw, {required bool isSignUp}) {
+  final lower = raw.toLowerCase();
+  if (isSignUp) {
+    if (lower.contains('already registered') ||
+        lower.contains('user already registered') ||
+        lower.contains('already been registered') ||
+        lower.contains('email address is already')) {
+      return AuthException(
+        'An account with this email address is already registered. '
+        'Please sign in using your existing credentials, or use a different email address.',
+        kind: AuthFailureKind.accountExists,
+      );
+    }
+    if (lower.contains('password') &&
+        (lower.contains('weak') || lower.contains('least') || lower.contains('short'))) {
+      return AuthException(
+        'The password you chose does not satisfy our security requirements. '
+        'Please use a longer password or include a mix of letters, numbers, and symbols.',
+        kind: AuthFailureKind.weakPassword,
+      );
+    }
+  } else {
+    if (lower.contains('invalid login credentials') ||
+        lower.contains('invalid_credentials') ||
+        lower.contains('invalid grant')) {
+      return AuthException(
+        'We could not verify your email address and password. '
+        'Please check that your details are correct and try again. '
+        'If you do not yet have an account, you may create one using the option below.',
+        kind: AuthFailureKind.invalidCredentials,
+      );
+    }
+    if (lower.contains('email not confirmed') ||
+        lower.contains('email_not_confirmed')) {
+      return AuthException(
+        'Your email address has not been confirmed. '
+        'Please open the confirmation message we sent you and follow the link before signing in.',
+        kind: AuthFailureKind.emailNotConfirmed,
+      );
+    }
+  }
+  if (lower.contains('network') ||
+      lower.contains('socket') ||
+      lower.contains('failed host lookup') ||
+      lower.contains('connection refused') ||
+      lower.contains('timed out')) {
+    return AuthException(
+      'We could not reach the service. Please check your internet connection and try again.',
+      kind: AuthFailureKind.network,
+    );
+  }
+  if (_isSupabaseEmailOrAuthQuota(lower)) {
+    return _emailQuotaMessage();
+  }
+  if (lower.contains('too many requests') || lower.contains('rate limit')) {
+    return AuthException(
+      'Too many attempts were made in a short period. Please wait a moment and try again.',
+      kind: AuthFailureKind.rateLimited,
+    );
+  }
+  if (isSignUp &&
+      (lower.contains('signups not allowed') ||
+          lower.contains('signup_disabled') ||
+          lower.contains('sign up is disabled'))) {
+    return const AuthException(
+      'New account registration is currently disabled for this application. '
+      'Please contact support if you believe this is an error.',
+      kind: AuthFailureKind.unknown,
+    );
+  }
+  final trimmed = raw.trim();
+  if (trimmed.length > 220) {
+    return const AuthException(
+      'An unexpected error occurred while contacting the authentication service. Please try again.',
+      kind: AuthFailureKind.unknown,
+    );
+  }
+  return AuthException(trimmed, kind: AuthFailureKind.unknown);
+}
+
+AuthException? _fromGotrue(Object error, {required bool isSignUp}) {
+  if (error is gt.AuthWeakPasswordException) {
+    final reasons = error.reasons;
+    final detail = reasons.isEmpty
+        ? ''
+        : ' Details: ${reasons.join(' ')}';
+    return AuthException(
+      'Your password does not meet the required security standard.$detail',
+      kind: AuthFailureKind.weakPassword,
+    );
+  }
+
+  if (error is gt.AuthSessionMissingException) {
+    return const AuthException(
+      'Your session is no longer active. Please sign in again to continue.',
+      kind: AuthFailureKind.sessionExpired,
+    );
+  }
+
+  if (error is gt.AuthRetryableFetchException) {
+    return const AuthException(
+      'We could not reach the authentication service. Please verify your connection and try again.',
+      kind: AuthFailureKind.network,
+    );
+  }
+
+  if (error is gt.AuthException) {
+    final code = (error.code ?? '').toLowerCase();
+    final msg = error.message.toLowerCase();
+
+    if (isSignUp) {
+      if (code == 'user_already_exists' ||
+          code.contains('already_registered') ||
+          msg.contains('already registered') ||
+          msg.contains('user already')) {
+        return AuthException(
+          'An account with this email address is already registered. '
+          'Please sign in, or use a different email address to register.',
+          kind: AuthFailureKind.accountExists,
+        );
+      }
+    } else {
+      if (code == 'invalid_credentials' ||
+          code == 'invalid_grant' ||
+          msg.contains('invalid login credentials')) {
+        return AuthException(
+          'The email or password entered does not match our records. '
+          'Please try again, or create a new account if you have not registered before.',
+          kind: AuthFailureKind.invalidCredentials,
+        );
+      }
+      if (code == 'email_not_confirmed' || msg.contains('email not confirmed')) {
+        return const AuthException(
+          'You must confirm your email address before signing in. '
+          'Check your inbox for a confirmation link from us.',
+          kind: AuthFailureKind.emailNotConfirmed,
+        );
+      }
+    }
+
+    if (_isSupabaseEmailOrAuthQuota(code) || _isSupabaseEmailOrAuthQuota(msg)) {
+      return _emailQuotaMessage();
+    }
+    if (code.contains('rate') || msg.contains('too many')) {
+      return const AuthException(
+        'This action has been temporarily limited. Please wait briefly and try again.',
+        kind: AuthFailureKind.rateLimited,
+      );
+    }
+
+    return _fromPlainText(error.message, isSignUp: isSignUp);
+  }
+
+  return null;
+}
+
+bool _isSupabaseEmailOrAuthQuota(String s) {
+  final t = s.toLowerCase();
+  return t.contains('over_email_send_rate_limit') ||
+      t.contains('email_rate_limit') ||
+      t.contains('email rate limit') ||
+      t.contains('email send rate') ||
+      t.contains('429') && t.contains('email');
+}
+
+AuthException _emailQuotaMessage() {
+  return AuthException(
+    'The sign-up service could not send a confirmation email because this project\'s '
+    'email quota has been reached (this is normal on the free tier: only a few emails '
+    'per hour are allowed on the shared mail provider). '
+    'This is not caused by your password. Please wait about an hour and try again, '
+    'or ask the project owner to add a custom SMTP provider in the Supabase Dashboard '
+    'under Authentication → Emails → SMTP Settings.',
+    kind: AuthFailureKind.rateLimited,
+  );
+}

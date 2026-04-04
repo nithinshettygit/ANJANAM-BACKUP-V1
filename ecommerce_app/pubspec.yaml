@@ -1,0 +1,65 @@
+name: ecommerce_app
+description: Android-first ecommerce app integrated with Supabase.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+  flutter_riverpod: any
+  riverpod: any
+  supabase_flutter: any
+  gotrue: any
+  firebase_core: any
+  firebase_messaging: any
+  flutter_local_notifications: any
+  http: any
+  cached_network_image: any
+  file_picker: any
+  image_picker: any
+  fl_chart: any
+  uuid: any
+  photo_view: any
+  image: any
+  reorderable_grid_view: any
+  shared_preferences: any
+  url_launcher: any
+  razorpay_flutter: ^1.4.0
+  pdf: any
+  printing: any
+  path_provider: any
+  share_plus: any
+  youtube_player_iframe: ^5.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: any
+  flutter_launcher_icons: ^0.14.3
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/branding/app_icon.png
+
+# Launcher: Android + web only (no iOS / Windows in this project).
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/branding/app_icon.png"
+  adaptive_icon_background: "#fa7800"
+  adaptive_icon_foreground: "assets/branding/app_icon.png"
+  windows:
+    generate: false
+  web:
+    generate: true
+    image_path: "assets/branding/app_icon.png"
+    background_color: "#ffffff"
+    theme_color: "#fa7800"
+

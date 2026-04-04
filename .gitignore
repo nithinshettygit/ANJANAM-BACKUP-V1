@@ -1,0 +1,16 @@
+# Local / OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Cursor / IDE (optional local state)
+.cursor/
+
+# Supabase CLI local cache (machine-specific)
+ecommerce_app/supabase/.temp/
+
+# new-app: credentials and scratch (do not commit — restore from Firebase / Play Console)
+new-app/google-services.json
+new-app/anjanam-app-*.json
+new-app/cmd.txt
+new-app/temp.txt
