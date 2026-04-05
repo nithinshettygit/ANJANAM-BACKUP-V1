@@ -20,7 +20,6 @@ import '../pages/order_history_page.dart';
 import '../pages/order_success_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/notifications_page.dart';
-import '../pages/catalog_page.dart';
 import '../pages/product_details_page.dart';
 import '../../features/search/pages/product_search_page.dart';
 import '../pages/email_confirmation_callback_page.dart';
@@ -88,6 +87,24 @@ class AppRouter {
     final productsRoute = _tryProductsRoute(settings);
     if (productsRoute != null) return productsRoute;
     final path = _routePathOnly(settings.name);
+    // Shareable storefront URLs: {STOREFRONT_SHARE_BASE_URL}/product/<id> (default: anjanam-app.web.app)
+    if (path != null && path.startsWith('/product/')) {
+      final raw = path.substring('/product/'.length);
+      final productId = Uri.decodeComponent(raw);
+      if (productId.isNotEmpty) {
+        // Public share URLs: do not wrap in [_AdminAwareCustomerRoute] — signed-in admins
+        // on web would otherwise be sent to /admin and never see the product.
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => ProductDetailsPage(productId: productId),
+        );
+      }
+      return MaterialPageRoute(
+        builder: (_) => const _RouteErrorPage(
+          message: 'Missing product id for product link.',
+        ),
+      );
+    }
     switch (path) {
       case '/':
       case null:

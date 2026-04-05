@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
+import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/wishlist/state/wishlist_products_provider.dart';
@@ -43,8 +44,9 @@ class WishlistPage extends ConsumerWidget {
     if (wishlistIds.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Wishlist')),
-        body: const PageEmptyState(
+        body: PageEmptyState(
           icon: Icons.favorite_border,
+          iconSize: WishlistHeartSizes.emptyStateHero,
           title: 'Your wishlist is empty',
           subtitle: 'Tap heart icons on products to save them.',
         ),
@@ -58,8 +60,9 @@ class WishlistPage extends ConsumerWidget {
       body: productsAsync.when(
         data: (wished) {
           if (wished.isEmpty) {
-            return const PageEmptyState(
+            return PageEmptyState(
               icon: Icons.favorite_border,
+              iconSize: WishlistHeartSizes.emptyStateHero,
               title: 'Your wishlist is empty',
               subtitle: 'Saved products may be unavailable. Try refreshing.',
             );

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 
 import '../utils/admin_android_ui.dart';
 import '../providers/admin_providers.dart';
@@ -408,7 +409,13 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
                   AdminTableColumn<AdminProduct>(
                     label: 'Price',
                     sortValue: (p) => p.price,
-                    cellBuilder: (p) => Text(formatInrAmount(p.price)),
+                    cellBuilder: (p) => Text(
+                      formatInrAmount(p.price),
+                      style: const TextStyle(
+                        color: AppColors.priceText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                   AdminTableColumn<AdminProduct>(
                     label: 'Card % off',
@@ -617,7 +624,21 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
               Text('SKU: ${product.sku.isEmpty ? '-' : product.sku}'),
               Text('Brand: ${product.brand.isEmpty ? '-' : product.brand}'),
               Text('Tags: ${product.tags.isEmpty ? '-' : product.tags.join(', ')}'),
-              Text('Sale price: ${formatInrAmount(product.price)}'),
+              Text.rich(
+                TextSpan(
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  children: [
+                    const TextSpan(text: 'Sale price: '),
+                    TextSpan(
+                      text: formatInrAmount(product.price),
+                      style: const TextStyle(
+                        color: AppColors.priceText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Text('Weight: ${product.weight <= 0 ? '-' : product.weight.toStringAsFixed(3)} kg'),
               Text('Dimensions: ${product.dimensions.isEmpty ? '-' : product.dimensions}'),
               Text('Stock: ${product.inventoryCount}'),

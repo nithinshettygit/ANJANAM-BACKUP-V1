@@ -23,6 +23,9 @@ class StorefrontVideo {
 
   String? get videoId => extractYoutubeVideoId(youtubeUrl);
 
+  /// Vertical Shorts links (`/shorts/<id>`) need a 9:16 player area; regular videos use 16:9.
+  bool get isYoutubeShortsLink => isYoutubeShortsUrl(youtubeUrl);
+
   String? get effectiveThumbnailUrl {
     final custom = thumbnailUrl?.trim();
     if (custom != null && custom.isNotEmpty) return custom;

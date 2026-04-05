@@ -22,6 +22,34 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   configureWebUrlStrategy();
+
+  if (kIsWeb) {
+    await _runWebApp();
+  } else {
+    await _runMobileApp();
+  }
+}
+
+Future<void> _runWebApp() async {
+  try {
+    final env = AppEnv.fromEnvironment();
+    await Supabase.initialize(
+      url: env.supabaseUrl,
+      anonKey: env.supabaseAnonKey,
+    );
+    runApp(
+      const ProviderScope(
+        child: EcommerceApp(),
+      ),
+    );
+  } catch (e, st) {
+    debugPrint('Web startup error: $e');
+    debugPrint('$st');
+    runApp(_WebConfigErrorApp(message: e.toString()));
+  }
+}
+
+Future<void> _runMobileApp() async {
   final env = AppEnv.fromEnvironment();
 
   await Supabase.initialize(
@@ -31,22 +59,20 @@ Future<void> main() async {
 
   // FCM + local notifications are mobile-only. For Firebase on web (Analytics, etc.),
   // add a Web app in the Firebase console and run: dart run flutterfire_cli:flutterfire configure
-  if (!kIsWeb) {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    await FirebaseMessaging.instance.setAutoInitEnabled(true);
-    await LocalNotificationService.initialize();
-    FirebaseMessaging.onMessage.listen((message) {
-      NotificationMessageRouter.onMessage(message);
-    });
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      NotificationMessageRouter.onNotificationTap(message);
-    });
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  await FirebaseMessaging.instance.setAutoInitEnabled(true);
+  await LocalNotificationService.initialize();
+  FirebaseMessaging.onMessage.listen((message) {
+    NotificationMessageRouter.onMessage(message);
+  });
+  FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    NotificationMessageRouter.onNotificationTap(message);
+  });
 
-    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage != null) {
-      NotificationMessageRouter.setPendingInitialMessage(initialMessage);
-    }
+  final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMessage != null) {
+    NotificationMessageRouter.setPendingInitialMessage(initialMessage);
   }
 
   runApp(
@@ -54,5 +80,59 @@ Future<void> main() async {
       child: EcommerceApp(),
     ),
   );
+}
+
+/// Shown when web was built without SUPABASE_URL / SUPABASE_ANON_KEY (or other startup failure).
+class _WebConfigErrorApp extends StatelessWidget {
+  const _WebConfigErrorApp({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'ANJANAM — configuration',
+      home: Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SelectionArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Web app could not start',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Common causes: (1) Web was built without SUPABASE_URL / SUPABASE_ANON_KEY '
+                    'at compile time — use tool/web_build.env and scripts\\build_admin_web.ps1. '
+                    '(2) Supabase failed to initialize. '
+                    '(3) After a fix, use a private window or clear site data if an old service worker cached a blank page.',
+                    style: TextStyle(fontSize: 15, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'scripts\\build_admin_web.ps1',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontFamily: 'monospace',
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    message,
+                    style: const TextStyle(fontSize: 13, color: Colors.redAccent, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 

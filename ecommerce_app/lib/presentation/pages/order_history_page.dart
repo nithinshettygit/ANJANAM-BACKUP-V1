@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/order_history/state/order_history_controller.dart';
 import 'package:ecommerce_app/features/wishlist/state/wishlist_provider.dart';
@@ -80,11 +81,12 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
         actions: [
           IconButton(
             tooltip: 'Wishlist',
+            iconSize: WishlistHeartSizes.appBar,
             onPressed: () => Navigator.of(context).pushNamed('/wishlist'),
             icon: Badge(
               isLabelVisible: wishlistCount > 0,
               label: Text('$wishlistCount'),
-              child: const Icon(Icons.favorite_border),
+              child: Icon(Icons.favorite_border, size: WishlistHeartSizes.appBar),
             ),
           ),
           IconButton(

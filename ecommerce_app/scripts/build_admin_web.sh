@@ -33,7 +33,11 @@ if [[ -n "${RAZORPAY_TEST_KEY:-}" ]]; then
   DEFINES+=("--dart-define=RAZORPAY_TEST_KEY=${RAZORPAY_TEST_KEY}")
 fi
 
-flutter build web --release --base-href="$BASE_HREF" "${DEFINES[@]}"
+# HTML renderer: avoids blank page when CanvasKit CDN is blocked. PWA none: fewer stale SW caches.
+if ! flutter build web --release --base-href="$BASE_HREF" --web-renderer html --pwa-strategy none "${DEFINES[@]}"; then
+  echo "Retrying without --web-renderer / --pwa-strategy (older Flutter)..." >&2
+  flutter build web --release --base-href="$BASE_HREF" "${DEFINES[@]}"
+fi
 
 if [[ "${DEPLOY:-}" == "1" ]]; then
   firebase deploy --only hosting --project anjanam-app

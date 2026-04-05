@@ -6,7 +6,8 @@ import '../../core/theme/app_colors.dart';
 
 /// Horizontal product rail with optional **web** mouse-wheel → horizontal scroll and scrollbar.
 ///
-/// On **Android / iOS**, builds a plain [ListView.separated] with no controller.
+/// On **Android / iOS**, builds a plain [ListView.separated] with no controller, unless
+/// [snapViewportFraction] is set — then a [PageView] snaps one card per swipe (fixed card sizes).
 class WebHorizontalRailList extends StatefulWidget {
   const WebHorizontalRailList({
     super.key,
@@ -18,6 +19,13 @@ class WebHorizontalRailList extends StatefulWidget {
     this.physics,
     /// Extra bottom inset inside the list so the horizontal scrollbar clears card artwork (web).
     this.scrollbarBottomInset,
+    /// Native only: `(cardWidth + gap) / shelfContentWidth` — enables paged horizontal swipe.
+    /// Ignored on web.
+    this.snapViewportFraction,
+    /// Native snap only: right inset per page so the card doesn’t sit flush against the next page.
+    this.snapPageTrailingPadding = 0,
+    /// Native snap only: overrides default [PageScrollPhysics] + [BouncingScrollPhysics] (e.g. easier paging).
+    this.snapScrollPhysics,
   });
 
   final double height;
@@ -27,6 +35,9 @@ class WebHorizontalRailList extends StatefulWidget {
   final IndexedWidgetBuilder separatorBuilder;
   final ScrollPhysics? physics;
   final double? scrollbarBottomInset;
+  final double? snapViewportFraction;
+  final double snapPageTrailingPadding;
+  final ScrollPhysics? snapScrollPhysics;
 
   @override
   State<WebHorizontalRailList> createState() => _WebHorizontalRailListState();
@@ -34,19 +45,36 @@ class WebHorizontalRailList extends StatefulWidget {
 
 class _WebHorizontalRailListState extends State<WebHorizontalRailList> {
   ScrollController? _controller;
+  PageController? _pageController;
 
   @override
   void initState() {
     super.initState();
     if (kIsWeb) {
       _controller = ScrollController();
+    } else if (widget.snapViewportFraction != null) {
+      _pageController =
+          PageController(viewportFraction: widget.snapViewportFraction!);
     }
   }
 
   @override
   void dispose() {
     _controller?.dispose();
+    _pageController?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(WebHorizontalRailList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (kIsWeb) return;
+    final oldF = oldWidget.snapViewportFraction;
+    final newF = widget.snapViewportFraction;
+    if (oldF == newF) return;
+    _pageController?.dispose();
+    _pageController =
+        newF != null ? PageController(viewportFraction: newF) : null;
   }
 
   void _onPointerSignal(PointerSignalEvent event) {
@@ -65,20 +93,67 @@ class _WebHorizontalRailListState extends State<WebHorizontalRailList> {
     return base.copyWith(bottom: base.bottom + extraBottom);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final list = SizedBox(
+  Widget _buildNativeList(BuildContext context) {
+    final pad = _resolvedListPadding(context);
+    if (_pageController != null && widget.itemCount > 0) {
+      return SizedBox(
+        height: widget.height,
+        child: Padding(
+          padding: pad,
+          child: PageView.builder(
+            controller: _pageController,
+            padEnds: false,
+            physics: widget.snapScrollPhysics ??
+                const PageScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+            allowImplicitScrolling: true,
+            itemCount: widget.itemCount,
+            itemBuilder: (context, index) {
+              final card = Align(
+                alignment: Alignment.centerLeft,
+                child: widget.itemBuilder(context, index),
+              );
+              final tp = widget.snapPageTrailingPadding;
+              if (tp <= 0) return card;
+              return Padding(
+                padding: EdgeInsets.only(right: tp),
+                child: card,
+              );
+            },
+          ),
+        ),
+      );
+    }
+    return SizedBox(
       height: widget.height,
       child: ListView.separated(
-        controller: _controller,
         scrollDirection: Axis.horizontal,
-        padding: _resolvedListPadding(context),
+        padding: pad,
         physics: widget.physics ?? const AlwaysScrollableScrollPhysics(),
         itemCount: widget.itemCount,
         separatorBuilder: widget.separatorBuilder,
         itemBuilder: widget.itemBuilder,
       ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = kIsWeb
+        ? SizedBox(
+            height: widget.height,
+            child: ListView.separated(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              padding: _resolvedListPadding(context),
+              physics: widget.physics ?? const AlwaysScrollableScrollPhysics(),
+              itemCount: widget.itemCount,
+              separatorBuilder: widget.separatorBuilder,
+              itemBuilder: widget.itemBuilder,
+            ),
+          )
+        : _buildNativeList(context);
 
     if (!kIsWeb) return list;
 
@@ -124,4 +199,17 @@ class _WebHorizontalRailListState extends State<WebHorizontalRailList> {
       ),
     );
   }
+}
+
+/// Slightly lower fling threshold so Popular rail pages advance with a lighter horizontal swipe.
+class PopularRailPageScrollPhysics extends PageScrollPhysics {
+  const PopularRailPageScrollPhysics({super.parent});
+
+  @override
+  PopularRailPageScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return PopularRailPageScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  double get minFlingVelocity => 30;
 }

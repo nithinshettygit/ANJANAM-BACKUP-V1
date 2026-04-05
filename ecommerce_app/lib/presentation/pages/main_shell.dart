@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/layout/storefront_web_layout.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/layout/storefront_web_sidebar.dart';
 import '../../features/addresses/state/user_addresses_provider.dart';
 import '../../features/auth/state/auth_session_provider.dart';
@@ -29,6 +30,35 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// Tabs at these indices require the user to be signed in.
   static const _authRequiredTabs = {3, 4}; // My Orders, Account
   bool _authListenAttached = false;
+
+  /// Shared destinations; native shell applies a compact [NavigationBarTheme] (~62px height).
+  static const List<NavigationDestination> _shellNavDestinations = [
+    NavigationDestination(
+      icon: Icon(Icons.home_outlined),
+      selectedIcon: Icon(Icons.home),
+      label: 'Home',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.storefront_outlined),
+      selectedIcon: Icon(Icons.storefront),
+      label: 'Shop',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.explore_outlined),
+      selectedIcon: Icon(Icons.explore),
+      label: 'Explore',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.receipt_long_outlined),
+      selectedIcon: Icon(Icons.receipt_long),
+      label: 'My Orders',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.person_outline),
+      selectedIcon: Icon(Icons.person),
+      label: 'Account',
+    ),
+  ];
 
   static const List<Widget> _tabPages = [
     HomePage(),
@@ -148,41 +178,55 @@ class _MainShellState extends ConsumerState<MainShell> {
             body = WebMaxWidthCenter(child: stack);
           }
 
+          final Widget? bottomNav;
+          if (showWebRail) {
+            bottomNav = null;
+          } else if (kIsWeb) {
+            bottomNav = NavigationBar(
+              selectedIndex: currentIndex,
+              onDestinationSelected: _onTabTapped,
+              destinations: _shellNavDestinations,
+            );
+          } else {
+            bottomNav = Theme(
+              data: Theme.of(context).copyWith(
+                navigationBarTheme: NavigationBarThemeData(
+                  height: 62,
+                  backgroundColor: AppColors.surfaceCard,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 4,
+                  shadowColor: Colors.black.withValues(alpha: 0.06),
+                  indicatorColor: AppColors.brandSaffron.withValues(alpha: 0.14),
+                  iconTheme: WidgetStateProperty.resolveWith((states) {
+                    final selected = states.contains(WidgetState.selected);
+                    return IconThemeData(
+                      size: 24,
+                      color: selected ? AppColors.brandSaffron : AppColors.textSecondary,
+                    );
+                  }),
+                  labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                    final selected = states.contains(WidgetState.selected);
+                    return TextStyle(
+                      fontSize: 12,
+                      height: 1.08,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected ? AppColors.brandSaffron : AppColors.textSecondary,
+                    );
+                  }),
+                ),
+              ),
+              child: NavigationBar(
+                height: 62,
+                selectedIndex: currentIndex,
+                onDestinationSelected: _onTabTapped,
+                destinations: _shellNavDestinations,
+              ),
+            );
+          }
+
           return Scaffold(
             body: body,
-            bottomNavigationBar: showWebRail
-                ? null
-                : NavigationBar(
-                    selectedIndex: currentIndex,
-                    onDestinationSelected: _onTabTapped,
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.home_outlined),
-                        selectedIcon: Icon(Icons.home),
-                        label: 'Home',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.storefront_outlined),
-                        selectedIcon: Icon(Icons.storefront),
-                        label: 'Shop',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.explore_outlined),
-                        selectedIcon: Icon(Icons.explore),
-                        label: 'Explore',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.receipt_long_outlined),
-                        selectedIcon: Icon(Icons.receipt_long),
-                        label: 'My Orders',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.person_outline),
-                        selectedIcon: Icon(Icons.person),
-                        label: 'Account',
-                      ),
-                    ],
-                  ),
+            bottomNavigationBar: bottomNav,
           );
         },
       ),

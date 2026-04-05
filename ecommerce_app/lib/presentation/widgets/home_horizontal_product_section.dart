@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/layout/storefront_web_layout.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/wishlist_heart_sizes.dart';
 import '../../features/catalog/domain/entities/product.dart';
 import '../../features/catalog/state/product_list_providers.dart';
 import '../../features/wishlist/state/wishlist_provider.dart';
@@ -20,6 +21,102 @@ enum HomeStorefrontProductLayout {
   recommendedRail,
   festivalBannerRail,
   newArrivalsGrid,
+}
+
+class _ShelfColors {
+  const _ShelfColors({
+    required this.fill,
+    required this.border,
+    required this.shadowTint,
+  });
+  final Color fill;
+  final Color border;
+  /// Warm glow under the shelf, keyed to section mood.
+  final Color shadowTint;
+}
+
+_ShelfColors _homeShelfColors(HomeStorefrontProductLayout layout) {
+  switch (layout) {
+    case HomeStorefrontProductLayout.popularRail:
+      return const _ShelfColors(
+        fill: AppColors.homeShelfPopularFill,
+        border: AppColors.homeShelfPopularBorder,
+        shadowTint: AppColors.brandSaffron,
+      );
+    case HomeStorefrontProductLayout.recommendedRail:
+      return const _ShelfColors(
+        fill: AppColors.homeShelfRecommendedFill,
+        border: AppColors.homeShelfRecommendedBorder,
+        shadowTint: AppColors.homeShelfRecommendedShadowTint,
+      );
+    case HomeStorefrontProductLayout.festivalBannerRail:
+      return const _ShelfColors(
+        fill: AppColors.homeShelfFestivalFill,
+        border: AppColors.homeShelfFestivalBorder,
+        shadowTint: AppColors.homeShelfFestivalShadowTint,
+      );
+    case HomeStorefrontProductLayout.newArrivalsGrid:
+      return const _ShelfColors(
+        fill: AppColors.homeShelfNewArrivalsFill,
+        border: AppColors.homeShelfNewArrivalsBorder,
+        shadowTint: AppColors.forestGreen,
+      );
+  }
+}
+
+BorderRadius _homeShelfRadius(BuildContext context) {
+  final wide = kIsWeb &&
+      StorefrontLayoutScope.layoutWidthOf(context) > StorefrontBreakpoints.tablet;
+  return BorderRadius.circular(wide ? 18 : 14);
+}
+
+/// Flipkart-style tinted block: header + horizontal rail / grid inside a soft panel.
+class _HomeSectionShelf extends StatelessWidget {
+  const _HomeSectionShelf({
+    required this.layout,
+    required this.bottomSpacing,
+    required this.child,
+  });
+
+  final HomeStorefrontProductLayout layout;
+  final double bottomSpacing;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final pageH = HomeLayoutMetrics.pageHorizontal(context);
+    final colors = _homeShelfColors(layout);
+    final radius = _homeShelfRadius(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(pageH, 0, pageH, bottomSpacing),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.fill,
+          borderRadius: radius,
+          border: Border.all(
+            width: 1.25,
+            color: colors.border.withValues(alpha: 0.88),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: colors.shadowTint.withValues(alpha: 0.14),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
 class HomeStorefrontSectionHeader extends StatelessWidget {
@@ -70,10 +167,10 @@ class HomeStorefrontSectionHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: HomeLayoutMetrics.homeSectionTitleFontSize(context),
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   color: AppColors.sectionTitle,
-                  height: webDesktop ? 1.28 : 1.2,
-                  letterSpacing: webDesktop ? -0.2 : 0,
+                  height: webDesktop ? 1.25 : 1.2,
+                  letterSpacing: webDesktop ? -0.35 : -0.3,
                 ),
               ),
             ),
@@ -136,34 +233,34 @@ class HomeHorizontalProductSection extends ConsumerWidget {
     return async.when(
       data: (products) {
         if (products.isEmpty) {
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              HomeLayoutMetrics.pageHorizontal(context),
-              0,
-              HomeLayoutMetrics.pageHorizontal(context),
-              HomeLayoutMetrics.homeSectionBottomSpacing(context),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                HomeStorefrontSectionHeader(
-                  title: title,
-                  badgeLabel: sectionBadge,
-                  onViewAll: null,
-                ),
-                SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
-                Text(
-                  emptyMessage,
-                  style: (HomeLayoutMetrics.homeEmptySectionBodyStyle(
-                            context,
-                            Theme.of(context).textTheme,
-                          ) ??
-                          Theme.of(context).textTheme.bodyMedium)
-                      ?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
+          final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
+          return _HomeSectionShelf(
+            layout: layout,
+            bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, inner + 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  HomeStorefrontSectionHeader(
+                    title: title,
+                    badgeLabel: sectionBadge,
+                    onViewAll: null,
+                  ),
+                  SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
+                  Text(
+                    emptyMessage,
+                    style: (HomeLayoutMetrics.homeEmptySectionBodyStyle(
+                              context,
+                              Theme.of(context).textTheme,
+                            ) ??
+                            Theme.of(context).textTheme.bodyMedium)
+                        ?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -183,6 +280,7 @@ class HomeHorizontalProductSection extends ConsumerWidget {
               sectionBadge: sectionBadge,
               onViewAll: onViewAll,
               products: products,
+              wishlist: wishlist,
               ref: ref,
             );
           case HomeStorefrontProductLayout.festivalBannerRail:
@@ -191,6 +289,7 @@ class HomeHorizontalProductSection extends ConsumerWidget {
               sectionBadge: sectionBadge,
               onViewAll: onViewAll,
               products: products,
+              wishlist: wishlist,
               ref: ref,
             );
           case HomeStorefrontProductLayout.newArrivalsGrid:
@@ -209,29 +308,31 @@ class HomeHorizontalProductSection extends ConsumerWidget {
             title: title,
             sectionBadge: sectionBadge,
           ),
-      error: (e, _) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          HomeLayoutMetrics.pageHorizontal(context),
-          0,
-          HomeLayoutMetrics.pageHorizontal(context),
-          HomeLayoutMetrics.homeSectionBottomSpacing(context),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            HomeStorefrontSectionHeader(
-              title: title,
-              badgeLabel: sectionBadge,
-              onViewAll: null,
+      error: (e, _) {
+        final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
+        return _HomeSectionShelf(
+          layout: layout,
+          bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, inner + 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                HomeStorefrontSectionHeader(
+                  title: title,
+                  badgeLabel: sectionBadge,
+                  onViewAll: null,
+                ),
+                SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
+                Text(
+                  'Could not load this section.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
             ),
-            SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
-            Text(
-              'Could not load this section.',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -258,14 +359,26 @@ class _PopularRail extends StatelessWidget {
     final cardW = HomeLayoutMetrics.popularCardWidth(context);
     final cardH = HomeLayoutMetrics.popularCardBodyHeight(cardW);
     final rowH = HomeLayoutMetrics.popularRailHeight(context, cardW);
+    final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
+    final gap = HomeLayoutMetrics.popularRailCardGap(context);
+    final snapInset = HomeLayoutMetrics.popularRailSnapEndInset(gap);
+    final snapFrac = !kIsWeb
+        ? HomeLayoutMetrics.homeRailSnapViewportFraction(
+            context,
+            cardW,
+            gap,
+            nextCardPeekPx: snapInset,
+          )
+        : null;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context)),
+    return _HomeSectionShelf(
+      layout: HomeStorefrontProductLayout.popularRail,
+      bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+            padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, 0),
             child: HomeStorefrontSectionHeader(
               title: title,
               badgeLabel: sectionBadge,
@@ -275,15 +388,25 @@ class _PopularRail extends StatelessWidget {
           SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
           WebHorizontalRailList(
             height: rowH,
-            padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+            padding: EdgeInsets.fromLTRB(inner, 0, inner, inner + 2),
             itemCount: products.length,
-            separatorBuilder: (_, __) => SizedBox(width: HomeLayoutMetrics.railCardGap(context)),
+            separatorBuilder: (_, __) => SizedBox(width: gap),
+            snapViewportFraction: snapFrac,
+            snapPageTrailingPadding: !kIsWeb ? snapInset : 0,
+            snapScrollPhysics: !kIsWeb
+                ? const PopularRailPageScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  )
+                : null,
             itemBuilder: (context, index) {
               final product = products[index];
+              final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(cardW);
               return HomeProductDiscoveryCard(
                 product: product,
                 width: cardW,
                 height: cardH,
+                wishlistHeartSize: wl.heartSize,
+                wishlistChipExtent: wl.chipExtent,
                 isWishlisted: wishlist.contains(product.id),
                 onToggleWishlist: () {
                   ref.read(wishlistControllerProvider.notifier).toggle(product.id);
@@ -308,6 +431,7 @@ class _RecommendedRail extends StatelessWidget {
     required this.sectionBadge,
     required this.onViewAll,
     required this.products,
+    required this.wishlist,
     required this.ref,
   });
 
@@ -315,6 +439,7 @@ class _RecommendedRail extends StatelessWidget {
   final String sectionBadge;
   final VoidCallback? onViewAll;
   final List<Product> products;
+  final Set<String> wishlist;
   final WidgetRef ref;
 
   @override
@@ -322,14 +447,17 @@ class _RecommendedRail extends StatelessWidget {
     final cardW = HomeLayoutMetrics.recommendedCardWidth(context);
     final cardH = HomeLayoutMetrics.recommendedCardBodyHeight(cardW);
     final rowH = HomeLayoutMetrics.recommendedRailHeight(context, cardW);
+    final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
+    final gap = HomeLayoutMetrics.railCardGap(context);
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context)),
+    return _HomeSectionShelf(
+      layout: HomeStorefrontProductLayout.recommendedRail,
+      bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+            padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, 0),
             child: HomeStorefrontSectionHeader(
               title: title,
               badgeLabel: sectionBadge,
@@ -339,20 +467,27 @@ class _RecommendedRail extends StatelessWidget {
           SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
           WebHorizontalRailList(
             height: rowH,
-            padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+            padding: EdgeInsets.fromLTRB(inner, 0, inner, inner + 2),
             itemCount: products.length,
-            separatorBuilder: (_, __) => SizedBox(width: HomeLayoutMetrics.railCardGap(context)),
+            separatorBuilder: (_, __) => SizedBox(width: gap),
             itemBuilder: (context, index) {
               final product = products[index];
+              final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(cardW);
               return HomeRecommendedProductCard(
                 product: product,
                 width: cardW,
                 totalHeight: cardH,
+                wishlistHeartSize: wl.heartSize,
+                wishlistChipExtent: wl.chipExtent,
                 onOpenDetails: () => navigateToStorefrontProductDetails(
                   context,
                   ref,
                   product.id,
                 ),
+                isWishlisted: wishlist.contains(product.id),
+                onToggleWishlist: () {
+                  ref.read(wishlistControllerProvider.notifier).toggle(product.id);
+                },
               );
             },
           ),
@@ -368,6 +503,7 @@ class _FestivalRail extends StatelessWidget {
     required this.sectionBadge,
     required this.onViewAll,
     required this.products,
+    required this.wishlist,
     required this.ref,
   });
 
@@ -375,6 +511,7 @@ class _FestivalRail extends StatelessWidget {
   final String sectionBadge;
   final VoidCallback? onViewAll;
   final List<Product> products;
+  final Set<String> wishlist;
   final WidgetRef ref;
 
   @override
@@ -382,14 +519,20 @@ class _FestivalRail extends StatelessWidget {
     final cardW = HomeLayoutMetrics.festivalCardWidth(context);
     final cardH = HomeLayoutMetrics.festivalCardHeight(context);
     final rowH = HomeLayoutMetrics.festivalRailHeight(context);
+    final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
+    final gap = HomeLayoutMetrics.festivalRailCardGap(context);
+    final snapFrac = !kIsWeb
+        ? HomeLayoutMetrics.homeRailSnapViewportFraction(context, cardW, gap)
+        : null;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context)),
+    return _HomeSectionShelf(
+      layout: HomeStorefrontProductLayout.festivalBannerRail,
+      bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+            padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, 0),
             child: HomeStorefrontSectionHeader(
               title: title,
               badgeLabel: sectionBadge,
@@ -399,9 +542,10 @@ class _FestivalRail extends StatelessWidget {
           SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
           WebHorizontalRailList(
             height: rowH,
-            padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+            padding: EdgeInsets.fromLTRB(inner, 0, inner, inner + 2),
             itemCount: products.length,
-            separatorBuilder: (_, __) => SizedBox(width: HomeLayoutMetrics.railCardGap(context)),
+            separatorBuilder: (_, __) => SizedBox(width: gap),
+            snapViewportFraction: snapFrac,
             itemBuilder: (context, index) {
               final product = products[index];
               void open() => navigateToStorefrontProductDetails(
@@ -409,11 +553,18 @@ class _FestivalRail extends StatelessWidget {
                     ref,
                     product.id,
                   );
+              final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(cardW);
               return HomeFestivalPromoCard(
                 product: product,
                 width: cardW,
                 height: cardH,
+                wishlistHeartSize: wl.heartSize,
+                wishlistChipExtent: wl.chipExtent,
                 onExplore: open,
+                isWishlisted: wishlist.contains(product.id),
+                onToggleWishlist: () {
+                  ref.read(wishlistControllerProvider.notifier).toggle(product.id);
+                },
               );
             },
           ),
@@ -442,14 +593,11 @@ class _NewArrivalsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final webDesktop = kIsWeb &&
-        StorefrontLayoutScope.layoutWidthOf(context) > StorefrontBreakpoints.tablet;
-    final scheme = Theme.of(context).colorScheme;
     final cols = HomeLayoutMetrics.newArrivalsColumnCount(context);
     final preview = products.length > HomeLayoutMetrics.newArrivalsMaxPreview
         ? products.sublist(0, HomeLayoutMetrics.newArrivalsMaxPreview)
         : products;
-    final cellW = HomeLayoutMetrics.newArrivalCardWidth(context, cols);
+    final cellW = HomeLayoutMetrics.newArrivalCardWidthInShelf(context, cols);
     final rowExtent = HomeLayoutMetrics.newArrivalRowExtentFor(context);
     final gridGap = HomeLayoutMetrics.newArrivalsGridCrossGap(context);
     final gridH = HomeLayoutMetrics.newArrivalsGridHeight(
@@ -458,6 +606,7 @@ class _NewArrivalsGrid extends StatelessWidget {
       rowExtent: rowExtent,
       mainAxisSpacing: gridGap,
     );
+    final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
 
     final grid = SizedBox(
       height: gridH,
@@ -472,10 +621,13 @@ class _NewArrivalsGrid extends StatelessWidget {
         itemCount: preview.length,
         itemBuilder: (context, index) {
           final product = preview[index];
+          final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(cellW);
           return HomeProductDiscoveryCard(
             product: product,
             width: cellW,
             height: rowExtent,
+            wishlistHeartSize: wl.heartSize,
+            wishlistChipExtent: wl.chipExtent,
             isWishlisted: wishlist.contains(product.id),
             onToggleWishlist: () {
               ref.read(wishlistControllerProvider.notifier).toggle(product.id);
@@ -490,29 +642,14 @@ class _NewArrivalsGrid extends StatelessWidget {
       ),
     );
 
-    final panelChild = webDesktop
-        ? DecoratedBox(
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest.withValues(alpha: 0.42),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: scheme.outlineVariant.withValues(alpha: 0.55),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              child: grid,
-            ),
-          )
-        : grid;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context)),
+    return _HomeSectionShelf(
+      layout: HomeStorefrontProductLayout.newArrivalsGrid,
+      bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+            padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, 0),
             child: HomeStorefrontSectionHeader(
               title: title,
               badgeLabel: sectionBadge,
@@ -521,10 +658,8 @@ class _NewArrivalsGrid extends StatelessWidget {
           ),
           SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
           Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: HomeLayoutMetrics.newArrivalsGridHorizontalPadding(context),
-            ),
-            child: panelChild,
+            padding: EdgeInsets.fromLTRB(inner, 0, inner, inner + 2),
+            child: grid,
           ),
         ],
       ),
@@ -552,13 +687,25 @@ class _LoadingBlock extends StatelessWidget {
         final cardW = HomeLayoutMetrics.popularCardWidth(context);
         final cardH = HomeLayoutMetrics.popularCardBodyHeight(cardW);
         final rowH = HomeLayoutMetrics.popularRailHeight(context, cardW);
-        return Padding(
-          padding: EdgeInsets.only(bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context)),
+        final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
+        final gap = HomeLayoutMetrics.popularRailCardGap(context);
+        final snapInset = HomeLayoutMetrics.popularRailSnapEndInset(gap);
+        final snapFrac = !kIsWeb
+            ? HomeLayoutMetrics.homeRailSnapViewportFraction(
+                context,
+                cardW,
+                gap,
+                nextCardPeekPx: snapInset,
+              )
+            : null;
+        return _HomeSectionShelf(
+          layout: layout,
+          bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+                padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, 0),
                 child: HomeStorefrontSectionHeader(
                   title: title,
                   badgeLabel: sectionBadge,
@@ -568,9 +715,16 @@ class _LoadingBlock extends StatelessWidget {
               SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
               WebHorizontalRailList(
                 height: rowH,
-                padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+                padding: EdgeInsets.fromLTRB(inner, 0, inner, inner + 2),
                 itemCount: 5,
-                separatorBuilder: (_, __) => SizedBox(width: HomeLayoutMetrics.railCardGap(context)),
+                separatorBuilder: (_, __) => SizedBox(width: gap),
+                snapViewportFraction: snapFrac,
+                snapPageTrailingPadding: !kIsWeb ? snapInset : 0,
+                snapScrollPhysics: !kIsWeb
+                    ? const PopularRailPageScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      )
+                    : null,
                 itemBuilder: (_, __) => _SkeletonCard(width: cardW, height: cardH, base: base),
               ),
             ],
@@ -580,13 +734,16 @@ class _LoadingBlock extends StatelessWidget {
         final cardW = HomeLayoutMetrics.recommendedCardWidth(context);
         final cardH = HomeLayoutMetrics.recommendedCardBodyHeight(cardW);
         final rowH = HomeLayoutMetrics.recommendedRailHeight(context, cardW);
-        return Padding(
-          padding: EdgeInsets.only(bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context)),
+        final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
+        final gap = HomeLayoutMetrics.railCardGap(context);
+        return _HomeSectionShelf(
+          layout: layout,
+          bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+                padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, 0),
                 child: HomeStorefrontSectionHeader(
                   title: title,
                   badgeLabel: sectionBadge,
@@ -596,9 +753,9 @@ class _LoadingBlock extends StatelessWidget {
               SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
               WebHorizontalRailList(
                 height: rowH,
-                padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+                padding: EdgeInsets.fromLTRB(inner, 0, inner, inner + 2),
                 itemCount: 4,
-                separatorBuilder: (_, __) => SizedBox(width: HomeLayoutMetrics.railCardGap(context)),
+                separatorBuilder: (_, __) => SizedBox(width: gap),
                 itemBuilder: (_, __) => _SkeletonCard(width: cardW, height: cardH, base: base),
               ),
             ],
@@ -608,13 +765,19 @@ class _LoadingBlock extends StatelessWidget {
         final cardW = HomeLayoutMetrics.festivalCardWidth(context);
         final cardH = HomeLayoutMetrics.festivalCardHeight(context);
         final rowH = HomeLayoutMetrics.festivalRailHeight(context);
-        return Padding(
-          padding: EdgeInsets.only(bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context)),
+        final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
+        final gap = HomeLayoutMetrics.festivalRailCardGap(context);
+        final snapFrac = !kIsWeb
+            ? HomeLayoutMetrics.homeRailSnapViewportFraction(context, cardW, gap)
+            : null;
+        return _HomeSectionShelf(
+          layout: layout,
+          bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+                padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, 0),
                 child: HomeStorefrontSectionHeader(
                   title: title,
                   badgeLabel: sectionBadge,
@@ -624,9 +787,10 @@ class _LoadingBlock extends StatelessWidget {
               SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
               WebHorizontalRailList(
                 height: rowH,
-                padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+                padding: EdgeInsets.fromLTRB(inner, 0, inner, inner + 2),
                 itemCount: 3,
-                separatorBuilder: (_, __) => SizedBox(width: HomeLayoutMetrics.railCardGap(context)),
+                separatorBuilder: (_, __) => SizedBox(width: gap),
+                snapViewportFraction: snapFrac,
                 itemBuilder: (_, __) => ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
@@ -640,11 +804,9 @@ class _LoadingBlock extends StatelessWidget {
           ),
         );
       case HomeStorefrontProductLayout.newArrivalsGrid:
-        final webDesktop = kIsWeb &&
-            StorefrontLayoutScope.layoutWidthOf(context) > StorefrontBreakpoints.tablet;
-        final scheme = Theme.of(context).colorScheme;
+        final inner = HomeLayoutMetrics.homeSectionShelfInnerPadding(context);
         final cols = HomeLayoutMetrics.newArrivalsColumnCount(context);
-        final cellW = HomeLayoutMetrics.newArrivalCardWidth(context, cols);
+        final cellW = HomeLayoutMetrics.newArrivalCardWidthInShelf(context, cols);
         final rowExtent = HomeLayoutMetrics.newArrivalRowExtentFor(context);
         final gridGap = HomeLayoutMetrics.newArrivalsGridCrossGap(context);
         final gridH = HomeLayoutMetrics.newArrivalsGridHeight(
@@ -667,28 +829,14 @@ class _LoadingBlock extends StatelessWidget {
             itemBuilder: (_, __) => _SkeletonCard(width: cellW, height: rowExtent, base: base),
           ),
         );
-        final panelChild = webDesktop
-            ? DecoratedBox(
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.42),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: scheme.outlineVariant.withValues(alpha: 0.55),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  child: grid,
-                ),
-              )
-            : grid;
-        return Padding(
-          padding: EdgeInsets.only(bottom: HomeLayoutMetrics.homeSectionBottomSpacing(context)),
+        return _HomeSectionShelf(
+          layout: layout,
+          bottomSpacing: HomeLayoutMetrics.homeSectionBottomSpacing(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: HomeLayoutMetrics.pageHorizontal(context)),
+                padding: EdgeInsets.fromLTRB(inner, inner + 2, inner, 0),
                 child: HomeStorefrontSectionHeader(
                   title: title,
                   badgeLabel: sectionBadge,
@@ -697,10 +845,8 @@ class _LoadingBlock extends StatelessWidget {
               ),
               SizedBox(height: HomeLayoutMetrics.sectionHeaderToContentGap(context)),
               Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: HomeLayoutMetrics.newArrivalsGridHorizontalPadding(context),
-                ),
-                child: panelChild,
+                padding: EdgeInsets.fromLTRB(inner, 0, inner, inner + 2),
+                child: grid,
               ),
             ],
           ),

@@ -844,10 +844,14 @@ class _ProductSectionsTab extends ConsumerStatefulWidget {
   ConsumerState<_ProductSectionsTab> createState() => _ProductSectionsTabState();
 }
 
-class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab> {
+class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
+    with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchCtrl = TextEditingController();
   final Map<String, ({bool popular, bool recommended, bool festival})>
       _sectionOverrides = {};
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
@@ -923,6 +927,7 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final async = ref.watch(adminProductsProvider);
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -950,8 +955,8 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab> {
                 ),
               ),
               child: const Text(
-                'Proper way: search product, then toggle section chips.\n'
-                'Popular / Recommended / Festival special update home rails.',
+                'Each product can appear in multiple home sections at once (Popular, Recommended, Festival).\n'
+                'Toggles save to the catalog and stay highlighted after you leave this tab or refresh the list.',
               ),
             ),
             Padding(
@@ -1062,26 +1067,45 @@ class _SectionToggle extends StatelessWidget {
     }
 
     final selectedBg = selectedTone();
-    return FilterChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: value ? AppColors.charcoalBlack : scheme.onSurfaceVariant,
+    final fg = value ? AppColors.charcoalBlack : scheme.onSurfaceVariant;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: value ? selectedBg : scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: value
+                  ? AppColors.charcoalBlack.withValues(alpha: 0.72)
+                  : scheme.outlineVariant.withValues(alpha: 0.75),
+              width: value ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (value) ...[
+                Icon(Icons.check_rounded, size: 18, color: fg),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: fg,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      selected: value,
-      onSelected: onChanged,
-      showCheckmark: true,
-      checkmarkColor: AppColors.charcoalBlack,
-      selectedColor: selectedBg,
-      backgroundColor: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
-      side: BorderSide(
-        color: value ? AppColors.charcoalBlack.withValues(alpha: 0.7) : scheme.outlineVariant.withValues(alpha: 0.75),
-      ),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
     );
   }
 }

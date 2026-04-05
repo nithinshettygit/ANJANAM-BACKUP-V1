@@ -82,9 +82,16 @@ class _AdminSearchBarState extends ConsumerState<AdminSearchBar> {
     });
   }
 
+  OverlayState? _resolveOverlay() {
+    final nav = Navigator.maybeOf(context);
+    final fromNav = nav?.overlay;
+    if (fromNav != null) return fromNav;
+    return Overlay.maybeOf(context, rootOverlay: true) ?? Overlay.maybeOf(context);
+  }
+
   void _ensureOverlay() {
     if (_overlayEntry != null) return;
-    final overlayState = Overlay.maybeOf(context);
+    final overlayState = _resolveOverlay();
     if (overlayState == null) return;
 
     _overlayEntry = OverlayEntry(

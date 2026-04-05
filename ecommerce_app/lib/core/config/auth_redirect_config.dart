@@ -8,6 +8,7 @@
 ///   - `{your-web-origin}/reset-password` (password reset from email)
 ///   - `com.anjanam.app://login-callback` and `.../` (email confirm on APK)
 ///   - `com.anjanam.app://reset-password` and `.../` (password reset on APK)
+///   - `com.anjanam.app://product/<id>` (product share; not a Supabase redirect)
 ///
 /// For CI/web builds where `Uri.base` is wrong, set `--dart-define=SUPABASE_AUTH_REDIRECT_URL=...` and
 /// `--dart-define=SUPABASE_PASSWORD_RESET_REDIRECT_URL=...`.
@@ -26,6 +27,9 @@ abstract final class AuthRedirectConfig {
 
   /// Host for password-reset deep links.
   static const String androidPasswordResetHost = 'reset-password';
+
+  /// Host for product share deep links: `com.anjanam.app://product/<productId>` (opens app without HTTPS verification).
+  static const String androidProductHost = 'product';
 
   static String get androidRedirectUrl => '$androidScheme://$androidHost/';
 

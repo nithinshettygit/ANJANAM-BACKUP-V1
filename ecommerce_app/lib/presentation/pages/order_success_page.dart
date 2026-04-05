@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:ecommerce_app/features/notifications/data/services/fcm_edge_function_notification_sender.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/features/notifications/state/notifications_controller.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 
@@ -158,6 +159,7 @@ class _OrderSuccessPageState extends ConsumerState<OrderSuccessPage> {
                 _SuccessInfoRow(
                   label: 'Total amount',
                   value: formatRupee(widget.total),
+                  valueColor: AppColors.priceText,
                 ),
                 const SizedBox(height: 28),
                 SizedBox(
@@ -201,8 +203,9 @@ class _OrderSuccessPageState extends ConsumerState<OrderSuccessPage> {
 class _SuccessInfoRow extends StatelessWidget {
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _SuccessInfoRow({required this.label, required this.value});
+  const _SuccessInfoRow({required this.label, required this.value, this.valueColor});
 
   @override
   Widget build(BuildContext context) {
@@ -221,6 +224,7 @@ class _SuccessInfoRow extends StatelessWidget {
           value,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: valueColor,
               ),
         ),
       ],

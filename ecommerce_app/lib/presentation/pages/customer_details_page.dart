@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 import '../providers/customer_details_provider.dart';
 
 class CustomerDetailsPage extends ConsumerWidget {
@@ -34,7 +35,21 @@ class CustomerDetailsPage extends ConsumerWidget {
                       Text('Address: ${details.address.trim().isEmpty ? '-' : details.address}'),
                       const SizedBox(height: 8),
                       Text('Total Orders: ${details.totalOrders}'),
-                      Text('Total Revenue: ${formatInrAmount(details.totalRevenue)}'),
+                      Text.rich(
+                        TextSpan(
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          children: [
+                            const TextSpan(text: 'Total Revenue: '),
+                            TextSpan(
+                              text: formatInrAmount(details.totalRevenue),
+                              style: const TextStyle(
+                                color: AppColors.priceText,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       Text('Last Order Date: ${_formatDateTime(details.lastOrderDate)}'),
                     ],
                   ),
@@ -53,7 +68,21 @@ class CustomerDetailsPage extends ConsumerWidget {
                       ),
                       const SizedBox(height: 8),
                       Text('First Order Date: ${_formatDateTime(details.firstOrderDate)}'),
-                      Text('Average Order Value: ${formatInrAmount(details.averageOrderValue)}'),
+                      Text.rich(
+                        TextSpan(
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          children: [
+                            const TextSpan(text: 'Average Order Value: '),
+                            TextSpan(
+                              text: formatInrAmount(details.averageOrderValue),
+                              style: const TextStyle(
+                                color: AppColors.priceText,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),

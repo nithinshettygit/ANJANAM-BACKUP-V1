@@ -4,6 +4,44 @@ import 'package:flutter/material.dart';
 /// Where the auth error was surfaced (affects titles and secondary actions).
 enum AuthIssueFlow { login, signup, signOut, passwordReset }
 
+/// Guest tried to use the server cart (e.g. add to cart). Matches messaging from
+/// [SupabaseCartService] when there is no session.
+Future<void> presentSignInToManageCartDialog(BuildContext context) async {
+  final theme = Theme.of(context);
+  final scheme = theme.colorScheme;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        icon: Icon(
+          Icons.shopping_cart_outlined,
+          color: scheme.primary,
+          size: 32,
+        ),
+        title: const Text('Sign in to add to cart'),
+        content: Text(
+          'Sign in required to manage cart.',
+          style: theme.textTheme.bodyLarge?.copyWith(height: 1.35),
+        ),
+        actionsAlignment: MainAxisAlignment.end,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushNamed('/login');
+            },
+            child: const Text('Sign in'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 /// Presents authentication failures in a clear dialog with retry and optional navigation.
 Future<void> presentAuthIssue(
   BuildContext context, {

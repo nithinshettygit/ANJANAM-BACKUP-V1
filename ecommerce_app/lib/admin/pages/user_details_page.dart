@@ -62,7 +62,21 @@ class AdminUserDetailsPage extends ConsumerWidget {
                               Text('Address: ${details.address.trim().isEmpty ? '-' : details.address}'),
                               const SizedBox(height: 8),
                               Text('Total Orders: ${details.orders.length}'),
-                              Text('Total Revenue: ${formatInrAmount(details.totalRevenue)}'),
+                              Text.rich(
+                                TextSpan(
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                  children: [
+                                    const TextSpan(text: 'Total Revenue: '),
+                                    TextSpan(
+                                      text: formatInrAmount(details.totalRevenue),
+                                      style: const TextStyle(
+                                        color: AppColors.priceText,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               Text(
                                 'Last Order Date: ${_formatDateTime(details.lastOrderDate)}',
                               ),
@@ -86,7 +100,21 @@ class AdminUserDetailsPage extends ConsumerWidget {
                               ),
                               const SizedBox(height: 8),
                               Text('First Order Date: ${_formatDateTime(details.firstOrderDate)}'),
-                              Text('Average Order Value: ${formatInrAmount(details.averageOrderValue)}'),
+                              Text.rich(
+                                TextSpan(
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                  children: [
+                                    const TextSpan(text: 'Average Order Value: '),
+                                    TextSpan(
+                                      text: formatInrAmount(details.averageOrderValue),
+                                      style: const TextStyle(
+                                        color: AppColors.priceText,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -119,7 +147,15 @@ class AdminUserDetailsPage extends ConsumerWidget {
                                         DataCell(Text(o.id)),
                                         DataCell(Text(o.createdAt.toLocal().toString().split('.').first)),
                                         DataCell(Text(o.status)),
-                                        DataCell(Text(formatInrAmount(o.totalAmount))),
+                                        DataCell(
+                                          Text(
+                                            formatInrAmount(o.totalAmount),
+                                            style: const TextStyle(
+                                              color: AppColors.priceText,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
                                         DataCell(
                                           InkWell(
                                             onTap: () => Navigator.of(context).pushNamed(

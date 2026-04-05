@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/wishlist_heart_sizes.dart';
 import 'home_layout_metrics.dart';
 import '../../features/catalog/domain/entities/product.dart';
 import '../utils/price_formatter.dart';
@@ -12,6 +13,7 @@ import '../utils/product_price_display.dart';
 import 'app_network_image.dart';
 import 'product_image.dart';
 import 'star_rating_display.dart';
+import 'storefront_wishlist_chip.dart';
 import 'subtle_scale_on_pointer.dart';
 
 /// Small / grid product card: **1:1** image, title, price, rating, wishlist.
@@ -24,6 +26,8 @@ class HomeProductDiscoveryCard extends StatefulWidget {
     this.onTap,
     this.isWishlisted = false,
     this.onToggleWishlist,
+    this.wishlistHeartSize,
+    this.wishlistChipExtent,
   });
 
   final Product product;
@@ -32,6 +36,10 @@ class HomeProductDiscoveryCard extends StatefulWidget {
   final VoidCallback? onTap;
   final bool isWishlisted;
   final VoidCallback? onToggleWishlist;
+  /// When null, uses [WishlistHeartSizes.imageOverlayChip].
+  final double? wishlistHeartSize;
+  /// Saffron circle size; when null, **36** (product details rails).
+  final double? wishlistChipExtent;
 
   @override
   State<HomeProductDiscoveryCard> createState() => _HomeProductDiscoveryCardState();
@@ -44,6 +52,8 @@ class _HomeProductDiscoveryCardState extends State<HomeProductDiscoveryCard> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final heartSize = widget.wishlistHeartSize ?? WishlistHeartSizes.imageOverlayChip;
+    final chipExtent = widget.wishlistChipExtent ?? 36;
     final product = widget.product;
     final width = widget.width;
     final height = widget.height;
@@ -116,25 +126,11 @@ class _HomeProductDiscoveryCardState extends State<HomeProductDiscoveryCard> {
                                   Positioned(
                                     top: 4,
                                     right: 4,
-                                    child: Material(
-                                      color: scheme.surface.withValues(alpha: 0.92),
-                                      shape: const CircleBorder(),
-                                      clipBehavior: Clip.antiAlias,
-                                      child: IconButton(
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                        icon: Icon(
-                                          widget.isWishlisted
-                                              ? Icons.favorite
-                                              : Icons.favorite_border,
-                                          size: 20,
-                                          color: widget.isWishlisted
-                                              ? AppColors.errorRed
-                                              : AppColors.textSecondary,
-                                        ),
-                                        onPressed: widget.onToggleWishlist,
-                                      ),
+                                    child: StorefrontWishlistChip(
+                                      extent: chipExtent,
+                                      iconSize: heartSize,
+                                      isWishlisted: widget.isWishlisted,
+                                      onTap: widget.onToggleWishlist,
                                     ),
                                   ),
                                 if (outOfStock)
@@ -218,7 +214,7 @@ class _HomeProductDiscoveryCardState extends State<HomeProductDiscoveryCard> {
                           Text(
                             formatRupeeCompact(pricing.salePrice),
                             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  color: AppColors.deepGold,
+                                  color: AppColors.priceText,
                                   fontWeight: FontWeight.w800,
                                 ),
                           ),

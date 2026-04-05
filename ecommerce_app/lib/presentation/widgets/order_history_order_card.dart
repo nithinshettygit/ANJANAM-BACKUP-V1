@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
 import 'package:ecommerce_app/presentation/utils/buy_now_navigation.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 import 'package:ecommerce_app/presentation/utils/order_history_format.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
@@ -91,6 +92,7 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                           'Qty: $totalQty · ${formatRupee(order.grandTotal)}',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 fontWeight: FontWeight.w500,
+                                color: AppColors.priceText,
                               ),
                         ),
                       ],

@@ -180,6 +180,8 @@ class PageEmptyState extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget? action;
+  /// Leading icon size; defaults to 44.
+  final double? iconSize;
 
   const PageEmptyState({
     super.key,
@@ -187,6 +189,7 @@ class PageEmptyState extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.action,
+    this.iconSize,
   });
 
   @override
@@ -198,7 +201,7 @@ class PageEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 44, color: scheme.primary.withOpacity(0.85)),
+            Icon(icon, size: iconSize ?? 44, color: scheme.primary.withOpacity(0.85)),
             const SizedBox(height: 12),
             Text(
               title,

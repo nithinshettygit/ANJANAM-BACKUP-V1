@@ -35,6 +35,9 @@ dependencies:
   path_provider: any
   share_plus: any
   youtube_player_iframe: ^5.2.1
+  webview_flutter: ^4.13.0
+  webview_flutter_android: ^4.10.0
+  webview_flutter_wkwebview: ^3.24.0
 
 dev_dependencies:
   flutter_test:

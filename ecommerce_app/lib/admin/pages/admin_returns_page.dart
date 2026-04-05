@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
@@ -758,11 +759,25 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
                     AdminTableColumn<AdminReturnRow>(
                       label: 'Refund',
                       sortValue: (r) => r.refundStatus ?? '',
-                      cellBuilder: (r) => Text(
-                        r.refundStatus == null
-                            ? '—'
-                            : '${r.refundStatus} (${formatRupee(r.refundAmount ?? 0)})',
-                      ),
+                      cellBuilder: (r) {
+                        if (r.refundStatus == null) return const Text('—');
+                        return Text.rich(
+                          TextSpan(
+                            style: DefaultTextStyle.of(context).style,
+                            children: [
+                              TextSpan(text: '${r.refundStatus} ('),
+                              TextSpan(
+                                text: formatRupee(r.refundAmount ?? 0),
+                                style: const TextStyle(
+                                  color: AppColors.priceText,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const TextSpan(text: ')'),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                     AdminTableColumn<AdminReturnRow>(
                       label: 'Actions',

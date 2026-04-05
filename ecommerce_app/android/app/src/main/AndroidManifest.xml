@@ -42,6 +42,22 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="com.anjanam.app" android:host="reset-password"/>
             </intent-filter>
+            <!-- Product deep link: com.anjanam.app://product/<id> (works as soon as app is installed; no assetlinks.json). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="com.anjanam.app" android:host="product" android:pathPrefix="/"/>
+            </intent-filter>
+            <!-- Product share URLs: https://…/product/<id> → open app when App Links verify (see web/.well-known/assetlinks.json). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="anjanam-app.web.app" android:pathPrefix="/product"/>
+                <data android:scheme="https" android:host="anjanam-app.firebaseapp.com" android:pathPrefix="/product"/>
+                <data android:scheme="https" android:host="anjanam.app" android:pathPrefix="/product"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

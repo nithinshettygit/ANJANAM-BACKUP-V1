@@ -211,7 +211,7 @@ class _CartItemTile extends ConsumerWidget {
                     Text(
                       formatRupee(item.unitPrice),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: AppColors.marigoldOrange,
+                            color: AppColors.priceText,
                             fontWeight: FontWeight.w700,
                           ),
                     ),
@@ -240,13 +240,13 @@ class _CartItemTile extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: AppColors.marigoldOrange.withOpacity(0.18),
+                              color: AppColors.priceText.withOpacity(0.12),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
                               formatRupee(item.lineTotal),
                               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: AppColors.marigoldOrange,
+                                    color: AppColors.priceText,
                                     fontWeight: FontWeight.w800,
                                   ),
                             ),
@@ -336,7 +336,10 @@ class _CartSummary extends ConsumerWidget {
           children: [
             Text(
               'Total: ${formatRupee(cart.total)}',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.priceText,
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
             const SizedBox(height: 12),
             SizedBox(

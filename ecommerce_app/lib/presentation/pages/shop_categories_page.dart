@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/catalog/domain/shop_category.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
@@ -194,11 +195,12 @@ class _ShopCategoriesPageState extends ConsumerState<ShopCategoriesPage> {
         actions: [
           IconButton(
             tooltip: 'Wishlist',
+            iconSize: WishlistHeartSizes.appBar,
             onPressed: () => Navigator.of(context).pushNamed('/wishlist'),
             icon: Badge(
               isLabelVisible: wishlistCount > 0,
               label: Text('$wishlistCount'),
-              child: const Icon(Icons.favorite_border),
+              child: Icon(Icons.favorite_border, size: WishlistHeartSizes.appBar),
             ),
           ),
           IconButton(

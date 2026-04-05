@@ -8,6 +8,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/auth_redirect_config.dart';
+import 'core/config/storefront_app_link.dart';
+import 'features/product_details/state/product_details_providers.dart';
 import 'core/theme/app_theme.dart';
 import 'core/notifications/notification_message_router.dart';
 import 'core/notifications/notification_navigation.dart';
@@ -17,6 +19,16 @@ import 'features/auth/state/auth_session_provider.dart';
 import 'features/notifications/data/services/supabase_device_token_service.dart';
 import 'features/notifications/state/notifications_controller.dart';
 import 'presentation/routing/app_router.dart';
+
+/// Web cold-load: use the browser path (e.g. /product/<id>) instead of defaulting to / only.
+List<Route<dynamic>> _webGenerateInitialRoutes(String _) {
+  var path = Uri.base.path;
+  if (path.isEmpty) path = '/';
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  return [AppRouter.onGenerateRoute(RouteSettings(name: path))];
+}
 
 class EcommerceApp extends ConsumerStatefulWidget {
   const EcommerceApp({super.key});
@@ -34,7 +46,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
   RealtimeChannel? _notificationsChannel;
   String? _notificationsChannelUserId;
   StreamSubscription<AuthState>? _passwordRecoverySub;
-  StreamSubscription<Uri?>? _emailConfirmLinkSub;
+  StreamSubscription<Uri?>? _appLinkSub;
 
   bool _isAndroidEmailConfirmDeepLink(Uri uri) {
     return uri.scheme == AuthRedirectConfig.androidScheme &&
@@ -52,16 +64,32 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     });
   }
 
-  void _listenAndroidEmailConfirmLinks() {
+  void _navigateToSharedProduct(String productId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final nav = notificationNavigatorKey.currentState;
+      if (nav == null || !nav.mounted) return;
+      ref.invalidate(productDetailsProvider(productId));
+      nav.pushNamed('/catalog/details', arguments: productId);
+    });
+  }
+
+  void _listenAndroidAppLinks() {
     if (kIsWeb) return;
     final appLinks = AppLinks();
     void handleUri(Uri? uri) {
-      if (uri != null && _isAndroidEmailConfirmDeepLink(uri)) {
+      if (uri == null) return;
+      if (_isAndroidEmailConfirmDeepLink(uri)) {
         _navigateToEmailConfirmCallback();
+        return;
+      }
+      final productId = StorefrontAppLink.productIdIfValid(uri);
+      if (productId != null) {
+        _navigateToSharedProduct(productId);
       }
     }
 
-    _emailConfirmLinkSub = appLinks.uriLinkStream.listen(handleUri);
+    _appLinkSub = appLinks.uriLinkStream.listen(handleUri);
     unawaited(appLinks.getInitialLink().then(handleUri));
   }
 
@@ -70,7 +98,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _listenAndroidEmailConfirmLinks();
+    _listenAndroidAppLinks();
 
     _passwordRecoverySub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event != AuthChangeEvent.passwordRecovery) return;
@@ -123,7 +151,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
 
   @override
   void dispose() {
-    _emailConfirmLinkSub?.cancel();
+    _appLinkSub?.cancel();
     _passwordRecoverySub?.cancel();
     _stopNotificationsRealtime();
     NotificationMessageRouter.onNotificationsChanged = null;
@@ -188,13 +216,14 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: kIsWeb ? 'ANJANAM Admin' : 'ANJANAM',
+      title: kIsWeb ? 'ANJANAM' : 'ANJANAM',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.light,
       navigatorKey: notificationNavigatorKey,
       onGenerateRoute: AppRouter.onGenerateRoute,
+      onGenerateInitialRoutes: kIsWeb ? _webGenerateInitialRoutes : null,
     );
   }
 

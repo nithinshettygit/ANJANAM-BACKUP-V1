@@ -19,11 +19,17 @@ abstract final class StorefrontBreakpoints {
   /// Web storefront: show leading sidebar and hide bottom [NavigationBar].
   static const double webNavigationRail = 1024;
 
-  /// Fixed storefront sidebar width (web wide layout).
-  static const double webStorefrontSidebarWidth = 230;
+  /// Collapsible web sidebar: icons-only rail.
+  static const double webStorefrontSidebarWidthCollapsed = 64;
+
+  /// Collapsible web sidebar: icons + labels.
+  static const double webStorefrontSidebarWidthExpanded = 160;
+
+  /// Below this viewport width the sidebar stays collapsed (icons only) regardless of user toggle.
+  static const double webStorefrontSidebarAutoCollapseBelow = 1200;
 
   /// Inset between sidebar divider and main storefront panel (web).
-  static const double webMainContentPaddingLeft = 24;
+  static const double webMainContentPaddingLeft = 20;
 
   /// Right inset for main storefront panel (web).
   static const double webMainContentPaddingRight = 20;
@@ -101,8 +107,8 @@ class StorefrontLayoutScope extends InheritedWidget {
   }
 }
 
-/// Main area beside the web sidebar: left-aligned capped column (reduces empty space
-/// on the left vs centering in the full viewport).
+/// Main area beside the web sidebar: **viewport-centered** capped column so collapsing
+/// the rail does not shift content sideways (avoids left-aligned jump when rail width changes).
 ///
 /// **Flutter Web** only; callers should use inside `Expanded` after [StorefrontWebSidebar].
 class WebMainContentPanel extends StatelessWidget {
@@ -125,21 +131,35 @@ class WebMainContentPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!kIsWeb) return child;
+    final pad = padding.resolve(Directionality.of(context));
     return Padding(
       padding: padding,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final available = constraints.maxWidth.isFinite
+          final innerMax = constraints.maxWidth.isFinite
               ? constraints.maxWidth
               : MediaQuery.sizeOf(context).width;
-          final w = math.min(available, maxWidth);
+          final viewportW = MediaQuery.sizeOf(context).width;
+          final expandedW = innerMax + pad.left + pad.right;
+          final sidebarW = (viewportW - expandedW)
+              .clamp(0.0, viewportW)
+              .toDouble();
+          final w = math.min(innerMax, maxWidth);
+          final idealLead =
+              (viewportW - w) / 2 - sidebarW - pad.left;
+          final lead = idealLead
+              .clamp(0.0, math.max(0.0, innerMax - w))
+              .toDouble();
           return Align(
             alignment: Alignment.topLeft,
-            child: SizedBox(
-              width: w,
-              child: StorefrontLayoutScope(
-                layoutWidth: w,
-                child: child,
+            child: Padding(
+              padding: EdgeInsets.only(left: lead),
+              child: SizedBox(
+                width: w,
+                child: StorefrontLayoutScope(
+                  layoutWidth: w,
+                  child: child,
+                ),
               ),
             ),
           );

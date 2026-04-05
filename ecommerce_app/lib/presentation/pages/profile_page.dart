@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/supabase/supabase_client_provider.dart';
+import '../../core/theme/wishlist_heart_sizes.dart';
 import '../../features/addresses/domain/entities/user_address.dart';
 import '../../features/addresses/state/user_addresses_provider.dart';
 import '../../features/auth/data/auth_error_mapper.dart';
@@ -172,6 +173,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         Expanded(
                           child: _QuickActionBox(
                             icon: Icons.favorite_border,
+                            iconSize: WishlistHeartSizes.profileQuickAction,
                             title: 'Wishlist',
                             subtitle: 'Saved items',
                             onTap: () => Navigator.of(context).pushNamed('/wishlist'),
@@ -370,12 +372,14 @@ class _SingleMenuCard extends StatelessWidget {
 class _QuickActionBox extends StatelessWidget {
   const _QuickActionBox({
     required this.icon,
+    this.iconSize = 20,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
 
   final IconData icon;
+  final double iconSize;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -410,7 +414,7 @@ class _QuickActionBox extends StatelessWidget {
                   color: chipBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, size: 20, color: accent),
+                child: Icon(icon, size: iconSize, color: accent),
               ),
               const SizedBox(width: 10),
               Expanded(

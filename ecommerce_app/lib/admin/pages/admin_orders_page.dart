@@ -257,19 +257,37 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                   AdminTableColumn<AdminOrderRow>(
                     label: 'Items',
                     sortValue: (o) => o.itemsSubtotal,
-                    cellBuilder: (o) => Text(formatInrAmount(o.itemsSubtotal)),
+                    cellBuilder: (o) => Text(
+                      formatInrAmount(o.itemsSubtotal),
+                      style: const TextStyle(
+                        color: AppColors.priceText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                   AdminTableColumn<AdminOrderRow>(
                     label: 'Delivery',
                     sortValue: (o) => o.deliveryFee,
                     cellBuilder: (o) => Text(
                       o.deliveryFee <= 0 ? 'FREE' : formatInrAmount(o.deliveryFee),
+                      style: o.deliveryFee <= 0
+                          ? null
+                          : const TextStyle(
+                              color: AppColors.priceText,
+                              fontWeight: FontWeight.w600,
+                            ),
                     ),
                   ),
                   AdminTableColumn<AdminOrderRow>(
                     label: 'Order total',
                     sortValue: (o) => o.totalAmount,
-                    cellBuilder: (o) => Text(formatInrAmount(o.totalAmount)),
+                    cellBuilder: (o) => Text(
+                      formatInrAmount(o.totalAmount),
+                      style: const TextStyle(
+                        color: AppColors.priceText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                   AdminTableColumn<AdminOrderRow>(
                     label: 'Order Status',

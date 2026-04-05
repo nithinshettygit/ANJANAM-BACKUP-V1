@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ecommerce_app/core/invoice/invoice_generator.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/core/payments/razorpay_service.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/auth/state/auth_session_provider.dart';
@@ -488,12 +489,16 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                         _PriceRow(
                           label: 'Items total',
                           value: formatRupee(order.subtotal),
+                          valueColor: AppColors.priceText,
                         ),
                         _PriceRow(
                           label: 'Delivery fee',
                           value: (order.deliveryFee ?? 0) <= 0
                               ? 'FREE'
                               : formatRupee(order.deliveryFee!),
+                          valueColor: (order.deliveryFee ?? 0) <= 0
+                              ? null
+                              : AppColors.priceText,
                         ),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 10),
@@ -503,6 +508,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                           label: 'Total paid',
                           value: formatRupee(order.grandTotal),
                           emphasize: true,
+                          valueColor: AppColors.priceText,
                         ),
                       ],
                     ),
@@ -551,6 +557,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                       formatRupee(order.grandTotal),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w800,
+                            color: AppColors.priceText,
                           ),
                     ),
                   ],
@@ -1452,6 +1459,7 @@ class _CustomerPaymentInfoCard extends StatelessWidget {
             _DetailRow(
               label: 'Total amount',
               value: formatRupee(order.grandTotal),
+              valueColor: AppColors.priceText,
             ),
           ],
         ),
@@ -1521,8 +1529,9 @@ class _RetryPaymentCard extends StatelessWidget {
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _DetailRow({required this.label, required this.value});
+  const _DetailRow({required this.label, required this.value, this.valueColor});
 
   @override
   Widget build(BuildContext context) {
@@ -1547,7 +1556,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               style: body?.copyWith(
-                color: scheme.onSurface,
+                color: valueColor ?? scheme.onSurface,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1613,7 +1622,8 @@ class _OrderLineCard extends StatelessWidget {
                     Text(
                       'Price: ${formatRupee(item.unitPrice)}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
+                            color: AppColors.priceText,
+                            fontWeight: FontWeight.w600,
                           ),
                     ),
                     const SizedBox(height: 6),
@@ -1621,6 +1631,7 @@ class _OrderLineCard extends StatelessWidget {
                       'Item total: ${formatRupee(item.lineTotal)}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w700,
+                            color: AppColors.priceText,
                           ),
                     ),
                     if (canOpen) ...[
@@ -1649,27 +1660,37 @@ class _PriceRow extends StatelessWidget {
   final String label;
   final String value;
   final bool emphasize;
+  final Color? valueColor;
 
   const _PriceRow({
     required this.label,
     required this.value,
     this.emphasize = false,
+    this.valueColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final style = emphasize
+    final labelStyle = emphasize
         ? Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
             )
         : Theme.of(context).textTheme.bodyLarge;
+    final valueStyleBase = emphasize
+        ? Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            )
+        : Theme.of(context).textTheme.bodyLarge;
+    final valueStyle = valueColor != null
+        ? valueStyleBase?.copyWith(color: valueColor)
+        : valueStyleBase;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: style),
-          Text(value, style: style),
+          Text(label, style: labelStyle),
+          Text(value, style: valueStyle),
         ],
       ),
     );
@@ -1893,6 +1914,7 @@ class _ReturnTrackingCard extends StatelessWidget {
                 'Refund: ${refund.status.displayLabel} · ${formatRupee(refund.refundAmount)} via ${refund.method.displayLabel}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
+                      color: AppColors.priceText,
                     ),
               ),
             ],

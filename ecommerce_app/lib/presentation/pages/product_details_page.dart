@@ -1,3 +1,4 @@
+import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
 import 'package:ecommerce_app/features/catalog/domain/product_sort_option.dart';
@@ -6,22 +7,64 @@ import 'package:ecommerce_app/features/product_details/state/product_details_pro
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/wishlist/state/wishlist_provider.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
+import 'package:ecommerce_app/presentation/utils/storefront_title_styles.dart';
 import 'package:ecommerce_app/presentation/utils/product_price_display.dart';
 import 'package:ecommerce_app/presentation/utils/buy_now_navigation.dart';
+import 'package:ecommerce_app/presentation/utils/auth_issue_presenter.dart';
 import 'package:ecommerce_app/presentation/utils/cart_feedback_snackbar.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
 import 'package:ecommerce_app/presentation/utils/storefront_product_navigation.dart';
+import 'package:ecommerce_app/presentation/utils/storefront_share.dart';
 import 'package:ecommerce_app/presentation/widgets/home_product_discovery_card.dart';
 import 'package:ecommerce_app/presentation/widgets/product_image_carousel.dart';
+import 'package:ecommerce_app/presentation/widgets/storefront_wishlist_chip.dart';
 import 'package:ecommerce_app/presentation/widgets/product_quantity_stepper.dart';
+import 'package:ecommerce_app/presentation/widgets/web_horizontal_rail_list.dart';
 import 'package:ecommerce_app/features/product_questions/widgets/product_questions_section.dart';
 import 'package:ecommerce_app/presentation/widgets/product_reviews_section.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+void _navigateWebProductVisitorToHome(BuildContext context) {
+  Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+}
+
+PreferredSizeWidget _productDetailsAppBar(
+  BuildContext context, {
+  List<Widget>? actions,
+}) {
+  final theme = Theme.of(context);
+  final titleStyle = theme.appBarTheme.titleTextStyle ??
+      theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600);
+  // Shared product links on web open this page alone — no back stack; offer home.
+  final webDirectProductVisit = kIsWeb && !Navigator.of(context).canPop();
+  return AppBar(
+    centerTitle: true,
+    titleSpacing: 0,
+    leadingWidth: 48,
+    automaticallyImplyLeading: !webDirectProductVisit,
+    leading: webDirectProductVisit
+        ? IconButton(
+            icon: const Icon(Icons.home_outlined),
+            tooltip: 'Go to store home',
+            onPressed: () => _navigateWebProductVisitorToHome(context),
+          )
+        : null,
+    title: Text(
+      'Product Details',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
+      style: titleStyle,
+    ),
+    actions: actions,
+  );
+}
 
 class ProductDetailsPage extends ConsumerStatefulWidget {
   final String productId;
@@ -37,6 +80,86 @@ class ProductDetailsPage extends ConsumerStatefulWidget {
 
 class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
   int _pendingQty = 1;
+
+  Future<void> _shareProductFrom(
+    BuildContext triggerContext,
+    Product product,
+    ProductPriceDisplay pricing,
+  ) async {
+    final box = triggerContext.findRenderObject() as RenderBox?;
+    Rect? origin;
+    if (box != null && box.hasSize) {
+      origin = Rect.fromPoints(
+        box.localToGlobal(Offset.zero),
+        box.localToGlobal(Offset(box.size.width, box.size.height)),
+      );
+    }
+    try {
+      await shareStorefrontProduct(
+        productTitle: product.title,
+        priceFormatted: formatRupee(pricing.salePrice),
+        productId: product.id,
+        firstImageUrl: product.imageUrls.isNotEmpty ? product.imageUrls.first : null,
+        sharePositionOrigin: origin,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not share: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  /// Web visitors who opened a shared `/product/...` link (no in-app back stack).
+  Widget _webStoreEngagementBanner(BuildContext context) {
+    return Material(
+      color: AppColors.marigoldOrange.withOpacity(0.16),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => _navigateWebProductVisitorToHome(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.storefront_outlined, color: AppColors.darkGreen, size: 26),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Explore ANJANAM',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.charcoalBlack,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'New here? Visit our home page for deals, categories, and more products.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            height: 1.35,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 2),
+                child: Icon(Icons.arrow_forward_rounded, color: AppColors.deepGold, size: 22),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void didUpdateWidget(covariant ProductDetailsPage oldWidget) {
@@ -120,14 +243,35 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                     Positioned(
                       right: 12,
                       top: 12,
-                      child: CircleAvatar(
-                        backgroundColor: Colors.black.withOpacity(0.25),
-                        child: IconButton(
-                          onPressed: () =>
-                              ref.read(wishlistControllerProvider.notifier).toggle(product.id),
-                          icon: Icon(
-                            isWishlisted ? Icons.favorite : Icons.favorite_border,
-                            color: isWishlisted ? AppColors.errorRed : AppColors.marigoldOrange,
+                      child: StorefrontWishlistChip(
+                        extent: WishlistHeartSizes.productGalleryChipExtent,
+                        iconSize: WishlistHeartSizes.productGallery,
+                        isWishlisted: isWishlisted,
+                        onTap: () =>
+                            ref.read(wishlistControllerProvider.notifier).toggle(product.id),
+                      ),
+                    ),
+                    Positioned(
+                      right: 12,
+                      bottom: 12,
+                      child: Builder(
+                        builder: (btnContext) => CircleAvatar(
+                          backgroundColor: AppColors.brandSaffron,
+                          radius: 20,
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            tooltip: 'Share product',
+                            style: IconButton.styleFrom(
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              alignment: Alignment.center,
+                              visualDensity: VisualDensity.standard,
+                            ),
+                            onPressed: () => _shareProductFrom(btnContext, product, pricing),
+                            icon: const Icon(
+                              Icons.share_outlined,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
@@ -138,7 +282,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                 List<Widget> titlePriceBlocks() => [
                       Text(
                         product.title,
-                        style: Theme.of(context).textTheme.headlineSmall,
+                        style: storefrontProductNameStyle(context),
                       ),
                       const SizedBox(height: 8),
                       if (pricing.showPromo) ...[
@@ -160,7 +304,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         Text(
                           'You pay',
                           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: AppColors.marigoldOrange,
+                                color: AppColors.priceText,
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
@@ -168,23 +312,24 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       Text(
                         formatRupee(pricing.salePrice),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.marigoldOrange,
+                              color: AppColors.priceText,
                               fontWeight: FontWeight.w700,
                             ),
                       ),
                       if (product.category != null) ...[
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: AppColors.forestGreen.withOpacity(0.16),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             product.category!,
-                            style: const TextStyle(
-                              color: AppColors.lightGreen,
-                              fontWeight: FontWeight.w600,
+                            style: storefrontHeroTitleStyle(context).copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.darkGreen,
                             ),
                           ),
                         ),
@@ -277,7 +422,11 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                   YouAlsoLikeSection(currentProductId: product.id),
                 ];
 
+                final webDirectProductVisit = kIsWeb && !Navigator.of(context).canPop();
+
                 final top = <Widget>[
+                  if (webDirectProductVisit) _webStoreEngagementBanner(context),
+                  if (webDirectProductVisit) SizedBox(height: useWide ? 16 : 12),
                   if (useWide)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,7 +478,22 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
 
         final body = scrollBody();
         return Scaffold(
-          appBar: AppBar(title: const Text('Product Details')),
+          appBar: _productDetailsAppBar(
+            context,
+            actions: [
+              Builder(
+                builder: (appBarBtnContext) => IconButton(
+                  tooltip: 'Share product',
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.brandSaffron,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.share_outlined),
+                  onPressed: () => _shareProductFrom(appBarBtnContext, product, pricing),
+                ),
+              ),
+            ],
+          ),
           body: kIsWeb
               ? WebMaxWidthCenter(
                   child: StorefrontWebTypography.wrapIfDesktop(context, body),
@@ -374,6 +538,9 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                       context,
                                       productTitle: product.title,
                                     );
+                                  } on AuthException catch (_) {
+                                    if (!context.mounted) return;
+                                    await presentSignInToManageCartDialog(context);
                                   } catch (e) {
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -415,11 +582,11 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
         );
       },
       loading: () => Scaffold(
-        appBar: AppBar(title: const Text('Product Details')),
+        appBar: _productDetailsAppBar(context),
         body: const PageLoading(message: 'Loading product...'),
       ),
       error: (error, _) => Scaffold(
-        appBar: AppBar(title: const Text('Product Details')),
+        appBar: _productDetailsAppBar(context),
         body: PageRefreshableBody(
           onRefresh: () async {
             ref.read(storefrontCatalogRevisionProvider.notifier).bump();
@@ -438,6 +605,42 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
       ),
     );
   }
+}
+
+/// Web: larger discovery cards; native: unchanged (160×270).
+({double width, double height}) _similarProductsCardSize(BuildContext context) {
+  if (!kIsWeb) {
+    return (width: 160.0, height: 270.0);
+  }
+  final layoutW = StorefrontLayoutScope.layoutWidthOf(context);
+  final width = (layoutW * 0.175).clamp(184.0, 232.0);
+  return (width: width, height: width + 106.0);
+}
+
+Widget _similarProductsHorizontalScroller({
+  required double listHeight,
+  required int itemCount,
+  required IndexedWidgetBuilder itemBuilder,
+}) {
+  final gap = kIsWeb ? 12.0 : 8.0;
+  if (kIsWeb) {
+    return WebHorizontalRailList(
+      height: listHeight,
+      padding: EdgeInsets.zero,
+      itemCount: itemCount,
+      separatorBuilder: (_, __) => SizedBox(width: gap),
+      itemBuilder: itemBuilder,
+    );
+  }
+  return SizedBox(
+    height: listHeight,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: itemCount,
+      separatorBuilder: (_, __) => SizedBox(width: gap),
+      itemBuilder: itemBuilder,
+    ),
+  );
 }
 
 class SimilarProductsSection extends ConsumerWidget {
@@ -468,6 +671,7 @@ class SimilarProductsSection extends ConsumerWidget {
       ),
     );
     final wishlist = ref.watch(wishlistProvider);
+    final card = _similarProductsCardSize(context);
 
     return async.when(
       data: (products) {
@@ -484,30 +688,29 @@ class SimilarProductsSection extends ConsumerWidget {
                   ),
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              height: 270,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: products.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  return HomeProductDiscoveryCard(
-                    product: product,
-                    width: 160,
-                    height: 270,
-                    isWishlisted: wishlist.contains(product.id),
-                    onToggleWishlist: () {
-                      ref.read(wishlistControllerProvider.notifier).toggle(product.id);
-                    },
-                    onTap: () => navigateToStorefrontProductDetails(
-                      context,
-                      ref,
-                      product.id,
-                    ),
-                  );
-                },
-              ),
+            _similarProductsHorizontalScroller(
+              listHeight: card.height,
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(card.width);
+                return HomeProductDiscoveryCard(
+                  product: product,
+                  width: card.width,
+                  height: card.height,
+                  wishlistHeartSize: wl.heartSize,
+                  wishlistChipExtent: wl.chipExtent,
+                  isWishlisted: wishlist.contains(product.id),
+                  onToggleWishlist: () {
+                    ref.read(wishlistControllerProvider.notifier).toggle(product.id);
+                  },
+                  onTap: () => navigateToStorefrontProductDetails(
+                    context,
+                    ref,
+                    product.id,
+                  ),
+                );
+              },
             ),
           ],
         );
@@ -522,14 +725,10 @@ class SimilarProductsSection extends ConsumerWidget {
                 ),
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 270,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: 5,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, _) => const _SuggestionSkeletonCard(width: 160),
-            ),
+          _similarProductsHorizontalScroller(
+            listHeight: card.height,
+            itemCount: 5,
+            itemBuilder: (context, _) => _SuggestionSkeletonCard(width: card.width),
           ),
         ],
       ),
@@ -624,9 +823,19 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
     }
   }
 
+  void _maybeLoadMoreFromScroll(ScrollMetrics m) {
+    if (!kIsWeb || m.axis != Axis.horizontal) return;
+    if (_loading || !_hasMore) return;
+    if (m.pixels >= m.maxScrollExtent - 260) {
+      _loadMore();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final wishlist = ref.watch(wishlistProvider);
+    final card = _similarProductsCardSize(context);
+
     if (!_loadedInitial && _items.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -638,21 +847,79 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
                 ),
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 270,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
+          if (kIsWeb)
+            _similarProductsHorizontalScroller(
+              listHeight: card.height,
               itemCount: 5,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, __) => const _SuggestionSkeletonCard(width: 160),
+              itemBuilder: (_, __) => _SuggestionSkeletonCard(width: card.width),
+            )
+          else
+            SizedBox(
+              height: card.height,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: 5,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, __) => _SuggestionSkeletonCard(width: card.width),
+              ),
             ),
-          ),
         ],
       );
     }
 
     if (_items.isEmpty) {
       return const SizedBox.shrink();
+    }
+
+    if (kIsWeb) {
+      final rail = _similarProductsHorizontalScroller(
+        listHeight: card.height,
+        itemCount: _items.length + (_loading ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index >= _items.length) {
+            return _SuggestionSkeletonCard(width: card.width);
+          }
+          final product = _items[index];
+          final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(card.width);
+          return HomeProductDiscoveryCard(
+            product: product,
+            width: card.width,
+            height: card.height,
+            wishlistHeartSize: wl.heartSize,
+            wishlistChipExtent: wl.chipExtent,
+            isWishlisted: wishlist.contains(product.id),
+            onToggleWishlist: () {
+              ref.read(wishlistControllerProvider.notifier).toggle(product.id);
+            },
+            onTap: () => navigateToStorefrontProductDetails(
+              context,
+              ref,
+              product.id,
+            ),
+          );
+        },
+      );
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'You also like',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 10),
+          NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n is! ScrollUpdateNotification) return false;
+              _maybeLoadMoreFromScroll(n.metrics);
+              return false;
+            },
+            child: rail,
+          ),
+        ],
+      );
     }
 
     return Column(
@@ -666,7 +933,7 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 270,
+          height: card.height,
           child: ListView.separated(
             controller: _scrollController,
             scrollDirection: Axis.horizontal,
@@ -674,13 +941,16 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
               if (index >= _items.length) {
-                return const _SuggestionSkeletonCard(width: 160);
+                return _SuggestionSkeletonCard(width: card.width);
               }
               final product = _items[index];
+              final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(card.width);
               return HomeProductDiscoveryCard(
                 product: product,
-                width: 160,
-                height: 270,
+                width: card.width,
+                height: card.height,
+                wishlistHeartSize: wl.heartSize,
+                wishlistChipExtent: wl.chipExtent,
                 isWishlisted: wishlist.contains(product.id),
                 onToggleWishlist: () {
                   ref.read(wishlistControllerProvider.notifier).toggle(product.id);

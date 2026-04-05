@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
+import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/features/cart/domain/entities/cart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
@@ -13,6 +14,7 @@ import 'package:ecommerce_app/presentation/utils/storefront_category_slug.dart';
 import 'package:ecommerce_app/presentation/utils/storefront_product_navigation.dart';
 import 'package:ecommerce_app/presentation/widgets/product_card.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
+import 'package:ecommerce_app/presentation/utils/storefront_title_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -209,6 +211,9 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
     final canPop = Navigator.of(context).canPop();
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
+        titleSpacing: 0,
+        leadingWidth: 48,
         leading: canPop
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -222,15 +227,22 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
               )
             : null,
         automaticallyImplyLeading: canPop,
-        title: Text(widget.title),
+        title: Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: storefrontAppBarEmphasisTitleStyle(context),
+        ),
         actions: [
           IconButton(
             tooltip: 'Wishlist',
+            iconSize: WishlistHeartSizes.appBar,
             onPressed: () => Navigator.of(context).pushNamed('/wishlist'),
             icon: Badge(
               isLabelVisible: wishlist.isNotEmpty,
               label: Text('${wishlist.length}'),
-              child: const Icon(Icons.favorite_border),
+              child: Icon(Icons.favorite_border, size: WishlistHeartSizes.appBar),
             ),
           ),
           IconButton(

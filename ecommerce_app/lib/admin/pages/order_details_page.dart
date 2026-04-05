@@ -7,6 +7,7 @@ import 'package:ecommerce_app/features/order_history/domain/entities/order.dart'
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_shipping_info.dart';
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart'
     show formatOrderDetailsDateTime, formatOrderIdDisplay;
 
@@ -435,6 +436,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                 _AdminPaymentDetailLine(
                                   label: 'Order Amount',
                                   value: formatInrAmount(order.totalAmount),
+                                  valueColor: AppColors.priceText,
                                 ),
                                 _AdminPaymentDetailLine(
                                   label: 'Created At',
@@ -858,6 +860,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                     subtitle: Text('Quantity: ${item.quantity}'),
                                     trailing: Text(
                                       formatInrAmount(item.unitPrice * item.quantity),
+                                      style: const TextStyle(
+                                        color: AppColors.priceText,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   );
                                 }),
@@ -927,6 +933,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   }
 
   static Widget _summaryRow(String label, String value, {bool emphasize = false}) {
+    final isFree = value.trim().toUpperCase() == 'FREE';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -938,6 +945,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             style: TextStyle(
               fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
               fontSize: emphasize ? 16 : 14,
+              color: isFree ? null : AppColors.priceText,
             ),
           ),
         ],
@@ -998,8 +1006,13 @@ class _AdminShipmentReadOnlyLine extends StatelessWidget {
 class _AdminPaymentDetailLine extends StatelessWidget {
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _AdminPaymentDetailLine({required this.label, required this.value});
+  const _AdminPaymentDetailLine({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1019,7 +1032,10 @@ class _AdminPaymentDetailLine extends StatelessWidget {
           const SizedBox(height: 4),
           SelectableText(
             value,
-            style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: valueColor,
+            ),
           ),
         ],
       ),

@@ -668,7 +668,21 @@ class _ProductFormState extends ConsumerState<ProductForm> {
               Text('SKU: $sku'),
               Text('Brand: $brand'),
               Text('Tags: ${tags.isEmpty ? '-' : tags.join(', ')}'),
-              Text('Sale price: ${formatInrAmount(price)}'),
+              Text.rich(
+                TextSpan(
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  children: [
+                    const TextSpan(text: 'Sale price: '),
+                    TextSpan(
+                      text: formatInrAmount(price),
+                      style: const TextStyle(
+                        color: AppColors.priceText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Text('Card promo: $_discountPercent%'),
               Text('Weight: ${weight <= 0 ? '-' : '${weight.toStringAsFixed(3)} kg'}'),
               Text('Dimensions: $dimensions'),

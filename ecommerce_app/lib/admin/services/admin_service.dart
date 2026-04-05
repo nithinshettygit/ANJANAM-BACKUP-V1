@@ -116,6 +116,16 @@ class AdminProduct {
   });
 
   factory AdminProduct.fromJson(Map<String, dynamic> json) {
+    bool readBool(dynamic v) {
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      if (v is String) {
+        final s = v.trim().toLowerCase();
+        return s == 'true' || s == '1' || s == 'yes';
+      }
+      return false;
+    }
+
     final images = json['image_urls'];
     final dd = json['display_discount_percent'];
     final discount = dd is int
@@ -140,11 +150,11 @@ class AdminProduct {
       createdAt: json['created_at'] == null
           ? null
           : DateTime.tryParse(json['created_at'].toString()),
-      isActive: (json['is_active'] as bool?) ?? true,
+      isActive: json['is_active'] == null ? true : readBool(json['is_active']),
       displayDiscountPercent: discount,
-      isPopular: (json['is_popular'] as bool?) ?? false,
-      isRecommended: (json['is_recommended'] as bool?) ?? false,
-      isFestivalSpecial: (json['is_festival_special'] as bool?) ?? false,
+      isPopular: readBool(json['is_popular']),
+      isRecommended: readBool(json['is_recommended']),
+      isFestivalSpecial: readBool(json['is_festival_special']),
     );
   }
 }
@@ -812,7 +822,7 @@ class AdminService {
       data = await client
           .from('products')
           .select(
-              'id, title, description, category, price, currency, inventory_count, image_urls, created_at, is_active')
+              'id, title, description, category, price, currency, inventory_count, image_urls, created_at, is_active, is_popular, is_recommended, is_festival_special')
           .order('created_at', ascending: false);
     }
     return (data as List).cast<Map<String, dynamic>>().map((json) {
@@ -2176,14 +2186,23 @@ class AdminService {
     final safe = _sanitizeSearchInput(query);
     if (safe.isEmpty) return const [];
 
-    final p = '%$safe%';
+    /// PostgREST `.ilike` via query builder encodes `%` correctly; avoid `id.ilike` on uuid columns
+    /// (Postgres has no `~~*` for uuid — the whole search used to fail).
+    final ilikePattern = '%$safe%';
+
+    final uuidStrict = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    );
 
     Future<List<AdminSearchResultItem>> fetchProducts() async {
       try {
         final data = await client
             .from('products')
             .select('id, title, category, sku, brand')
-            .or('title.ilike.$p,category.ilike.$p,sku.ilike.$p,brand.ilike.$p')
+            .or(
+              'title.ilike.$ilikePattern,category.ilike.$ilikePattern,sku.ilike.$ilikePattern,brand.ilike.$ilikePattern',
+            )
             .limit(8);
         return _mapProductRows((data as List).cast<Map<String, dynamic>>());
       } catch (_) {
@@ -2191,27 +2210,69 @@ class AdminService {
           final data = await client
               .from('products')
               .select('id, title, category, description')
-              .or('title.ilike.$p,category.ilike.$p,description.ilike.$p')
+              .or(
+                'title.ilike.$ilikePattern,category.ilike.$ilikePattern,description.ilike.$ilikePattern',
+              )
               .limit(8);
           return _mapProductRows((data as List).cast<Map<String, dynamic>>());
         } catch (_) {
-          final data = await client
-              .from('products')
-              .select('id, title, category')
-              .or('title.ilike.$p,category.ilike.$p')
-              .limit(8);
-          return _mapProductRows((data as List).cast<Map<String, dynamic>>());
+          try {
+            final data = await client
+                .from('products')
+                .select('id, title, category')
+                .or('title.ilike.$ilikePattern,category.ilike.$ilikePattern')
+                .limit(8);
+            return _mapProductRows((data as List).cast<Map<String, dynamic>>());
+          } catch (_) {
+            return const [];
+          }
         }
       }
     }
 
     Future<List<AdminSearchResultItem>> fetchOrders() async {
-      final data = await client
-          .from('orders')
-          .select('id, status')
-          .or('id.ilike.$p,status.ilike.$p')
-          .limit(8);
-      return (data as List).cast<Map<String, dynamic>>().map((row) {
+      final byId = <String, Map<String, dynamic>>{};
+      void addRows(List<dynamic> rows) {
+        for (final r in rows) {
+          final m = Map<String, dynamic>.from(r as Map);
+          final id = (m['id'] ?? '').toString();
+          if (id.isNotEmpty) byId[id] = m;
+        }
+      }
+
+      try {
+        if (uuidStrict.hasMatch(query)) {
+          final one = await client
+              .from('orders')
+              .select('id, status')
+              .eq('id', query)
+              .maybeSingle();
+          if (one != null) addRows([one]);
+        }
+
+        final byStatus = await client
+            .from('orders')
+            .select('id, status')
+            .ilike('status', ilikePattern)
+            .limit(8);
+        addRows(byStatus as List);
+
+        if (byId.length < 8) {
+          try {
+            final asText = await client
+                .from('orders')
+                .select('id, status')
+                .filter('id::text', 'ilike', ilikePattern)
+                .limit(8);
+            addRows(asText as List);
+          } catch (_) {}
+        }
+      } catch (_) {
+        return const [];
+      }
+
+      final list = byId.values.take(8).toList();
+      return list.map((row) {
         final id = (row['id'] ?? '').toString();
         return AdminSearchResultItem(
           type: 'order',
@@ -2223,12 +2284,48 @@ class AdminService {
     }
 
     Future<List<AdminSearchResultItem>> fetchUsers() async {
-      final data = await client
-          .from('profiles')
-          .select('id, full_name')
-          .or('id.ilike.$p,full_name.ilike.$p')
-          .limit(8);
-      return (data as List).cast<Map<String, dynamic>>().map((row) {
+      final byId = <String, Map<String, dynamic>>{};
+      void addRows(List<dynamic> rows) {
+        for (final r in rows) {
+          final m = Map<String, dynamic>.from(r as Map);
+          final id = (m['id'] ?? '').toString();
+          if (id.isNotEmpty) byId[id] = m;
+        }
+      }
+
+      try {
+        if (uuidStrict.hasMatch(query)) {
+          final one = await client
+              .from('profiles')
+              .select('id, full_name')
+              .eq('id', query)
+              .maybeSingle();
+          if (one != null) addRows([one]);
+        }
+
+        final byName = await client
+            .from('profiles')
+            .select('id, full_name')
+            .ilike('full_name', ilikePattern)
+            .limit(8);
+        addRows(byName as List);
+
+        if (byId.length < 8) {
+          try {
+            final asText = await client
+                .from('profiles')
+                .select('id, full_name')
+                .filter('id::text', 'ilike', ilikePattern)
+                .limit(8);
+            addRows(asText as List);
+          } catch (_) {}
+        }
+      } catch (_) {
+        return const [];
+      }
+
+      final list = byId.values.take(8).toList();
+      return list.map((row) {
         final id = (row['id'] ?? '').toString();
         final fullName = (row['full_name'] ?? '').toString();
         return AdminSearchResultItem(
@@ -2240,7 +2337,11 @@ class AdminService {
       }).toList();
     }
 
-    final chunks = await Future.wait([fetchProducts(), fetchOrders(), fetchUsers()]);
+    final chunks = await Future.wait([
+      fetchProducts(),
+      fetchOrders(),
+      fetchUsers(),
+    ]);
     return [...chunks[0], ...chunks[1], ...chunks[2]];
   }
 
@@ -2512,6 +2613,9 @@ class AdminService {
       createdAt: product.createdAt,
       isActive: product.isActive,
       displayDiscountPercent: product.displayDiscountPercent,
+      isPopular: product.isPopular,
+      isRecommended: product.isRecommended,
+      isFestivalSpecial: product.isFestivalSpecial,
     );
   }
 

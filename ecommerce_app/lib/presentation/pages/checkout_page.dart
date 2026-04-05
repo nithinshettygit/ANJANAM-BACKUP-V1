@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ecommerce_app/core/payments/razorpay_service.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/addresses/domain/entities/user_address.dart';
 import 'package:ecommerce_app/features/addresses/state/user_addresses_provider.dart';
@@ -933,6 +934,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       child: Text(
                         formatRupee(e.lineTotal),
                         textAlign: TextAlign.end,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.priceText,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     ),
                   ],
@@ -940,7 +945,14 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               ),
             ),
             const Divider(),
-            _priceRow('Subtotal', formatRupee(subtotal)),
+            _priceRow(
+              'Subtotal',
+              formatRupee(subtotal),
+              valueStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppColors.priceText,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
             _priceRow(
               'Delivery',
               delivery <= 0
@@ -951,18 +963,30 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w700,
                     )
-                  : null,
+                  : Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.priceText,
+                        fontWeight: FontWeight.w600,
+                      ),
             ),
             _priceRow(
               'Discount',
               discount > 0 ? '- ${formatRupee(discount)}' : '—',
-              valueStyle: Theme.of(context).textTheme.bodySmall,
+              valueStyle: discount > 0
+                  ? Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.priceText,
+                        fontWeight: FontWeight.w600,
+                      )
+                  : Theme.of(context).textTheme.bodySmall,
             ),
             const Divider(height: 20),
             _priceRow(
               'Total payable',
               formatRupee(total),
               emphasize: true,
+              valueStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.priceText,
+                  ),
             ),
             const SizedBox(height: 16),
             Text(

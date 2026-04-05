@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/wishlist_heart_sizes.dart';
 import '../../features/cart/state/cart_controller.dart';
 import '../../features/wishlist/state/wishlist_provider.dart';
 import '../utils/main_shell_navigation.dart';
@@ -63,11 +64,12 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
         actions: [
           IconButton(
             tooltip: 'Wishlist',
+            iconSize: WishlistHeartSizes.appBar,
             onPressed: () => Navigator.of(context).pushNamed('/wishlist'),
             icon: Badge(
               isLabelVisible: wishlistCount > 0,
               label: Text('$wishlistCount'),
-              child: const Icon(Icons.favorite_border),
+              child: Icon(Icons.favorite_border, size: WishlistHeartSizes.appBar),
             ),
           ),
           IconButton(

@@ -108,7 +108,13 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                   AdminTableColumn<AdminUserRow>(
                     label: 'Total Spent',
                     sortValue: (u) => u.totalSpent,
-                    cellBuilder: (u) => Text(formatInrAmount(u.totalSpent)),
+                    cellBuilder: (u) => Text(
+                      formatInrAmount(u.totalSpent),
+                      style: const TextStyle(
+                        color: AppColors.priceText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                   AdminTableColumn<AdminUserRow>(
                     label: 'View',

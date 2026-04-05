@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
@@ -7,6 +8,7 @@ import 'package:ecommerce_app/presentation/utils/product_price_display.dart';
 import 'package:ecommerce_app/presentation/widgets/product_image.dart';
 import 'package:ecommerce_app/presentation/widgets/product_quantity_stepper.dart';
 import 'package:ecommerce_app/presentation/widgets/star_rating_display.dart';
+import 'package:ecommerce_app/presentation/widgets/storefront_wishlist_chip.dart';
 import 'package:flutter/material.dart';
 
 class ProductCard extends StatefulWidget {
@@ -200,6 +202,7 @@ class _ProductCardState extends State<ProductCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Container(
@@ -221,18 +224,11 @@ class _ProductCardState extends State<ProductCard> {
                               ),
                             ),
                           ),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: widget.onToggleWishlist,
-                            icon: Icon(
-                              widget.isWishlisted ? Icons.favorite : Icons.favorite_border,
-                              color: widget.isWishlisted
-                                  ? AppColors.errorRed
-                                  : Theme.of(context).colorScheme.onSurface,
-                              size: compact ? 20 : 22,
-                            ),
+                          StorefrontWishlistChip(
+                            extent: WishlistHeartSizes.gridCardChipExtent,
+                            iconSize: WishlistHeartSizes.gridCardHeart,
+                            isWishlisted: widget.isWishlisted,
+                            onTap: widget.onToggleWishlist,
                           ),
                         ],
                       ),
@@ -302,7 +298,7 @@ class _ProductCardState extends State<ProductCard> {
                                             ? Theme.of(context).textTheme.titleMedium
                                             : Theme.of(context).textTheme.titleLarge)
                                         ?.copyWith(
-                                          color: AppColors.deepGold,
+                                          color: AppColors.priceText,
                                           fontWeight: FontWeight.w800,
                                         ),
                                   ),

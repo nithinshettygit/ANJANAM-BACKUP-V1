@@ -14,6 +14,8 @@ class AppColors {
   static const Color brandSaffronPressed = Color(0xFFD97A0F);
   /// Links and strong emphasis on cream (readable on light bg).
   static const Color brandSaffronDeep = Color(0xFFC67610);
+  /// Rupee amounts, totals, and sale prices on light backgrounds (high contrast vs [brandSaffron] / gold).
+  static const Color priceText = Color(0xFF6B3A08);
 
   /// Main scaffold / page background.
   static const Color backgroundCream = Color(0xFFFFF7E8);
@@ -31,6 +33,24 @@ class AppColors {
   static const Color borderSubtle = Color(0xFFE5E1DB);
   /// Search field fill (slightly warmer than page).
   static const Color searchFieldFill = Color(0xFFFFF2E6);
+
+  // ——— Home “shelf” panels — distinct moods, same family as saffron / gold / cream ———
+  /// Popular — warm **honey amber** (trending / energy).
+  static const Color homeShelfPopularFill = Color(0xFFFFE8CC);
+  static const Color homeShelfPopularBorder = Color(0xFFE29A4A);
+  /// Recommended — **light gray** panel (neutral vs warm Popular / Festival).
+  static const Color homeShelfRecommendedFill = Color(0xFFF2F2F2);
+  static const Color homeShelfRecommendedBorder = Color(0xFFC8C8C8);
+  /// Shelf glow for Recommended (neutral gray).
+  static const Color homeShelfRecommendedShadowTint = Color(0xFF888888);
+  /// Festival — **marigold coral** celebration wash (joyful, not cold pink).
+  static const Color homeShelfFestivalFill = Color(0xFFFFEDE3);
+  static const Color homeShelfFestivalBorder = Color(0xFFFF8F6B);
+  /// Deeper coral for shelf glow (pairs with [homeShelfFestivalBorder]).
+  static const Color homeShelfFestivalShadowTint = Color(0xFFFF7043);
+  /// New arrivals — **fresh sage mist** (new stock, earthy with brand warmth).
+  static const Color homeShelfNewArrivalsFill = Color(0xFFE6F2E9);
+  static const Color homeShelfNewArrivalsBorder = Color(0xFF7CB89A);
 
   // ——— Legacy & extended (customer + admin) ———
   static const Color primaryPurple = Color(0xFF6A1B9A);

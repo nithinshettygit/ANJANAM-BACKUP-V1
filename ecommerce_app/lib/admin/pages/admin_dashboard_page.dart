@@ -87,6 +87,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                           _StatCard(
                             title: 'Total Revenue',
                             value: formatInrAmount(summary.totalRevenue),
+                            valueColor: AppColors.priceText,
                           ),
                         ],
                       ),
@@ -98,10 +99,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                           _StatCard(
                             title: 'Revenue Today',
                             value: formatInrAmount(analytics.revenueToday),
+                            valueColor: AppColors.priceText,
                           ),
                           _StatCard(
                             title: 'Revenue This Month',
                             value: formatInrAmount(analytics.revenueThisMonth),
+                            valueColor: AppColors.priceText,
                           ),
                           _StatCard(
                             title: 'Total Orders',
@@ -118,6 +121,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                           _StatCard(
                             title: 'Average Order Value',
                             value: formatInrAmount(analytics.averageOrderValue),
+                            valueColor: AppColors.priceText,
                           ),
                         ],
                       ),
@@ -198,7 +202,15 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                                       cells: [
                                         DataCell(Text(p.title)),
                                         DataCell(Text(p.quantitySold.toString())),
-                                        DataCell(Text(formatInrAmount(p.revenue))),
+                                        DataCell(
+                                          Text(
+                                            formatInrAmount(p.revenue),
+                                            style: const TextStyle(
+                                              color: AppColors.priceText,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
                                       ],
                                     );
                                   }).toList(),
@@ -254,7 +266,13 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                                               DataCell(Text(order.id)),
                                               DataCell(Text(order.customerName)),
                                               DataCell(
-                                                Text(formatInrAmount(order.totalAmount)),
+                                                Text(
+                                                  formatInrAmount(order.totalAmount),
+                                                  style: const TextStyle(
+                                                    color: AppColors.priceText,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
                                               ),
                                               DataCell(Text(order.status)),
                                               DataCell(
@@ -315,8 +333,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
+  final Color? valueColor;
 
-  const _StatCard({required this.title, required this.value});
+  const _StatCard({required this.title, required this.value, this.valueColor});
 
   @override
   Widget build(BuildContext context) {
@@ -333,7 +352,11 @@ class _StatCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 value,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: valueColor,
+                ),
               ),
             ],
           ),

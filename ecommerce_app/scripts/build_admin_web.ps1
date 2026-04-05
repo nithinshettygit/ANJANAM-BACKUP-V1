@@ -53,9 +53,15 @@ if (-not [string]::IsNullOrWhiteSpace($rzp)) {
   $defines += "--dart-define=RAZORPAY_TEST_KEY=$rzp"
 }
 
-Write-Host "flutter build web --release --base-href=$BaseHref $($defines -join ' ')"
-& flutter build web --release --base-href=$BaseHref @defines
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+# --web-renderer html: default CanvasKit loads from Google CDN; if that is blocked, the site stays white.
+# --pwa-strategy none: avoids a service worker caching an old broken bundle after you fix the build.
+Write-Host "flutter build web --release --base-href=$BaseHref --web-renderer html --pwa-strategy none $($defines -join ' ')"
+& flutter build web --release --base-href=$BaseHref --web-renderer html --pwa-strategy none @defines
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "Retrying without --web-renderer / --pwa-strategy (older Flutter)..." -ForegroundColor Yellow
+  & flutter build web --release --base-href=$BaseHref @defines
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 if ($Deploy) {
   & firebase deploy --only hosting --project $ProjectId

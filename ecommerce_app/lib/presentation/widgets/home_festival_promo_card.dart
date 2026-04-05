@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/wishlist_heart_sizes.dart';
 import '../../features/catalog/domain/entities/product.dart';
 import 'app_network_image.dart';
+import 'storefront_wishlist_chip.dart';
 import 'subtle_scale_on_pointer.dart';
 
-/// Wide banner-style card: hero image, gradient, title, Explore CTA.
+/// Wide banner-style card: hero image, gradient, compact Festival pick pill (top-left), title.
 class HomeFestivalPromoCard extends StatelessWidget {
   const HomeFestivalPromoCard({
     super.key,
@@ -13,15 +15,27 @@ class HomeFestivalPromoCard extends StatelessWidget {
     required this.width,
     required this.height,
     this.onExplore,
+    this.isWishlisted = false,
+    this.onToggleWishlist,
+    this.wishlistHeartSize,
+    this.wishlistChipExtent,
   });
 
   final Product product;
   final double width;
   final double height;
   final VoidCallback? onExplore;
+  final bool isWishlisted;
+  final VoidCallback? onToggleWishlist;
+  /// When null, uses [WishlistHeartSizes.imageOverlayChip].
+  final double? wishlistHeartSize;
+  /// Saffron circle size; when null, **36**.
+  final double? wishlistChipExtent;
 
   @override
   Widget build(BuildContext context) {
+    final heartSize = wishlistHeartSize ?? WishlistHeartSizes.imageOverlayChip;
+    final chipExtent = wishlistChipExtent ?? 36;
     final imageUrl = product.imageUrls.isNotEmpty ? product.imageUrls.first : null;
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final memW = imageMemCacheExtent(width, dpr);
@@ -80,32 +94,46 @@ class HomeFestivalPromoCard extends StatelessWidget {
                   ),
                 ),
                 Positioned(
-                  left: 12,
-                  top: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: AppColors.brandSaffron.withValues(alpha: 0.92),
+                  left: 10,
+                  top: 10,
+                  child: Material(
+                    color: Colors.white,
+                    elevation: 2,
+                    shadowColor: Colors.black.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      onTap: onExplore,
                       borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      'FESTIVE PICK',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                            fontSize: 10,
-                          ),
+                        child: Text(
+                          'Festival pick',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: AppColors.brandSaffron,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10,
+                                letterSpacing: 0.15,
+                                height: 1.1,
+                              ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
+                if (onToggleWishlist != null)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: StorefrontWishlistChip(
+                      extent: chipExtent,
+                      iconSize: heartSize,
+                      isWishlisted: isWishlisted,
+                      onTap: onToggleWishlist,
+                    ),
+                  ),
                 Positioned(
                   left: 14,
                   right: 14,
@@ -130,29 +158,6 @@ class HomeFestivalPromoCard extends StatelessWidget {
                                 ),
                               ],
                             ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.18),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          'Explore',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                color: AppColors.brandSaffronDeep,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                              ),
-                        ),
                       ),
                     ],
                   ),

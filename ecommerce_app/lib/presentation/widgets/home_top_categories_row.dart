@@ -112,9 +112,11 @@ class _CategoryChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(
+            horizontal: HomeLayoutMetrics.homeCategoryChipPaddingH,
+          ),
           child: SizedBox(
-            width: circleSize + 20,
+            width: circleSize + HomeLayoutMetrics.homeCategoryChipLabelSlotExtra,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

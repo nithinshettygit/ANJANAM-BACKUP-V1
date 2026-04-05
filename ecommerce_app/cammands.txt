@@ -1,0 +1,129 @@
+# ANJANAM-NEW — clone → build (read once, then run in order)
+#
+# Quick path (PowerShell, after clone): fill tool\web_build.env and google-services.json, then:
+#   cd ecommerce_app
+#   flutter pub get
+#   .\scripts\build_admin_web.ps1
+#
+# Prerequisites
+#   - Git, Flutter SDK (stable, Dart >= 3.3), Chrome or an Android device/emulator
+#   - Optional: Node.js 18+ (Supabase CLI), Firebase CLI (only for deploy)
+#
+# 1) Clone and enter the repo (replace YOUR_ORG/YOUR_REPO with your GitHub URL)
+#    git clone https://github.com/YOUR_ORG/YOUR_REPO.git
+#    cd YOUR_REPO
+#
+# ---------- Main app: Flutter (ecommerce_app) ----------
+#
+# 2) Web build config (required for build web / release defines)
+#    PowerShell:
+#      cd ecommerce_app
+#      Copy-Item tool\web_build.env.example tool\web_build.env
+#    Edit tool\web_build.env: set SUPABASE_URL and SUPABASE_ANON_KEY (see comments in that file).
+#    Optional lines: SUPABASE_FUNCTIONS_BASE_URL, RAZORPAY_TEST_KEY
+#
+# 3) Android: place Firebase google-services.json
+#    Download from Firebase Console → Project settings → Your apps → Android app.
+#    Save as: ecommerce_app/android/app/google-services.json
+#
+# 4) Fetch Dart / Flutter dependencies
+#    cd ecommerce_app
+#    flutter pub get
+#
+# 5) Run on a device (set YOUR_DEVICE_ID from `flutter devices`, or use chrome)
+#    PowerShell example (replace values with yours from web_build.env or env vars):
+#      $env:SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
+#      $env:SUPABASE_ANON_KEY="your_anon_key"
+#      flutter run -d chrome --dart-define=SUPABASE_URL=$env:SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$env:SUPABASE_ANON_KEY
+#
+# 6) Release web build (output: ecommerce_app\build\web)
+#    PowerShell (from ecommerce_app):
+#      .\scripts\build_admin_web.ps1
+#    Bash (from ecommerce_app):
+#      chmod +x scripts/build_admin_web.sh && ./scripts/build_admin_web.sh
+#
+# 7) Optional: deploy web to Firebase Hosting (needs firebase login + project)
+#    From ecommerce_app:
+#      .\scripts\build_admin_web.ps1 -Deploy
+#
+# If https://anjanam-app.web.app is a blank white page:
+#   - You must use build_admin_web.ps1 (or flutter build web with the same --dart-define=… as flutter run).
+#   - Plain "flutter build web" with no defines → broken hosted app. Create tool\web_build.env first.
+#   - After redeploy: hard refresh or Incognito (old PWA cache). Script uses --web-renderer html and --pwa-strategy none.
+#
+# ---------- What to do next (after feature work) ----------
+#
+# A) Ship latest code to the public website (Firebase Hosting)
+#    1) cd to this folder (ecommerce_app)
+#    2) Confirm tool\web_build.env has real SUPABASE_URL and SUPABASE_ANON_KEY (never commit this file).
+#    3) PowerShell:
+#         .\scripts\build_admin_web.ps1 -Deploy
+#    4) Open https://anjanam-app.web.app in an Incognito/private window (avoids stale cache).
+#    5) Smoke-test: home loads, open a shared /product/... link (home icon + “Explore ANJANAM” on direct web opens).
+#
+# B) Daily Android development
+#    - From ecommerce_app, use flutter run with --dart-define=SUPABASE_URL=... and SUPABASE_ANON_KEY=...
+#      (same values as web_build.env). Example: flutter run -d YOUR_DEVICE_ID --dart-define=...
+#    - For release-style tests (App Links, share): install a release/signed build on a device.
+#
+# C) Git
+#    - Review changes, commit, push when ready. tool\web_build.env stays gitignored — do not force-add it.
+#
+# D) When you publish on Google Play (later)
+#    - Add Play Console → App integrity → App signing key → SHA-256 to web\.well-known\assetlinks.json
+#      (second entry in sha256_cert_fingerprints), then build web + deploy again so https product links open the app.
+#
+# ---------- Backend: Supabase (schema + Edge Functions) ----------
+#
+# 8) Optional — apply migrations to your Supabase project (needs Supabase CLI + login)
+#    cd ecommerce_app
+#    npx supabase@latest link --project-ref YOUR_PROJECT_REF
+#    npx supabase@latest db push
+#
+# 9) Optional — deploy Edge Functions (after link)
+#    cd ecommerce_app
+#    npx supabase@latest functions deploy
+#
+# ---------- Legacy: new-app (Expo / React Native sources) ----------
+#
+# This folder is source-only in this repo (no package.json). To run it you need a full Expo
+# project (package.json / lockfile) from your backup or EAS. Place google-services.json
+# locally for Android; never commit that file.
+#
+# ---------- CI ----------
+#
+# GitHub Actions: .github/workflows/deploy-admin-web.yml — set repo secrets:
+# SUPABASE_URL, SUPABASE_ANON_KEY, optional SUPABASE_FUNCTIONS_BASE_URL, RAZORPAY_TEST_KEY,
+# FIREBASE_SERVICE_ACCOUNT (full JSON).
+#
+# ---------- Android App Links — shared https://…/product/<id> opens the app ----------
+#
+# Goal: hosting serves /.well-known/assetlinks.json as real JSON (not index.html), and the
+# SHA-256 there matches the key that signed the APK users install.
+#
+# 1) JAVA_HOME (Windows, if gradlew says JAVA_HOME is not set)
+#    Use Android Studio’s bundled JDK, then run Gradle:
+#      $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+#      $env:Path = "$env:JAVA_HOME\bin;$env:Path"
+#
+# 2) Fingerprint for assetlinks.json (debug / local installs)
+#      cd ecommerce_app\android
+#      .\gradlew.bat :app:signingReport
+#    Copy SHA-256 (with colons) under Variant: debug into:
+#      ecommerce_app\web\.well-known\assetlinks.json  →  "sha256_cert_fingerprints": [ "…" ]
+#
+# 3) Play Store installs: add a second fingerprint from Play Console → App integrity /
+#    App signing → App signing key certificate → SHA-256 (same JSON array).
+#
+# 4) Build web and deploy Hosting (from ecommerce_app; firebase login if needed)
+#      flutter build web
+#      firebase deploy --only hosting
+#
+# 5) Verify in browser (must be JSON, not the shop HTML)
+#      https://anjanam-app.web.app/.well-known/assetlinks.json
+#
+# 6) Phone: clear ANJANAM “Open by default” for links or reinstall; test an https product URL.
+#
+# Product shares use one HTTPS URL only (WhatsApp linkifies it). App opens via App Links when verified.
+# Old com.anjanam.app://product/<id> links still work if the app receives them.
+# firebase.json must NOT ignore .well-known (do not use "**/.*" in hosting ignore).

@@ -1,11 +1,11 @@
 {
-    "name": "ANJANAM Admin",
-    "short_name": "ANJANAM Admin",
+    "name": "ANJANAM",
+    "short_name": "ANJANAM",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#fa7800",
-    "description": "ANJANAM admin panel for catalog, orders, and content.",
+    "description": "ANJANAM shop and store tools.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

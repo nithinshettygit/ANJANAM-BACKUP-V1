@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/layout/storefront_web_layout.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 
 /// Responsive sizes for mixed home layouts (Flipkart / Amazon–style).
@@ -36,9 +37,27 @@ abstract final class HomeLayoutMetrics {
     return AppSpacing.cardGap.toDouble();
   }
 
+  /// Popular rail only — tighter than [railCardGap] to reduce empty space between cards.
+  static double popularRailCardGap(BuildContext context) {
+    if (!kIsWeb) return 8;
+    final w = StorefrontLayoutScope.layoutWidthOf(context);
+    if (w > StorefrontBreakpoints.tablet) return 10;
+    if (w >= StorefrontBreakpoints.mobile) return 9;
+    return 8;
+  }
+
+  /// Festival banner rail — wider than [railCardGap] so narrower cards breathe horizontally.
+  static double festivalRailCardGap(BuildContext context) {
+    if (!kIsWeb) return 16;
+    final w = StorefrontLayoutScope.layoutWidthOf(context);
+    if (w > StorefrontBreakpoints.tablet) return 24;
+    if (w >= StorefrontBreakpoints.mobile) return 20;
+    return 16;
+  }
+
   /// Top inset for the home hero on web desktop.
   static double homeHeroTopMargin(BuildContext context) {
-    if (_webDesktop(context)) return 28;
+    if (_webDesktop(context)) return 18;
     return 0;
   }
 
@@ -52,7 +71,7 @@ abstract final class HomeLayoutMetrics {
   static double homeListTopPadding(BuildContext context) {
     if (!kIsWeb) return AppSpacing.cardGap.toDouble();
     final w = StorefrontLayoutScope.layoutWidthOf(context);
-    if (w > StorefrontBreakpoints.tablet) return 40;
+    if (w > StorefrontBreakpoints.tablet) return 24;
     if (w >= StorefrontBreakpoints.mobile) return 24;
     return AppSpacing.cardGap.toDouble();
   }
@@ -66,12 +85,24 @@ abstract final class HomeLayoutMetrics {
   }
 
   /// Section title size in [HomeStorefrontSectionHeader].
+  ///
+  /// Aligns with [homeCategoryRowTitleStyle] (“Shop by category”): [TextTheme.titleLarge]
+  /// on phones and narrow web; +2px on wide web desktop only. On very small native
+  /// screens the size steps down slightly so rails don’t feel oversized.
   static double homeSectionTitleFontSize(BuildContext context) {
-    if (!kIsWeb) return 20;
-    final w = StorefrontLayoutScope.layoutWidthOf(context);
-    if (w > StorefrontBreakpoints.tablet) return 24;
-    if (w >= StorefrontBreakpoints.mobile) return 22;
-    return 20;
+    final baseFs = Theme.of(context).textTheme.titleLarge?.fontSize ?? 18;
+
+    if (kIsWeb) {
+      final w = StorefrontLayoutScope.layoutWidthOf(context);
+      if (w > StorefrontBreakpoints.tablet) return baseFs + 2;
+      return baseFs;
+    }
+
+    final sw = MediaQuery.sizeOf(context).width;
+    if (sw < 320) return (baseFs - 3).clamp(14.0, baseFs);
+    if (sw < 360) return (baseFs - 2).clamp(14.0, baseFs);
+    if (sw < 400) return (baseFs - 1).clamp(15.0, baseFs);
+    return baseFs;
   }
 
   static double homeSectionBadgeFontSize(BuildContext context) {
@@ -98,20 +129,34 @@ abstract final class HomeLayoutMetrics {
     return 1.2;
   }
 
-  /// Recommended rail card title line.
+  /// Recommended rail card title (product name).
   static TextStyle homeRecommendedRailTitleStyle(BuildContext context, TextTheme theme) {
     final base = theme.titleSmall ?? const TextStyle();
-    var style = base.copyWith(fontWeight: FontWeight.w700, height: 1.2);
-    if (!kIsWeb) return style;
+    final baseFs = base.fontSize ?? 14;
+    if (!kIsWeb) {
+      return base.copyWith(
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+        height: 1.28,
+        letterSpacing: -0.28,
+        color: AppColors.sectionTitle,
+      );
+    }
+    var style = base.copyWith(
+      fontWeight: FontWeight.w700,
+      height: 1.22,
+      letterSpacing: -0.25,
+      color: AppColors.sectionTitle,
+    );
     final w = StorefrontLayoutScope.layoutWidthOf(context);
-    final fs = style.fontSize ?? 14;
+    final fs = style.fontSize ?? baseFs;
     if (w > StorefrontBreakpoints.tablet) {
       return style.copyWith(fontSize: fs + 2, height: 1.3);
     }
     if (w >= StorefrontBreakpoints.mobile) {
-      return style.copyWith(fontSize: fs + 1, height: 1.25);
+      return style.copyWith(fontSize: fs + 1, height: 1.28);
     }
-    return style;
+    return style.copyWith(fontSize: baseFs + 0.5);
   }
 
   /// Gap under “Shop by category” before the scroller.
@@ -149,13 +194,21 @@ abstract final class HomeLayoutMetrics {
     return base.copyWith(fontSize: fs, height: 1.45);
   }
 
+  static const double _homeCategoryNativeInterItemGap = 8;
+
+  /// Horizontal inset on each Shop-by-category chip (both sides; counts toward stride).
+  static const double homeCategoryChipPaddingH = 2;
+
+  /// Column width past the icon diameter for the two-line label.
+  static const double homeCategoryChipLabelSlotExtra = 12;
+
   /// Horizontal gap between category circles on the home scroller.
   static double homeCategoryScrollerGap(BuildContext context) {
-    if (!kIsWeb) return AppSpacing.page.toDouble();
+    if (!kIsWeb) return _homeCategoryNativeInterItemGap;
     final w = StorefrontLayoutScope.layoutWidthOf(context);
-    if (w > StorefrontBreakpoints.tablet) return 20;
-    if (w >= StorefrontBreakpoints.mobile) return 18;
-    return AppSpacing.page.toDouble();
+    if (w > StorefrontBreakpoints.tablet) return 14;
+    if (w >= StorefrontBreakpoints.mobile) return 12;
+    return 12;
   }
 
   static double heroHeight(BuildContext context) {
@@ -166,26 +219,57 @@ abstract final class HomeLayoutMetrics {
     return (w * 0.38).clamp(160.0, 200.0);
   }
 
-  /// Standard horizontal rail (Popular).
+  /// Standard horizontal rail (Popular). Slightly larger than before so cards read closer to Recommended scale.
   static double popularCardWidth(BuildContext context) {
     final w = StorefrontLayoutScope.layoutWidthOf(context);
     if (kIsWeb) {
       if (w >= StorefrontBreakpoints.tablet) {
-        return (w * 0.22).clamp(168.0, 200.0);
+        return (w * 0.24).clamp(172.0, 204.0);
       }
       if (w >= StorefrontBreakpoints.mobile) {
-        return (w * 0.32).clamp(158.0, 182.0);
+        return (w * 0.345).clamp(162.0, 188.0);
       }
     }
-    return (w * 0.40).clamp(150.0, 170.0);
+    return (w * 0.43).clamp(160.0, 180.0);
   }
 
   /// Square image (1:1) + text block (card body height).
   static double popularCardBodyHeight(double cardWidth) => cardWidth + 96;
 
-  /// List viewport height: card body + optional web scrollbar band below cards.
+  /// List viewport height: card body + shelf list bottom inset (padding + web scrollbar band).
   static double popularRailHeight(BuildContext context, double cardWidth) =>
-      popularCardBodyHeight(cardWidth) + horizontalRailScrollbarReserve(context);
+      popularCardBodyHeight(cardWidth) + homeShelfRailListBottomInset(context);
+
+  /// Native Popular paged rail: peek in [homeRailSnapViewportFraction] **and** right inset on each page.
+  ///
+  /// Using the **same** value for both makes the visible gap between cards equal [popularRailCardGap]
+  /// (same rhythm as Recommended’s [ListView] separators).
+  static double popularRailSnapEndInset(double railGap) =>
+      railGap.clamp(5.0, 10.0);
+
+  /// Width available for rail content inside a home section shelf (after page + shelf insets).
+  static double homeShelfContentWidth(BuildContext context) {
+    final w = StorefrontLayoutScope.layoutWidthOf(context);
+    final outer = pageHorizontal(context);
+    final inner = homeSectionShelfInnerPadding(context);
+    return (w - 2 * outer - 2 * inner).clamp(120.0, w);
+  }
+
+  /// [PageView.viewportFraction] so one card + gap fits per page on native (swipe-by-card).
+  ///
+  /// [nextCardPeekPx] widens each page slightly so the next product is hinted at the edge
+  /// (Popular rail uses this for clearer horizontal affordance).
+  static double homeRailSnapViewportFraction(
+    BuildContext context,
+    double cardWidth,
+    double separatorWidth, {
+    double nextCardPeekPx = 0,
+  }) {
+    final shelfW = homeShelfContentWidth(context);
+    if (shelfW <= 0) return 0.88;
+    final stride = cardWidth + separatorWidth + nextCardPeekPx;
+    return (stride / shelfW).clamp(0.28, 0.95);
+  }
 
   /// Larger personalized rail (Recommended).
   static double recommendedCardWidth(BuildContext context) {
@@ -199,30 +283,38 @@ abstract final class HomeLayoutMetrics {
   /// **4:5** image area height = [cardWidth] * 5/4 + meta (title, price, CTA).
   static double recommendedImageHeight(double cardWidth) => cardWidth * 5 / 4;
 
+  /// Meta strip under image: 2-line title + rating row + prices + CTA.
+  static const double recommendedMetaStripMinHeight = 118;
+
   static double recommendedCardBodyHeight(double cardWidth) =>
-      recommendedImageHeight(cardWidth) + 136;
+      recommendedImageHeight(cardWidth) +
+      recommendedMetaStripMinHeight +
+      32; // insets + slack when rating row + 2-line title
 
   static double recommendedRailHeight(BuildContext context, double cardWidth) =>
-      recommendedCardBodyHeight(cardWidth) + horizontalRailScrollbarReserve(context);
+      recommendedCardBodyHeight(cardWidth) + homeShelfRailListBottomInset(context);
 
   /// Wide festival promo cards.
   static double festivalCardWidth(BuildContext context) {
     final w = StorefrontLayoutScope.layoutWidthOf(context);
     if (kIsWeb) {
       if (w >= StorefrontBreakpoints.tablet) {
-        return (w * 0.40).clamp(300.0, 440.0);
+        return (w * 0.36).clamp(280.0, 420.0);
       }
-      return (w * 0.62).clamp(240.0, 320.0);
+      return (w * 0.55).clamp(220.0, 300.0);
     }
-    return (w * 0.82).clamp(260.0, 300.0);
+    return (w * 0.74).clamp(248.0, 292.0);
   }
 
   static double festivalCardHeight(BuildContext context) {
     final w = StorefrontLayoutScope.layoutWidthOf(context);
     if (kIsWeb && w >= StorefrontBreakpoints.tablet) {
-      return (w * 0.16).clamp(180.0, 220.0);
+      return (w * 0.205).clamp(228.0, 288.0);
     }
-    return (w * 0.24).clamp(160.0, 180.0);
+    if (kIsWeb) {
+      return (w * 0.27).clamp(192.0, 228.0);
+    }
+    return (w * 0.28).clamp(196.0, 236.0);
   }
 
   /// Bottom space inside horizontal rails so the web scrollbar clears card art.
@@ -231,16 +323,36 @@ abstract final class HomeLayoutMetrics {
     return 14;
   }
 
+  /// Matches [WebHorizontalRailList] bottom inset on home shelves: `inner + 2` + scrollbar band.
+  /// Without this, rail [height] is shorter than padded viewport and cards overflow vertically.
+  static double homeShelfRailListBottomInset(BuildContext context) =>
+      homeSectionShelfInnerPadding(context) +
+      2 +
+      horizontalRailScrollbarReserve(context);
+
   static double festivalRailHeight(BuildContext context) {
     final cardH = festivalCardHeight(context);
-    return cardH + 4 + horizontalRailScrollbarReserve(context);
+    return cardH + 4 + homeShelfRailListBottomInset(context);
   }
 
   /// Category circles (Shop by category).
+  ///
+  /// On native, size is chosen so **four** chips fit across the content width with
+  /// [homeCategoryScrollerGap] and [homeCategoryChipPaddingH] / [homeCategoryChipLabelSlotExtra].
   static double categoryIconSize(BuildContext context) {
     final w = StorefrontLayoutScope.layoutWidthOf(context);
     if (kIsWeb && w > StorefrontBreakpoints.tablet) {
       return (w * 0.075).clamp(80.0, 96.0);
+    }
+    if (!kIsWeb) {
+      final content = w - 2 * pageHorizontal(context);
+      const overhead =
+          2 * homeCategoryChipPaddingH + homeCategoryChipLabelSlotExtra;
+      final raw = (content -
+              3 * _homeCategoryNativeInterItemGap -
+              4 * overhead) /
+          4;
+      return raw.clamp(52.0, 74.0);
     }
     return (w * 0.19).clamp(72.0, 80.0);
   }
@@ -290,11 +402,29 @@ abstract final class HomeLayoutMetrics {
   static double newArrivalsGridHorizontalPadding(BuildContext context) =>
       pageHorizontal(context);
 
+  /// Inner horizontal padding inside the tinted home section “shelf” (Flipkart-style block).
+  static double homeSectionShelfInnerPadding(BuildContext context) {
+    if (kIsWeb &&
+        StorefrontLayoutScope.layoutWidthOf(context) > StorefrontBreakpoints.tablet) {
+      return 16;
+    }
+    return 12;
+  }
+
+  /// [newArrivalCardWidth] when the grid sits inside a shelf (outer page pad + shelf inner pad).
+  static double newArrivalCardWidthInShelf(BuildContext context, int columns) {
+    final w = StorefrontLayoutScope.layoutWidthOf(context);
+    final outer = pageHorizontal(context);
+    final inner = homeSectionShelfInnerPadding(context);
+    final gap = newArrivalsGridCrossGap(context);
+    return (w - 2 * outer - 2 * inner - gap * (columns - 1)) / columns;
+  }
+
   /// Shared horizontal inset for home sections (mobile unchanged on Android).
   static double pageHorizontal(BuildContext context) {
     final w = StorefrontLayoutScope.layoutWidthOf(context);
     if (!kIsWeb) return AppSpacing.page.toDouble();
-    if (w > StorefrontBreakpoints.tablet) return 28;
+    if (w > StorefrontBreakpoints.tablet) return 24;
     if (w >= StorefrontBreakpoints.mobile) return 24;
     return AppSpacing.page.toDouble();
   }

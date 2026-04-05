@@ -28,7 +28,8 @@ class AdminVideosPage extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'YouTube URLs only — videos stream from YouTube; nothing is uploaded to storage.',
+                      'YouTube URLs only — videos stream from YouTube; nothing is uploaded to storage. '
+                      'For Shorts, prefer a link that contains /shorts/ so the in-app player uses the correct vertical layout.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
