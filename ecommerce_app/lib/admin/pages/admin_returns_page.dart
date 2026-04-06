@@ -1,5 +1,5 @@
-import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import 'package:ecommerce_app/features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/admin_providers.dart';
 import '../services/admin_service.dart';
+import '../utils/admin_android_ui.dart';
+import '../utils/admin_return_status_push.dart';
 import '../widgets/admin_data_table.dart';
 import '../widgets/admin_state_view.dart';
 
@@ -23,15 +25,12 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
 
   static const _filters = <String, String>{
     'all': 'All',
-    'return_requested': 'Return requested',
-    'return_approved': 'Return approved',
-    'pickup_scheduled': 'Pickup scheduled',
-    'item_picked_up': 'Item picked up',
-    'item_received_warehouse': 'At warehouse',
-    'inspection_passed': 'Inspection passed',
-    'inspection_failed': 'Inspection failed',
-    'replacement_in_progress': 'Replacement in progress',
-    'return_rejected': 'Rejected',
+    'requested': 'Requested',
+    'approved': 'Approved',
+    'rejected': 'Rejected',
+    'picked_up': 'Picked up',
+    'returned': 'Returned',
+    'refund_completed': 'Completed',
   };
 
   String _reasonLabel(String db) {
@@ -55,8 +54,6 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
 
   String _norm(String? value) => (value ?? '').trim().toLowerCase();
 
-  bool _isReplacement(AdminReturnRow r) => _norm(r.returnType) == 'replacement';
-
   String _statusOf(AdminReturnRow r) => _norm(r.returnStatus);
 
   Future<void> _reload() async {
@@ -67,8 +64,14 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     try {
       await ref.read(adminServiceProvider).updateReturnStatus(
             returnId: r.id,
-            newStatus: 'return_approved',
+            newStatus: 'approved',
           );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: r.userId,
+        orderId: r.orderId,
+        status: 'approved',
+      );
       await _reload();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Return approved.')));
@@ -102,9 +105,15 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     try {
       await ref.read(adminServiceProvider).updateReturnStatus(
             returnId: r.id,
-            newStatus: 'return_rejected',
+            newStatus: 'rejected',
             rejectionReason: ctrl.text.trim(),
           );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: r.userId,
+        orderId: r.orderId,
+        status: 'rejected',
+      );
       await _reload();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Return rejected.')));
@@ -116,103 +125,18 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     }
   }
 
-  Future<void> _schedulePickup(AdminReturnRow r) async {
-    final notesCtrl = TextEditingController(text: r.pickupNotes ?? '');
-    final courierCtrl = TextEditingController(text: r.pickupCourierPartner ?? '');
-    var pickedDate = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: const Text('Schedule pickup'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Pickup date'),
-                  subtitle: Text(pickedDate.toLocal().toString().split(' ').first),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.calendar_today_outlined),
-                    onPressed: () async {
-                      final d = await showDatePicker(
-                        context: context,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                        initialDate: pickedDate,
-                      );
-                      if (d != null) setLocal(() => pickedDate = d);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: courierCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Courier partner',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: notesCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Instructions for customer (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true || !mounted) return;
-    if (courierCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Courier partner is required.')),
-      );
-      notesCtrl.dispose();
-      courierCtrl.dispose();
-      return;
-    }
-    try {
-      await ref.read(adminServiceProvider).updateReturnStatus(
-            returnId: r.id,
-            newStatus: 'pickup_scheduled',
-            pickupScheduledAt: pickedDate,
-            pickupCourierPartner: courierCtrl.text.trim(),
-            pickupNotes: notesCtrl.text.trim(),
-          );
-      await _reload();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pickup scheduled.')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    } finally {
-      notesCtrl.dispose();
-      courierCtrl.dispose();
-    }
-  }
-
   Future<void> _markPickedUp(AdminReturnRow r) async {
     try {
       await ref.read(adminServiceProvider).updateReturnStatus(
             returnId: r.id,
-            newStatus: 'item_picked_up',
+            newStatus: 'picked_up',
           );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: r.userId,
+        orderId: r.orderId,
+        status: 'picked_up',
+      );
       await _reload();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,273 +148,53 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     }
   }
 
-  Future<void> _markWarehouse(AdminReturnRow r) async {
+  Future<void> _markReturned(AdminReturnRow r) async {
     try {
       await ref.read(adminServiceProvider).updateReturnStatus(
             returnId: r.id,
-            newStatus: 'item_received_warehouse',
-            warehouseReceiptAt: DateTime.now(),
+            newStatus: 'returned',
           );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: r.userId,
+        orderId: r.orderId,
+        status: 'returned',
+      );
       await _reload();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Marked as received at warehouse.')),
+        const SnackBar(content: Text('Marked as returned.')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  Future<void> _passInspection(AdminReturnRow r) async {
-    try {
-      await ref.read(adminServiceProvider).updateReturnStatus(
-            returnId: r.id,
-            newStatus: 'inspection_passed',
-          );
-      await _reload();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inspection marked as passed.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  Future<void> _failInspection(AdminReturnRow r) async {
-    final ctrl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Inspection failed'),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(
-            labelText: 'Reason (required)',
-            border: OutlineInputBorder(),
-          ),
-          maxLines: 4,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Submit')),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    if (ctrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A reason is required.')),
-      );
-      ctrl.dispose();
-      return;
-    }
-    try {
-      await ref.read(adminServiceProvider).updateReturnStatus(
-            returnId: r.id,
-            newStatus: 'inspection_failed',
-            rejectionReason: ctrl.text.trim(),
-          );
-      await _reload();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inspection marked as failed.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    } finally {
-      ctrl.dispose();
     }
   }
 
   Future<void> _processRefund(AdminReturnRow r) async {
-    final amountCtrl = TextEditingController(text: r.lineAmount.toStringAsFixed(2));
-    String method = 'original_payment';
-    final txCtrl = TextEditingController(text: r.orderPaymentTransactionId ?? '');
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: const Text('Process refund'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: amountCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Refund amount (INR)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: method,
-                  decoration: const InputDecoration(
-                    labelText: 'Refund method',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'original_payment', child: Text('Original payment')),
-                    DropdownMenuItem(value: 'wallet_credit', child: Text('Wallet credit')),
-                    DropdownMenuItem(value: 'bank_transfer', child: Text('Bank transfer')),
-                  ],
-                  onChanged: (v) => setLocal(() => method = v ?? method),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: txCtrl,
-                  decoration: InputDecoration(
-                    labelText: method == 'original_payment'
-                        ? 'Payment / reference ID (required for original payment)'
-                        : 'Payment / reference ID (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create refund')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true || !mounted) return;
-    final amt = double.tryParse(amountCtrl.text.trim());
-    if (amt == null || amt < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid amount.')),
-      );
-      amountCtrl.dispose();
-      txCtrl.dispose();
-      return;
-    }
-    if (method == 'original_payment' && txCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter payment reference id for original payment refund.')),
-      );
-      amountCtrl.dispose();
-      txCtrl.dispose();
-      return;
-    }
     try {
-      await ref.read(adminServiceProvider).createRefundForReturn(
+      await ref.read(adminServiceProvider).updateReturnStatus(
             returnId: r.id,
-            amount: amt,
-            refundMethod: method,
-            paymentTransactionId: txCtrl.text.trim().isEmpty ? null : txCtrl.text.trim(),
+            newStatus: 'refund_completed',
           );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: r.userId,
+        orderId: r.orderId,
+        status: 'refund_completed',
+      );
       await _reload();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Refund record created (initiated).')),
+        const SnackBar(content: Text('Refund completed.')),
       );
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e is RepositoryException ? e.message : '$e';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    } finally {
-      amountCtrl.dispose();
-      txCtrl.dispose();
-    }
-  }
-
-  Future<void> _advanceRefund(AdminReturnRow r) async {
-    final id = r.refundId;
-    if (id == null) return;
-    final next = r.refundStatus == 'refund_initiated'
-        ? 'refund_processed'
-        : r.refundStatus == 'refund_processed'
-            ? 'refund_completed'
-            : null;
-    if (next == null) return;
-    final method = _norm(r.refundMethod ?? '');
-    String? rzpId;
-    String? gatewayStatus;
-    if (next == 'refund_processed' && method == 'original_payment') {
-      final c = TextEditingController(text: r.razorpayRefundId ?? '');
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Razorpay refund id'),
-          content: TextField(
-            controller: c,
-            decoration: const InputDecoration(
-              labelText: 'Refund id from Razorpay',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Continue')),
-          ],
-        ),
-      );
-      if (ok != true || !mounted) {
-        c.dispose();
-        return;
-      }
-      rzpId = c.text.trim();
-      c.dispose();
-      if (rzpId.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Razorpay refund id is required.')),
-        );
-        return;
-      }
-    }
-    if (next == 'refund_completed' && method == 'original_payment') {
-      var sel = _norm(r.gatewayRefundStatus ?? '');
-      if (sel != 'processed' && sel != 'completed') sel = 'processed';
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: const Text('Gateway refund status'),
-            content: DropdownButtonFormField<String>(
-              value: sel,
-              decoration: const InputDecoration(
-                labelText: 'Verified status',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'processed', child: Text('processed')),
-                DropdownMenuItem(value: 'completed', child: Text('completed')),
-              ],
-              onChanged: (v) => setLocal(() => sel = v ?? 'processed'),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Continue')),
-            ],
-          ),
-        ),
-      );
-      if (ok != true || !mounted) return;
-      gatewayStatus = sel;
-    }
-    try {
-      await ref.read(adminServiceProvider).updateRefundStatus(
-            refundId: id,
-            newStatus: next,
-            razorpayRefundId: rzpId,
-            gatewayRefundStatus: gatewayStatus,
-          );
-      await _reload();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Refund → $next')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
   }
+
+  Future<void> _markRefundCompleted(AdminReturnRow r) async => _processRefund(r);
 
   Future<void> _handleAction(AdminReturnRow r, _ReturnAdminAction action) async {
     switch (action) {
@@ -503,36 +207,17 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
       case _ReturnAdminAction.reject:
         await _reject(r);
         return;
-      case _ReturnAdminAction.schedulePickup:
-        await _schedulePickup(r);
-        return;
       case _ReturnAdminAction.markPickedUp:
         await _markPickedUp(r);
         return;
-      case _ReturnAdminAction.markReceived:
-        await _markWarehouse(r);
-        return;
-      case _ReturnAdminAction.passInspection:
-        await _passInspection(r);
-        return;
-      case _ReturnAdminAction.failInspection:
-        await _failInspection(r);
+      case _ReturnAdminAction.markReturned:
+        await _markReturned(r);
         return;
       case _ReturnAdminAction.processRefund:
         await _processRefund(r);
         return;
-      case _ReturnAdminAction.markRefundProcessed:
       case _ReturnAdminAction.markRefundCompleted:
-        await _advanceRefund(r);
-        return;
-      case _ReturnAdminAction.openReplacementOrder:
-        if (!mounted || r.replacementOrderId == null || r.replacementOrderId!.isEmpty) {
-          return;
-        }
-        Navigator.of(context).pushNamed(
-          '/admin/orders/details',
-          arguments: r.replacementOrderId,
-        );
+        await _markRefundCompleted(r);
         return;
     }
   }
@@ -548,7 +233,7 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     }
 
     final status = _statusOf(r);
-    if (status == 'return_requested') {
+    if (status == 'requested') {
       items.add(const _ActionMenuItem(
         action: _ReturnAdminAction.approve,
         label: 'Approve return',
@@ -560,68 +245,26 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
         icon: Icons.cancel_outlined,
       ));
     }
-    if (status == 'return_approved') {
-      items.add(const _ActionMenuItem(
-        action: _ReturnAdminAction.schedulePickup,
-        label: 'Schedule pickup',
-        icon: Icons.local_shipping_outlined,
-      ));
-    }
-    if (status == 'replacement_in_progress' &&
-        r.replacementOrderId != null &&
-        r.replacementOrderId!.isNotEmpty) {
-      items.add(const _ActionMenuItem(
-        action: _ReturnAdminAction.openReplacementOrder,
-        label: 'Open replacement order',
-        icon: Icons.receipt_long_outlined,
-      ));
-    }
-    if (status == 'pickup_scheduled') {
+    if (status == 'approved') {
       items.add(const _ActionMenuItem(
         action: _ReturnAdminAction.markPickedUp,
-        label: 'Mark item picked up',
+        label: 'Mark pickup done',
         icon: Icons.local_shipping_outlined,
       ));
     }
-    if (status == 'item_picked_up') {
+    if (status == 'picked_up') {
       items.add(const _ActionMenuItem(
-        action: _ReturnAdminAction.markReceived,
-        label: 'Mark received at warehouse',
+        action: _ReturnAdminAction.markReturned,
+        label: 'Mark returned',
         icon: Icons.inventory_2_outlined,
       ));
     }
-    if (status == 'item_received_warehouse') {
-      items.add(const _ActionMenuItem(
-        action: _ReturnAdminAction.passInspection,
-        label: 'Pass inspection',
-        icon: Icons.fact_check_outlined,
-      ));
-      items.add(const _ActionMenuItem(
-        action: _ReturnAdminAction.failInspection,
-        label: 'Fail inspection',
-        icon: Icons.error_outline,
-      ));
-    }
-    if (!_isReplacement(r) &&
-        r.refundId == null &&
-        (status == 'item_received_warehouse' || status == 'inspection_passed')) {
+    if (status == 'returned') {
       items.add(const _ActionMenuItem(
         action: _ReturnAdminAction.processRefund,
-        label: 'Process refund',
+        label: 'Mark refund completed',
         icon: Icons.payments_outlined,
       ));
-    }
-    if (r.refundId != null && r.refundStatus != null && r.refundStatus != 'refund_completed') {
-      final pendingProcessed = _norm(r.refundStatus) == 'refund_initiated';
-      items.add(
-        _ActionMenuItem(
-          action: pendingProcessed
-              ? _ReturnAdminAction.markRefundProcessed
-              : _ReturnAdminAction.markRefundCompleted,
-          label: pendingProcessed ? 'Mark refund processed' : 'Mark refund completed',
-          icon: pendingProcessed ? Icons.timelapse_outlined : Icons.task_alt_outlined,
-        ),
-      );
     }
     return items;
   }
@@ -674,18 +317,28 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
         data: (rows) {
+          final compact = kAdminAndroidCompactChrome;
+          final denseWeb = !compact;
+          final requestedCount = rows.where((r) => _statusOf(r) == 'requested').length;
+          final approvedCount = rows.where((r) => _statusOf(r) == 'approved').length;
+          final rejectedCount = rows.where((r) => _statusOf(r) == 'rejected').length;
+          final completedCount = rows.where((r) => _statusOf(r) == 'refund_completed').length;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Card(
+                margin: compact ? EdgeInsets.zero : null,
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: denseWeb
+                      ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+                      : const EdgeInsets.all(12),
                   child: Wrap(
-                    spacing: 12,
+                    spacing: denseWeb ? 8 : 12,
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       DropdownButton<String>(
+                        isDense: denseWeb,
                         value: _statusFilter,
                         items: _filters.entries
                             .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
@@ -697,9 +350,12 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
                         icon: const Icon(Icons.refresh),
                         label: const Text('Refresh'),
                       ),
-                      const Text(
-                        'Tip: use Manage in each row for lifecycle actions.',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                      Text(
+                        'Total: ${rows.length} | Pending: $requestedCount | Approved: $approvedCount | Rejected: $rejectedCount | Completed: $completedCount',
+                        style: TextStyle(
+                          fontSize: denseWeb ? 11 : 12,
+                          color: Colors.black54,
+                        ),
                       ),
                     ],
                   ),
@@ -836,15 +492,10 @@ enum _ReturnAdminAction {
   viewImages,
   approve,
   reject,
-  schedulePickup,
   markPickedUp,
-  markReceived,
-  passInspection,
-  failInspection,
+  markReturned,
   processRefund,
-  markRefundProcessed,
   markRefundCompleted,
-  openReplacementOrder,
 }
 
 class _ActionMenuItem {

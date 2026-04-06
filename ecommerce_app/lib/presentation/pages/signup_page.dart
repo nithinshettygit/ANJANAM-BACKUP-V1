@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/auth/data/auth_error_mapper.dart';
 import 'package:ecommerce_app/features/auth/state/auth_actions_controller.dart';
+import 'package:ecommerce_app/features/auth/utils/auth_input_validators.dart';
 import 'package:ecommerce_app/presentation/utils/auth_issue_presenter.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:flutter/material.dart';
@@ -104,16 +105,14 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Email is required' : null,
+                  validator: validateEmailField,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: 'Password'),
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Password is required' : null,
+                  validator: validatePasswordField,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -147,4 +146,3 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     );
   }
 }
-

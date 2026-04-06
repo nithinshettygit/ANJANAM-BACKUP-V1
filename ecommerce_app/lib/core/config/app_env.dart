@@ -14,14 +14,14 @@ class AppEnv {
   final String razorpayKeyId;
 
   /// Optional override from `--dart-define=SUPABASE_AUTH_REDIRECT_URL=...`.
-  /// If empty, [resolvedAuthEmailRedirectUrl] uses the web origin + [AuthRedirectConfig.webCallbackPath]
+  /// If empty, [resolvedAuthEmailRedirectUrl] uses the web origin + [AuthRedirectConfig.webAuthCallbackPath]
   /// on web, or [AuthRedirectConfig.androidRedirectUrl] on mobile.
   ///
   /// Add the resolved URL to Supabase → Authentication → URL Configuration → Redirect URLs.
   final String authEmailRedirectUrl;
 
   /// Optional override from `--dart-define=SUPABASE_PASSWORD_RESET_REDIRECT_URL=...`.
-  /// If empty, [resolvedPasswordResetRedirectUrl] uses web origin + [AuthRedirectConfig.webPasswordResetPath]
+  /// If empty, [resolvedPasswordResetRedirectUrl] uses web origin + [AuthRedirectConfig.webAuthPasswordResetPath]
   /// or [AuthRedirectConfig.androidPasswordResetRedirectUrl] on mobile.
   final String authPasswordResetRedirectUrl;
 
@@ -41,7 +41,7 @@ class AppEnv {
     if (kIsWeb) {
       final origin = Uri.base.origin;
       if (origin.isNotEmpty) {
-        return '$origin${AuthRedirectConfig.webCallbackPath}';
+        return '$origin${AuthRedirectConfig.webAuthCallbackPath}';
       }
     }
     return AuthRedirectConfig.androidRedirectUrl;
@@ -54,7 +54,7 @@ class AppEnv {
     if (kIsWeb) {
       final origin = Uri.base.origin;
       if (origin.isNotEmpty) {
-        return '$origin${AuthRedirectConfig.webPasswordResetPath}';
+        return '$origin${AuthRedirectConfig.webAuthPasswordResetPath}';
       }
     }
     return AuthRedirectConfig.androidPasswordResetRedirectUrl;

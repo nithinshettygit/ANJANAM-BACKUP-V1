@@ -41,6 +41,8 @@ $supabaseUrl = [Environment]::GetEnvironmentVariable("SUPABASE_URL")
 $supabaseKey = [Environment]::GetEnvironmentVariable("SUPABASE_ANON_KEY")
 $functionsBase = [Environment]::GetEnvironmentVariable("SUPABASE_FUNCTIONS_BASE_URL")
 $rzp = [Environment]::GetEnvironmentVariable("RAZORPAY_TEST_KEY")
+$authRedirect = [Environment]::GetEnvironmentVariable("SUPABASE_AUTH_REDIRECT_URL")
+$passwordResetRedirect = [Environment]::GetEnvironmentVariable("SUPABASE_PASSWORD_RESET_REDIRECT_URL")
 
 $defines = @(
   "--dart-define=SUPABASE_URL=$supabaseUrl",
@@ -51,6 +53,12 @@ if (-not [string]::IsNullOrWhiteSpace($functionsBase)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($rzp)) {
   $defines += "--dart-define=RAZORPAY_TEST_KEY=$rzp"
+}
+if (-not [string]::IsNullOrWhiteSpace($authRedirect)) {
+  $defines += "--dart-define=SUPABASE_AUTH_REDIRECT_URL=$authRedirect"
+}
+if (-not [string]::IsNullOrWhiteSpace($passwordResetRedirect)) {
+  $defines += "--dart-define=SUPABASE_PASSWORD_RESET_REDIRECT_URL=$passwordResetRedirect"
 }
 
 # --web-renderer html: default CanvasKit loads from Google CDN; if that is blocked, the site stays white.

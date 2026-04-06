@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/checkout/checkout_telemetry.dart';
+import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 import 'package:flutter/foundation.dart';
@@ -347,6 +348,13 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
     if (authUser == null) {
       throw const AuthException('Sign in required to checkout.');
     }
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
+      blockedMessageFallback:
+          'Your account has been suspended. Please contact support for assistance.',
+    );
 
     final orderCurrency = checkoutItems.first.currency;
     final subtotal =

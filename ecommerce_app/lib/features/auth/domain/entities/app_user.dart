@@ -14,4 +14,3 @@ class AppUser {
   /// Lowercase UUID for Supabase `.eq` / Realtime filters (matches Edge inserts).
   String get idForSupabase => id.trim().toLowerCase();
 }
-

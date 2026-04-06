@@ -1,7 +1,5 @@
--- Create a profile row whenever a new user is inserted into auth.users.
--- This avoids relying on the Flutter client to insert into public.profiles:
--- when "Confirm email" is enabled, signUp often returns no session, so the client
--- runs as anon and RLS ("to authenticated") blocks inserts — profile creation failed silently before.
+-- Fix signup profile trigger after role model migration.
+-- New users must default to role='customer' (not legacy 'user').
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -25,9 +23,3 @@ begin
   return new;
 end;
 $$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row
-  execute function public.handle_new_user();

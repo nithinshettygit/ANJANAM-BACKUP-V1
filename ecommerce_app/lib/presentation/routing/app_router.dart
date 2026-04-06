@@ -32,11 +32,15 @@ import '../pages/request_return_page.dart';
 import 'auth_guard.dart';
 import '../../features/order_history/domain/entities/order.dart';
 
-/// Strips `?query` from route names (Flutter web passes `/auth-callback?code=...` for Supabase PKCE).
+/// Strips `?query` and a trailing `/` from route names (Flutter web passes `/auth/callback?code=...`).
 String? _routePathOnly(String? name) {
   if (name == null || name.isEmpty) return name;
   final q = name.indexOf('?');
-  return q < 0 ? name : name.substring(0, q);
+  var path = q < 0 ? name : name.substring(0, q);
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  return path;
 }
 
 /// Admin routes: no interactive edge-swipe-to-pop (avoids leaving admin accidentally on iOS/macOS).
@@ -115,10 +119,12 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const LoginPage());
       case '/signup':
         return MaterialPageRoute(builder: (_) => const SignupPage());
-      // Email confirmation (PKCE on web). SupabaseAuth establishes session from URI on load.
-      case AuthRedirectConfig.webCallbackPath:
+      // Email confirmation (PKCE). Supabase establishes session from `code` in the URL (web + App Links).
+      case AuthRedirectConfig.webAuthCallbackPath:
+      case AuthRedirectConfig.webCallbackPathLegacy:
         return _customerRoute(const EmailConfirmationCallbackPage());
-      case AuthRedirectConfig.webPasswordResetPath:
+      case AuthRedirectConfig.webAuthPasswordResetPath:
+      case AuthRedirectConfig.webPasswordResetPathLegacy:
         return MaterialPageRoute(builder: (_) => const UpdatePasswordPage());
       case '/profile':
         return _authCustomerRoute(const ProfilePage());
@@ -409,7 +415,8 @@ class _AdminAwareCustomerRouteState extends State<_AdminAwareCustomerRoute> {
           .select('role')
           .eq('id', user.id)
           .maybeSingle();
-      _isAdmin = profile?['role']?.toString().toLowerCase() == 'admin';
+      final role = profile?['role']?.toString().toLowerCase().trim();
+      _isAdmin = role == 'admin' || role == 'super_admin';
     } catch (_) {
       _isAdmin = false;
     }

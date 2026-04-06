@@ -1727,7 +1727,7 @@ class _OrderLineReturnRow extends StatelessWidget {
         child: OutlinedButton.icon(
           onPressed: onOpenRequest,
           icon: const Icon(Icons.assignment_return_outlined, size: 18),
-          label: const Text('Request return / replacement'),
+          label: const Text('Request replacement'),
         ),
       ),
     );
@@ -1742,7 +1742,7 @@ class _ReturnTrackingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    if (record.status == ReturnWorkflowStatus.returnRejected) {
+    if (record.status == ReturnWorkflowStatus.rejected) {
       return Card(
         margin: EdgeInsets.zero,
         color: scheme.errorContainer.withOpacity(0.35),
@@ -1752,7 +1752,7 @@ class _ReturnTrackingCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Return declined',
+              'Replacement declined',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: scheme.onErrorContainer,
@@ -1774,110 +1774,28 @@ class _ReturnTrackingCard extends StatelessWidget {
       );
     }
 
-    if (record.returnType == ReturnType.replacement) {
-      final replSteps = <_ReturnStep>[
-        const _ReturnStep('Return requested', true),
-        _ReturnStep(
-          'Replacement order created',
-          record.status == ReturnWorkflowStatus.replacementInProgress,
-        ),
-      ];
-      return Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Replacement request',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                record.reason.displayLabel,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              ...replSteps.map(
-                (s) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        s.done ? Icons.check_circle : Icons.radio_button_unchecked,
-                        size: 20,
-                        color: s.done ? scheme.primary : scheme.outline,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          s.label,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: s.done ? scheme.onSurface : scheme.onSurfaceVariant,
-                                fontWeight: s.done ? FontWeight.w600 : FontWeight.w400,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (record.replacementOrderId != null &&
-                  record.replacementOrderId!.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pushNamed(
-                      '/order-details',
-                      arguments: record.replacementOrderId,
-                    );
-                  },
-                  icon: const Icon(Icons.receipt_long_outlined, size: 20),
-                  label: const Text('View replacement order'),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
     final refund = record.refund;
     final steps = <_ReturnStep>[
       const _ReturnStep('Return requested', true),
       _ReturnStep(
         'Return approved',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.returnApproved),
-      ),
-      _ReturnStep(
-        'Pickup scheduled',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.pickupScheduled),
+        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.approved),
       ),
       _ReturnStep(
         'Item picked up',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.itemPickedUp),
+        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.pickedUp),
       ),
       _ReturnStep(
-        'Item received at warehouse',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.itemReceivedWarehouse),
+        'Item returned',
+        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.returned),
       ),
       _ReturnStep(
-        'Inspection',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.inspectionPassed),
-      ),
-      _ReturnStep(
-        'Refund initiated',
+        'Refund in progress',
         refund != null,
       ),
       _ReturnStep(
         'Refund completed',
-        refund != null && refund.status == RefundWorkflowStatus.refundCompleted,
+        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.refundCompleted),
       ),
     ];
 
@@ -1889,7 +1807,7 @@ class _ReturnTrackingCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Return request',
+              'Replacement request',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -1953,23 +1871,19 @@ class _ReturnTrackingCard extends StatelessWidget {
   /// Linear ranks for standard return → refund milestones (not used for replacement flow).
   static int _refundRank(ReturnWorkflowStatus s) {
     switch (s) {
-      case ReturnWorkflowStatus.returnRequested:
+      case ReturnWorkflowStatus.none:
+        return -1;
+      case ReturnWorkflowStatus.requested:
         return 0;
-      case ReturnWorkflowStatus.returnApproved:
+      case ReturnWorkflowStatus.approved:
         return 1;
-      case ReturnWorkflowStatus.replacementInProgress:
-        return 1;
-      case ReturnWorkflowStatus.pickupScheduled:
+      case ReturnWorkflowStatus.pickedUp:
         return 2;
-      case ReturnWorkflowStatus.itemPickedUp:
+      case ReturnWorkflowStatus.returned:
         return 3;
-      case ReturnWorkflowStatus.itemReceivedWarehouse:
+      case ReturnWorkflowStatus.refundCompleted:
         return 4;
-      case ReturnWorkflowStatus.inspectionPassed:
-        return 5;
-      case ReturnWorkflowStatus.inspectionFailed:
-        return 5;
-      case ReturnWorkflowStatus.returnRejected:
+      case ReturnWorkflowStatus.rejected:
         return -1;
     }
   }

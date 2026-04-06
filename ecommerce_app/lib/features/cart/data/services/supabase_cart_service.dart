@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/constants/app_currency.dart';
+import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
@@ -193,6 +194,13 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
     if (authUser == null) {
       throw const AuthException('Sign in required to manage cart.');
     }
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
+      blockedMessageFallback:
+          'Your account has been suspended. Please contact support for assistance.',
+    );
 
     final userId = authUser.id;
 

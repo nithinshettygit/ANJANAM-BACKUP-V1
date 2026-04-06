@@ -24,4 +24,3 @@ abstract class AuthRepository {
   /// After opening the password-recovery link (recovery session). Updates password then caller should sign out.
   Future<void> updatePasswordFromRecoverySession({required String newPassword});
 }
-

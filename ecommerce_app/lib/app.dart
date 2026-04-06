@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/auth/auth_email_link_navigation.dart';
 import 'core/config/auth_redirect_config.dart';
 import 'core/config/storefront_app_link.dart';
 import 'features/product_details/state/product_details_providers.dart';
@@ -48,19 +49,12 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
   StreamSubscription<AuthState>? _passwordRecoverySub;
   StreamSubscription<Uri?>? _appLinkSub;
 
-  bool _isAndroidEmailConfirmDeepLink(Uri uri) {
-    return uri.scheme == AuthRedirectConfig.androidScheme &&
-        uri.host == AuthRedirectConfig.androidHost;
-  }
-
-  void _navigateToEmailConfirmCallback() {
+  void _navigateToAuthEmailLink(AuthEmailLinkKind kind) {
+    final route = materialRouteForAuthEmailLink(kind);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final nav = notificationNavigatorKey.currentState;
       if (nav == null || !nav.mounted) return;
-      nav.pushNamedAndRemoveUntil(
-        AuthRedirectConfig.webCallbackPath,
-        (_) => false,
-      );
+      nav.pushNamedAndRemoveUntil(route, (_) => false);
     });
   }
 
@@ -79,8 +73,9 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     final appLinks = AppLinks();
     void handleUri(Uri? uri) {
       if (uri == null) return;
-      if (_isAndroidEmailConfirmDeepLink(uri)) {
-        _navigateToEmailConfirmCallback();
+      final authKind = classifyAuthEmailLink(uri);
+      if (authKind != null) {
+        _navigateToAuthEmailLink(authKind);
         return;
       }
       final productId = StorefrontAppLink.productIdIfValid(uri);
@@ -106,7 +101,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
         final nav = notificationNavigatorKey.currentState;
         if (nav == null || !nav.mounted) return;
         nav.pushNamedAndRemoveUntil(
-          AuthRedirectConfig.webPasswordResetPath,
+          AuthRedirectConfig.webAuthPasswordResetPath,
           (route) => false,
         );
       });

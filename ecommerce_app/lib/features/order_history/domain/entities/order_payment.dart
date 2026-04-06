@@ -14,6 +14,9 @@ enum OrderPaymentStatus {
 OrderPaymentMethod orderPaymentMethodFromDb(String? raw) {
   switch (raw?.toLowerCase().trim()) {
     case 'cod':
+    case 'cash_on_delivery':
+    case 'cash on delivery':
+    case 'cashondelivery':
       return OrderPaymentMethod.cod;
     default:
       return OrderPaymentMethod.razorpay;

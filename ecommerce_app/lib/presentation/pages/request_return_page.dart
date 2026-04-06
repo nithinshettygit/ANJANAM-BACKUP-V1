@@ -34,7 +34,6 @@ class RequestReturnPage extends ConsumerStatefulWidget {
 
 class _RequestReturnPageState extends ConsumerState<RequestReturnPage> {
   ReturnReason _reason = ReturnReason.damagedItem;
-  ReturnType _returnType = ReturnType.returnItem;
   final _noteCtrl = TextEditingController();
   final List<_LocalPickedImage> _images = [];
   bool _submitting = false;
@@ -115,14 +114,14 @@ class _RequestReturnPageState extends ConsumerState<RequestReturnPage> {
       await svc.createReturn(
         orderItemId: widget.args.orderItemId,
         reason: _reason,
-        returnType: _returnType,
+        returnType: ReturnType.replacement,
         imageUrls: urls,
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       );
       ref.invalidate(orderReturnsProvider(widget.args.orderId));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Return request submitted.')),
+        const SnackBar(content: Text('Replacement request submitted.')),
       );
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -141,7 +140,7 @@ class _RequestReturnPageState extends ConsumerState<RequestReturnPage> {
     final a = widget.args;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Request return / replacement')),
+      appBar: AppBar(title: const Text('Request Replacement')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -184,28 +183,7 @@ class _RequestReturnPageState extends ConsumerState<RequestReturnPage> {
             ),
           ),
           const SizedBox(height: 16),
-          Text(
-            'Request type',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<ReturnType>(
-            segments: ReturnType.values
-                .map(
-                  (t) => ButtonSegment<ReturnType>(
-                    value: t,
-                    label: Text(t.displayLabel),
-                  ),
-                )
-                .toList(),
-            selected: {_returnType},
-            onSelectionChanged: (s) {
-              if (s.isNotEmpty) setState(() => _returnType = s.first);
-            },
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 4),
           Text(
             'Reason',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(

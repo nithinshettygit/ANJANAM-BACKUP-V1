@@ -9,3 +9,10 @@ final isAdminProvider = FutureProvider<bool>((ref) async {
   if (user == null) return false;
   return ref.read(adminServiceProvider).isCurrentUserAdmin();
 });
+
+final isSuperAdminProvider = FutureProvider<bool>((ref) async {
+  final session = ref.watch(authSessionProvider);
+  final user = session.asData?.value;
+  if (user == null) return false;
+  return ref.read(adminServiceProvider).isCurrentUserSuperAdmin();
+});

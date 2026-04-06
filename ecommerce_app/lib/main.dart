@@ -50,36 +50,92 @@ Future<void> _runWebApp() async {
 }
 
 Future<void> _runMobileApp() async {
-  final env = AppEnv.fromEnvironment();
+  try {
+    final env = AppEnv.fromEnvironment();
 
-  await Supabase.initialize(
-    url: env.supabaseUrl,
-    anonKey: env.supabaseAnonKey,
-  );
+    await Supabase.initialize(
+      url: env.supabaseUrl,
+      anonKey: env.supabaseAnonKey,
+    );
 
-  // FCM + local notifications are mobile-only. For Firebase on web (Analytics, etc.),
-  // add a Web app in the Firebase console and run: dart run flutterfire_cli:flutterfire configure
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await FirebaseMessaging.instance.setAutoInitEnabled(true);
-  await LocalNotificationService.initialize();
-  FirebaseMessaging.onMessage.listen((message) {
-    NotificationMessageRouter.onMessage(message);
-  });
-  FirebaseMessaging.onMessageOpenedApp.listen((message) {
-    NotificationMessageRouter.onNotificationTap(message);
-  });
+    // FCM + local notifications are mobile-only. For Firebase on web (Analytics, etc.),
+    // add a Web app in the Firebase console and run: dart run flutterfire_cli:flutterfire configure
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await FirebaseMessaging.instance.setAutoInitEnabled(true);
+    await LocalNotificationService.initialize();
+    FirebaseMessaging.onMessage.listen((message) {
+      NotificationMessageRouter.onMessage(message);
+    });
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      NotificationMessageRouter.onNotificationTap(message);
+    });
 
-  final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-  if (initialMessage != null) {
-    NotificationMessageRouter.setPendingInitialMessage(initialMessage);
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      NotificationMessageRouter.setPendingInitialMessage(initialMessage);
+    }
+
+    runApp(
+      const ProviderScope(
+        child: EcommerceApp(),
+      ),
+    );
+  } catch (e, st) {
+    debugPrint('Mobile startup error: $e');
+    debugPrint('$st');
+    runApp(_MobileStartupErrorApp(message: e.toString()));
   }
+}
 
-  runApp(
-    const ProviderScope(
-      child: EcommerceApp(),
-    ),
-  );
+/// Shown when the Android/iOS build omitted compile-time Supabase defines or startup failed.
+class _MobileStartupErrorApp extends StatelessWidget {
+  const _MobileStartupErrorApp({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'ANJANAM — configuration',
+      home: Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SelectionArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'App could not start',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Release and debug APKs need Supabase baked in at build time. '
+                    'Fill tool/web_build.env (see tool/web_build.env.example), then run '
+                    'scripts\\build_android_release.ps1 — or pass '
+                    '--dart-define=SUPABASE_URL=... and --dart-define=SUPABASE_ANON_KEY=... '
+                    'to flutter build apk.',
+                    style: TextStyle(fontSize: 15, height: 1.4),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.redAccent,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Shown when web was built without SUPABASE_URL / SUPABASE_ANON_KEY (or other startup failure).

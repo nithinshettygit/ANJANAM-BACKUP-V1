@@ -101,10 +101,16 @@ class ReturnsService extends SupabaseServiceBase {
       if (m.contains('order_not_delivered')) {
         throw const ValidationException('Returns are only available for delivered orders.');
       }
+      if (m.contains('cancelled_order_not_returnable')) {
+        throw const ValidationException('Cancelled orders cannot be returned.');
+      }
       if (m.contains('return_already_exists')) {
         throw const ValidationException(
           'A return or replacement is already in progress for this item.',
         );
+      }
+      if (m.contains('already_refunded')) {
+        throw const ValidationException('This item has already been refunded and cannot be returned again.');
       }
       if (m.contains('return_images_required')) {
         throw const ValidationException('At least one photo is required.');
@@ -131,7 +137,7 @@ class ReturnsService extends SupabaseServiceBase {
     if (deadline == null) return false;
     if (DateTime.now().isAfter(deadline)) return false;
     for (final r in existingForOrder) {
-      if (r.orderItemId == oid && r.status != ReturnWorkflowStatus.returnRejected) {
+      if (r.orderItemId == oid && r.status != ReturnWorkflowStatus.rejected) {
         return false;
       }
     }
@@ -143,7 +149,7 @@ class ReturnsService extends SupabaseServiceBase {
     String orderItemId,
   ) {
     for (final r in records) {
-      if (r.orderItemId == orderItemId && r.status != ReturnWorkflowStatus.returnRejected) {
+      if (r.orderItemId == orderItemId && r.status != ReturnWorkflowStatus.rejected) {
         return r;
       }
     }

@@ -360,17 +360,25 @@ class AdminUserRow {
   final String id;
   final String fullName;
   final String email;
+  final String role;
   final int totalOrders;
   final double totalSpent;
   final DateTime? createdAt;
+  final String status;
+  final String? blockedReason;
+  final DateTime? blockedAt;
 
   const AdminUserRow({
     required this.id,
     required this.fullName,
     required this.email,
+    required this.role,
     required this.totalOrders,
     required this.totalSpent,
     required this.createdAt,
+    required this.status,
+    this.blockedReason,
+    this.blockedAt,
   });
 }
 
@@ -569,6 +577,14 @@ class AdminService {
   Future<List<AdminOrderRow>> getOrders({int? limit, String? searchQuery}) =>
       fetchOrders(limit: limit, searchQuery: searchQuery);
   Future<List<AdminUserRow>> getUsers() => fetchUsers();
+  Future<void> blockUser(String userId, {String? reason}) =>
+      setUserBlocked(userId, blocked: true, reason: reason);
+  Future<void> unblockUser(String userId) =>
+      setUserBlocked(userId, blocked: false);
+  Future<void> promoteToAdmin(String userId) =>
+      setUserRole(userId, role: 'admin');
+  Future<void> removeAdmin(String userId) =>
+      setUserRole(userId, role: 'customer');
   Future<List<AdminProduct>> getInventory() => fetchProducts();
 
   Future<bool> isCurrentUserAdmin() async {
@@ -581,9 +597,25 @@ class AdminService {
           .eq('id', user.id)
           .maybeSingle();
       final role = profile?['role']?.toString().toLowerCase().trim();
-      return role == 'admin';
+      return role == 'admin' || role == 'super_admin';
     } catch (_) {
       // Any lookup failure should be treated as non-admin access.
+      return false;
+    }
+  }
+
+  Future<bool> isCurrentUserSuperAdmin() async {
+    final user = client.auth.currentUser;
+    if (user == null) return false;
+    try {
+      final profile = await client
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+      final role = profile?['role']?.toString().toLowerCase().trim();
+      return role == 'super_admin';
+    } catch (_) {
       return false;
     }
   }
@@ -1614,11 +1646,20 @@ class AdminService {
     List<Map<String, dynamic>> profiles;
     try {
       final profilesData =
-          await client.from('profiles').select('id, full_name, created_at, email');
+          await client
+              .from('profiles')
+              .select('id, full_name, created_at, email, role, status, blocked_reason, blocked_at');
       profiles = (profilesData as List).cast<Map<String, dynamic>>();
     } catch (_) {
-      final profilesData = await client.from('profiles').select('id, full_name, created_at');
-      profiles = (profilesData as List).cast<Map<String, dynamic>>();
+      try {
+        final profilesData = await client
+            .from('profiles')
+            .select('id, full_name, created_at, email, role');
+        profiles = (profilesData as List).cast<Map<String, dynamic>>();
+      } catch (_) {
+        final profilesData = await client.from('profiles').select('id, full_name, created_at, role');
+        profiles = (profilesData as List).cast<Map<String, dynamic>>();
+      }
     }
     final profileById = {
       for (final p in profiles) (p['id'] ?? '').toString(): p,
@@ -1670,16 +1711,33 @@ class AdminService {
           ? fullName
           : (email != '-' ? email.split('@').first : 'User ${id.substring(0, id.length >= 8 ? 8 : id.length)}');
       final createdAtRaw = p?['created_at'] ?? a?['created_at'];
+      final roleRaw = p?['role']?.toString().trim().toLowerCase();
+      final role = switch (roleRaw) {
+        'admin' => 'admin',
+        'super_admin' => 'super_admin',
+        _ => 'customer',
+      };
+      final statusRaw = p?['status']?.toString().trim().toLowerCase();
+      final status = statusRaw == 'blocked' ? 'blocked' : 'active';
+      final blockedReasonRaw = p?['blocked_reason']?.toString().trim();
+      final blockedReason = (blockedReasonRaw != null && blockedReasonRaw.isNotEmpty)
+          ? blockedReasonRaw
+          : null;
+      final blockedAtRaw = p?['blocked_at']?.toString();
 
       return AdminUserRow(
         id: id,
         fullName: displayName,
         email: email,
+        role: role,
         totalOrders: orderIds.length,
         totalSpent: spent,
         createdAt: createdAtRaw == null
             ? null
             : DateTime.tryParse(createdAtRaw.toString()),
+        status: status,
+        blockedReason: blockedReason,
+        blockedAt: blockedAtRaw == null ? null : DateTime.tryParse(blockedAtRaw),
       );
     }).toList();
   }
@@ -1714,22 +1772,30 @@ class AdminService {
     try {
       profile = await client
           .from('profiles')
-          .select('phone, address, email')
+          .select('phone, address, email, role, status, blocked_reason, blocked_at')
           .eq('id', userId)
           .maybeSingle();
     } catch (_) {
       try {
         profile = await client
             .from('profiles')
-            .select('phone, address')
+            .select('phone, address, email, role')
             .eq('id', userId)
             .maybeSingle();
       } catch (_) {
-        profile = await client
-            .from('profiles')
-            .select('id')
-            .eq('id', userId)
-            .maybeSingle();
+        try {
+          profile = await client
+              .from('profiles')
+              .select('phone, address')
+              .eq('id', userId)
+              .maybeSingle();
+        } catch (_) {
+          profile = await client
+              .from('profiles')
+              .select('id')
+              .eq('id', userId)
+              .maybeSingle();
+        }
       }
     }
 
@@ -1759,9 +1825,27 @@ class AdminService {
         id: baseUser.id,
         fullName: baseUser.fullName,
         email: displayEmail,
+        role: () {
+          final r = profile?['role']?.toString().trim().toLowerCase();
+          if (r == 'admin' || r == 'super_admin' || r == 'customer') return r!;
+          return baseUser.role;
+        }(),
         totalOrders: baseUser.totalOrders,
         totalSpent: baseUser.totalSpent,
         createdAt: baseUser.createdAt,
+        status: (profile?['status']?.toString().trim().toLowerCase() == 'blocked')
+            ? 'blocked'
+            : baseUser.status,
+        blockedReason: () {
+          final v = profile?['blocked_reason']?.toString().trim();
+          if (v == null || v.isEmpty) return baseUser.blockedReason;
+          return v;
+        }(),
+        blockedAt: () {
+          final raw = profile?['blocked_at']?.toString();
+          if (raw == null || raw.isEmpty) return baseUser.blockedAt;
+          return DateTime.tryParse(raw);
+        }(),
       ),
       orders: orders,
       phone: profile?['phone']?.toString() ?? '-',
@@ -1771,6 +1855,76 @@ class AdminService {
       averageOrderValue: averageOrderValue,
       totalRevenue: totalRevenue,
     );
+  }
+
+  Future<void> setUserBlocked(
+    String userId, {
+    required bool blocked,
+    String? reason,
+  }) async {
+    await _requireAdmin();
+    final targetUserId = userId.trim();
+    if (targetUserId.isEmpty) {
+      throw const ValidationException('User id is required.');
+    }
+
+    final me = client.auth.currentUser?.id;
+    if (blocked && me != null && me == targetUserId) {
+      throw const ValidationException('You cannot block your own admin account.');
+    }
+
+    final reasonClean = reason?.trim();
+    final payload = <String, dynamic>{
+      'status': blocked ? 'blocked' : 'active',
+      'blocked_reason': blocked
+          ? ((reasonClean == null || reasonClean.isEmpty) ? null : reasonClean)
+          : null,
+      'blocked_at': blocked ? DateTime.now().toUtc().toIso8601String() : null,
+    };
+
+    await client.from('profiles').update(payload).eq('id', targetUserId);
+  }
+
+  Future<void> setUserRole(
+    String userId, {
+    required String role,
+  }) async {
+    await _requireAdmin();
+    final isSuperAdmin = await isCurrentUserSuperAdmin();
+    if (!isSuperAdmin) {
+      throw const AuthException('Super admin role required.');
+    }
+    final targetUserId = userId.trim();
+    if (targetUserId.isEmpty) {
+      throw const ValidationException('User id is required.');
+    }
+    final normalizedRole = role.trim().toLowerCase();
+    if (normalizedRole != 'admin' &&
+        normalizedRole != 'customer' &&
+        normalizedRole != 'super_admin') {
+      throw const ValidationException('Invalid role.');
+    }
+
+    final me = client.auth.currentUser?.id;
+    if (me != null && me == targetUserId && normalizedRole != 'super_admin') {
+      throw const ValidationException(
+        'You cannot remove your own super admin access.',
+      );
+    }
+
+    final existing = await client
+        .from('profiles')
+        .select('role')
+        .eq('id', targetUserId)
+        .maybeSingle();
+    final targetCurrentRole = existing?['role']?.toString().trim().toLowerCase();
+    if (targetCurrentRole == 'super_admin' && normalizedRole != 'super_admin') {
+      throw const ValidationException(
+        'Super admin role can only be changed manually in a controlled process.',
+      );
+    }
+
+    await client.from('profiles').update({'role': normalizedRole}).eq('id', targetUserId);
   }
 
   /// Uploads to [product-images] at `homepage/{folder}/…` for storefront merchandising.
@@ -2835,9 +2989,9 @@ class AdminService {
         .eq('id', returnId)
         .single();
     final st = (ret['return_status'] ?? '').toString();
-    if (st != 'item_received_warehouse' && st != 'inspection_passed') {
+    if (st != 'returned') {
       throw RepositoryException(
-        'Refund can only be created when the return is at the warehouse or inspection has passed.',
+        'Refund can only be created after the return is marked as returned.',
       );
     }
     final existing = await client.from('refunds').select('id').eq('return_id', returnId).maybeSingle();
@@ -2884,7 +3038,7 @@ class AdminService {
       }
       if (msg.contains('return_not_ready_for_refund')) {
         throw RepositoryException(
-          'Refund can only be created when the return is at the warehouse or inspection has passed.',
+          'Refund can only be created after the return is marked as returned.',
         );
       }
       rethrow;

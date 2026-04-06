@@ -19,13 +19,27 @@ AuthException resolvePresentableAuthError(
 AuthException _fromPlainText(String raw, {required bool isSignUp}) {
   final lower = raw.toLowerCase();
   if (isSignUp) {
+    if (lower.contains('profiles_role_check') ||
+        (lower.contains('relation "profiles"') &&
+            lower.contains('violates check constraint') &&
+            lower.contains('role'))) {
+      return const AuthException(
+        'Account setup is temporarily unavailable due to server configuration. '
+        'Please contact support or try again shortly.',
+        kind: AuthFailureKind.unknown,
+      );
+    }
     if (lower.contains('already registered') ||
         lower.contains('user already registered') ||
         lower.contains('already been registered') ||
-        lower.contains('email address is already')) {
+        lower.contains('email address is already') ||
+        lower.contains('already exists') ||
+        lower.contains('user_already_exists') ||
+        lower.contains('email_exists') ||
+        lower.contains('duplicate key value') && lower.contains('email')) {
       return AuthException(
-        'An account with this email address is already registered. '
-        'Please sign in using your existing credentials, or use a different email address.',
+        'This email is already registered. '
+        'Please sign in with this email, or use Forgot password if needed.',
         kind: AuthFailureKind.accountExists,
       );
     }
@@ -38,6 +52,15 @@ AuthException _fromPlainText(String raw, {required bool isSignUp}) {
       );
     }
   } else {
+    if (lower.contains('suspended') ||
+        lower.contains('blocked') ||
+        lower.contains('account is blocked') ||
+        lower.contains('account has been suspended')) {
+      return const AuthException(
+        'Your account has been suspended. Please contact support for assistance.',
+        kind: AuthFailureKind.accountSuspended,
+      );
+    }
     if (lower.contains('invalid login credentials') ||
         lower.contains('invalid_credentials') ||
         lower.contains('invalid grant')) {
@@ -129,15 +152,26 @@ AuthException? _fromGotrue(Object error, {required bool isSignUp}) {
     if (isSignUp) {
       if (code == 'user_already_exists' ||
           code.contains('already_registered') ||
+          code.contains('email_exists') ||
           msg.contains('already registered') ||
+          msg.contains('already exists') ||
           msg.contains('user already')) {
         return AuthException(
-          'An account with this email address is already registered. '
-          'Please sign in, or use a different email address to register.',
+          'This email is already registered. '
+          'Please sign in with this email, or use Forgot password if needed.',
           kind: AuthFailureKind.accountExists,
         );
       }
     } else {
+      if (code == 'user_blocked' ||
+          code == 'account_blocked' ||
+          msg.contains('suspended') ||
+          msg.contains('blocked')) {
+        return const AuthException(
+          'Your account has been suspended. Please contact support for assistance.',
+          kind: AuthFailureKind.accountSuspended,
+        );
+      }
       if (code == 'invalid_credentials' ||
           code == 'invalid_grant' ||
           msg.contains('invalid login credentials')) {

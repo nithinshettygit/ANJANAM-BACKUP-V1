@@ -70,6 +70,65 @@ final adminUserDetailsProvider = FutureProvider.autoDispose.family<AdminUserDeta
   (ref, userId) => ref.read(adminServiceProvider).fetchUserDetails(userId),
 );
 
+class AdminUserBlockActionController extends AsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  Future<void> setBlocked(
+    String userId, {
+    required bool blocked,
+    String? reason,
+  }) async {
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(
+      () => ref.read(adminServiceProvider).setUserBlocked(
+            userId,
+            blocked: blocked,
+            reason: reason,
+          ),
+    );
+    if (result.hasError) {
+      state = AsyncError(result.error!, result.stackTrace!);
+      throw result.error!;
+    }
+    ref.invalidate(adminUsersProvider);
+    ref.invalidate(adminUserDetailsProvider(userId));
+    state = const AsyncData(null);
+  }
+}
+
+final adminUserBlockActionProvider =
+    AsyncNotifierProvider<AdminUserBlockActionController, void>(
+  () => AdminUserBlockActionController(),
+);
+
+class AdminUserRoleActionController extends AsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  Future<void> setRole(
+    String userId, {
+    required String role,
+  }) async {
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(
+      () => ref.read(adminServiceProvider).setUserRole(userId, role: role),
+    );
+    if (result.hasError) {
+      state = AsyncError(result.error!, result.stackTrace!);
+      throw result.error!;
+    }
+    ref.invalidate(adminUsersProvider);
+    ref.invalidate(adminUserDetailsProvider(userId));
+    state = const AsyncData(null);
+  }
+}
+
+final adminUserRoleActionProvider =
+    AsyncNotifierProvider<AdminUserRoleActionController, void>(
+  () => AdminUserRoleActionController(),
+);
+
 /// Parallel search across products, orders, and profiles (admin only).
 final adminGlobalSearchProvider =
     FutureProvider.autoDispose.family<List<AdminSearchResultItem>, String>(

@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/search/order_search_utils.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 import '../../domain/entities/order.dart';
@@ -36,6 +37,13 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
     if (authUser == null) {
       throw const AuthException('Sign in required to view order history.');
     }
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
+      blockedMessageFallback:
+          'Your account has been suspended. Please contact support for assistance.',
+    );
 
     final needle = search?.trim();
     if (needle == null || needle.isEmpty) {
@@ -228,6 +236,13 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
     if (authUser == null) {
       throw const AuthException('Sign in required to view orders.');
     }
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
+      blockedMessageFallback:
+          'Your account has been suspended. Please contact support for assistance.',
+    );
 
     Map<String, dynamic> data;
     try {
@@ -314,6 +329,13 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
     if (authUser == null) {
       throw const AuthException('Sign in required.');
     }
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
+      blockedMessageFallback:
+          'Your account has been suspended. Please contact support for assistance.',
+    );
     try {
       await guard(
         () => client.rpc(
@@ -355,6 +377,13 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
     if (authUser == null) {
       throw const AuthException('Sign in required.');
     }
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
+      blockedMessageFallback:
+          'Your account has been suspended. Please contact support for assistance.',
+    );
     try {
       await guard(
         () => client.rpc(

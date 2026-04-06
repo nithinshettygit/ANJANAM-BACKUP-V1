@@ -14,6 +14,7 @@ import 'package:ecommerce_app/presentation/utils/order_details_format.dart'
 import '../providers/admin_providers.dart';
 import '../services/admin_service.dart';
 import '../utils/admin_order_status_push.dart';
+import '../utils/admin_return_status_push.dart';
 import '../utils/admin_order_status_workflow.dart';
 import '../../features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import '../widgets/admin_cached_image.dart';
@@ -259,6 +260,40 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     }
   }
 
+  Future<void> _runReturnStatusAction(
+    BuildContext context, {
+    required String orderId,
+    required String userId,
+    required String returnId,
+    required String newStatus,
+    String? successMessage,
+  }) async {
+    setState(() => _statusBusy = true);
+    try {
+      await ref.read(adminServiceProvider).updateReturnStatus(
+            returnId: returnId,
+            newStatus: newStatus,
+          );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: userId,
+        orderId: orderId,
+        status: newStatus,
+      );
+      if (!context.mounted) return;
+      ref.invalidate(adminOrderDetailsProvider(orderId));
+      ref.invalidate(adminReturnsProvider('all'));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(successMessage ?? 'Return updated.')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Return update failed: $e')));
+    } finally {
+      if (mounted) setState(() => _statusBusy = false);
+    }
+  }
+
   Order _orderEntityForInvoice(AdminOrderDetails d) {
     final o = d.order;
     final items = d.items
@@ -361,6 +396,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       });
     });
     final detailsAsync = ref.watch(adminOrderDetailsProvider(orderId));
+    final returnsAsync = ref.watch(adminReturnsProvider('all'));
 
     return AdminGuard(
       child: Scaffold(
@@ -388,6 +424,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                       order.status,
                       paymentMethodRaw: order.paymentMethod,
                     );
+                    final orderReturns = returnsAsync.asData?.value
+                            .where((r) => r.orderId == order.id)
+                            .toList() ??
+                        const <AdminReturnRow>[];
                     return ListView(
                       children: [
                         Card(
@@ -401,6 +441,109 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                 const SizedBox(height: 8),
                                 Text('Order ID: ${order.id}'),
                                 Text('Date: ${order.createdAt.toLocal()}'),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Return Actions',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 8),
+                                if (orderReturns.isEmpty)
+                                  const Text('No return requests for this order.')
+                                else
+                                  ...orderReturns.map((r) {
+                                    final st = r.returnStatus.trim().toLowerCase();
+                                    return ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text('${r.lineTitle}  (${r.returnReason})'),
+                                      subtitle: Text('Status: ${r.returnStatus}'),
+                                      trailing: Wrap(
+                                        spacing: 6,
+                                        children: [
+                                          if (st == 'requested') ...[
+                                            OutlinedButton(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'approved',
+                                                        successMessage: 'Return approved.',
+                                                      ),
+                                              child: const Text('Approve'),
+                                            ),
+                                            OutlinedButton(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'rejected',
+                                                        successMessage: 'Return rejected.',
+                                                      ),
+                                              child: const Text('Reject'),
+                                            ),
+                                          ],
+                                          if (st == 'approved')
+                                            OutlinedButton(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'picked_up',
+                                                        successMessage: 'Pickup marked completed.',
+                                                      ),
+                                              child: const Text('Mark Pickup Done'),
+                                            ),
+                                          if (st == 'picked_up')
+                                            OutlinedButton(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'returned',
+                                                        successMessage: 'Marked as returned.',
+                                                      ),
+                                              child: const Text('Mark Returned'),
+                                            ),
+                                          if (st == 'returned')
+                                            FilledButton.tonal(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'refund_completed',
+                                                        successMessage: 'Refund completed.',
+                                                      ),
+                                              child: const Text('Process Refund'),
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
                               ],
                             ),
                           ),

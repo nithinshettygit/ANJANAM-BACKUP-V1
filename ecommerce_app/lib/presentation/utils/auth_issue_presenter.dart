@@ -97,6 +97,7 @@ Future<void> presentAuthIssue(
 }
 
 bool _showRetry(AuthFailureKind kind, AuthIssueFlow flow) {
+  if (kind == AuthFailureKind.accountSuspended) return false;
   if (flow == AuthIssueFlow.signOut) return true;
   if (flow == AuthIssueFlow.passwordReset) return true;
   if (kind == AuthFailureKind.emailNotConfirmed) return true;
@@ -121,6 +122,8 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
       switch (kind) {
         case AuthFailureKind.accountExists:
           return 'Account already exists';
+        case AuthFailureKind.accountSuspended:
+          return 'Account suspended';
         case AuthFailureKind.weakPassword:
           return 'Password requirements';
         case AuthFailureKind.network:
@@ -138,6 +141,8 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
           return 'Email confirmation required';
         case AuthFailureKind.network:
           return 'Connection problem';
+        case AuthFailureKind.accountSuspended:
+          return 'Account suspended';
         case AuthFailureKind.sessionExpired:
           return 'Session ended';
         case AuthFailureKind.rateLimited:
@@ -147,6 +152,8 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
       }
     case AuthIssueFlow.passwordReset:
       switch (kind) {
+        case AuthFailureKind.accountSuspended:
+          return 'Account suspended';
         case AuthFailureKind.weakPassword:
           return 'Password requirements';
         case AuthFailureKind.sessionExpired:
@@ -180,6 +187,9 @@ _Secondary? _secondaryFor(
           label: 'Create account',
           onPressed: () => Navigator.of(context).pushNamed('/signup'),
         );
+      }
+      if (kind == AuthFailureKind.accountSuspended) {
+        return null;
       }
       return null;
     case AuthIssueFlow.signup:

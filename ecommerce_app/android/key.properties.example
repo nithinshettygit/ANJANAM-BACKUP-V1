@@ -1,0 +1,20 @@
+# Copy to key.properties (same folder) and fill in. Never commit key.properties or your .jks file.
+#
+# Create the keystore once (example — adjust paths and validity):
+#   keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+storePassword=776015
+keyPassword=776015
+keyAlias=upload
+storeFile=upload-keystore.jks
+
+
+
+
+
+
+
+
+
+
+

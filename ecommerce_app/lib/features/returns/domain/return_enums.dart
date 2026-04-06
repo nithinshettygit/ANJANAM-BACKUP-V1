@@ -40,15 +40,13 @@ enum ReturnType {
 
 /// DB value: `returns.return_status`
 enum ReturnWorkflowStatus {
-  returnRequested('return_requested', 'Return requested'),
-  returnApproved('return_approved', 'Return approved'),
-  replacementInProgress('replacement_in_progress', 'Replacement in progress'),
-  pickupScheduled('pickup_scheduled', 'Pickup scheduled'),
-  itemPickedUp('item_picked_up', 'Item picked up'),
-  itemReceivedWarehouse('item_received_warehouse', 'Item received at warehouse'),
-  inspectionPassed('inspection_passed', 'Inspection passed'),
-  inspectionFailed('inspection_failed', 'Inspection failed'),
-  returnRejected('return_rejected', 'Return rejected');
+  none('none', 'No return'),
+  requested('requested', 'Requested'),
+  approved('approved', 'Approved'),
+  rejected('rejected', 'Rejected'),
+  pickedUp('picked_up', 'Picked up'),
+  returned('returned', 'Returned'),
+  refundCompleted('refund_completed', 'Refund completed');
 
   final String dbValue;
   final String displayLabel;

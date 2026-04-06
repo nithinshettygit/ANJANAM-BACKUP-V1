@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -81,52 +82,62 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
 
         final theme = Theme.of(context);
         final compact = kAdminAndroidCompactChrome;
+        final denseWeb = !compact && kIsWeb;
 
         return Column(
           children: [
             Padding(
-              padding: EdgeInsets.only(bottom: compact ? 6 : 10),
-              child: SearchBar(
-                controller: _searchCtrl,
-                constraints: compact
-                    ? const BoxConstraints(minHeight: 40, maxHeight: 44)
-                    : null,
-                hintText: compact
-                    ? 'Search orders…'
-                    : 'Search order id, customer, email, status, product title…',
-                leading: const Icon(Icons.search, size: 22),
-                trailing: [
-                  if (_searchCtrl.text.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.clear, size: 22),
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                      padding: EdgeInsets.zero,
-                      onPressed: () {
-                        _searchCtrl.clear();
-                        _searchDebounce?.cancel();
-                        ref.read(adminOrderSearchQueryProvider.notifier).set('');
-                        setState(() {});
-                      },
-                    ),
-                ],
-                onChanged: (v) {
-                  _scheduleAdminSearch(v);
-                  setState(() {});
-                },
-                onSubmitted: (v) {
-                  _searchDebounce?.cancel();
-                  ref.read(adminOrderSearchQueryProvider.notifier).set(v.trim());
-                },
+              padding: EdgeInsets.only(bottom: compact ? 6 : 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: denseWeb ? 760 : double.infinity,
+                    minHeight: compact || denseWeb ? 40 : 52,
+                    maxHeight: compact || denseWeb ? 44 : 56,
+                  ),
+                  child: SearchBar(
+                    controller: _searchCtrl,
+                    hintText: compact
+                        ? 'Search orders…'
+                        : 'Search order id, customer, email, status, product title…',
+                    leading: Icon(Icons.search, size: denseWeb ? 20 : 22),
+                    trailing: [
+                      if (_searchCtrl.text.isNotEmpty)
+                        IconButton(
+                          icon: Icon(Icons.clear, size: denseWeb ? 20 : 22),
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            _searchDebounce?.cancel();
+                            ref.read(adminOrderSearchQueryProvider.notifier).set('');
+                            setState(() {});
+                          },
+                        ),
+                    ],
+                    onChanged: (v) {
+                      _scheduleAdminSearch(v);
+                      setState(() {});
+                    },
+                    onSubmitted: (v) {
+                      _searchDebounce?.cancel();
+                      ref.read(adminOrderSearchQueryProvider.notifier).set(v.trim());
+                    },
+                  ),
+                ),
               ),
             ),
             Card(
               margin: compact ? EdgeInsets.zero : null,
               child: Padding(
-                padding: adminFilterCardPadding,
+                padding: denseWeb
+                    ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+                    : adminFilterCardPadding,
                 child: Wrap(
-                  spacing: compact ? 6 : 10,
-                  runSpacing: compact ? 6 : 10,
+                  spacing: compact ? 6 : (denseWeb ? 8 : 10),
+                  runSpacing: compact ? 6 : (denseWeb ? 8 : 10),
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     DropdownButton<String>(

@@ -122,7 +122,7 @@ class ReturnRecord {
       returnType: ReturnType.tryParse(json['return_type']?.toString()) ??
           ReturnType.returnItem,
       status: ReturnWorkflowStatus.tryParse(json['return_status']?.toString()) ??
-          ReturnWorkflowStatus.returnRequested,
+          ReturnWorkflowStatus.requested,
       pickupScheduledAt:
           DateTime.tryParse(json['pickup_scheduled_at']?.toString() ?? ''),
       pickupNotes: () {

@@ -15,6 +15,7 @@ class NetworkException extends AppException {
 enum AuthFailureKind {
   invalidCredentials,
   accountExists,
+  accountSuspended,
   emailNotConfirmed,
   weakPassword,
   network,

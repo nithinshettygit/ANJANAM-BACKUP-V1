@@ -63,10 +63,6 @@ class InvoiceGenerator {
             color: PdfColors.teal800,
           ),
         ),
-        pw.Text(
-          'Spiritual Products Store',
-          style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
-        ),
         pw.SizedBox(height: 14),
         pw.Divider(thickness: 1, color: PdfColors.teal700),
         pw.SizedBox(height: 8),
@@ -188,15 +184,18 @@ class InvoiceGenerator {
   }
 
   pw.Widget _paymentBlock(Order order) {
-    final method = order.paymentMethod.displayLabel;
-    final status = order.paymentStatus.displayLabel;
+    final isCod = order.paymentMethod == OrderPaymentMethod.cod;
+    final method = isCod ? 'Cash on Delivery' : order.paymentMethod.displayLabel;
+    final status = isCod && order.paymentStatus == OrderPaymentStatus.pending
+        ? 'Pending Payment'
+        : order.paymentStatus.displayLabel;
     final rz = order.razorpayPaymentId?.trim();
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         _kvLine('Payment Method', method),
         _kvLine('Payment Status', status),
-        if (rz != null && rz.isNotEmpty) _kvLine('Razorpay Payment ID', rz),
+        if (!isCod && rz != null && rz.isNotEmpty) _kvLine('Razorpay Payment ID', rz),
       ],
     );
   }

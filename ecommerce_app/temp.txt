@@ -1,0 +1,87 @@
+dated lib/admin/widgets/product_form.dart:
+
+Added upload guidance text:
+square 1:1 required
+recommended: 1080 x 1080
+minimum: 800 x 800
+Added validation during upload:
+rejects images below minimum side
+rejects non-square images (ratio tolerance ~3%)
+keeps existing type/size compression checks
+Notes
+
+
+For homepage/store banners in this app, use 1920 x 800 px (about 12:5 / 2.4:1) as the recommended size.
+
+Quick guide:
+
+Recommended: 1920 x 800 px
+Minimum: 1200 x 500 px
+Format: WebP (preferred) or JPG
+File size target: under 500 KB (ideally 200–400 KB)
+Safe text area: keep key text/logo centered in the middle ~70% width so mobile crops don’t cut content
+If you want, I can also suggest exact banner sizes for each specific slot in your current ecommerce_app screens (hero, promo strip, category banner, etc.).
+
+
+we have releaed our android app as pdk:
+several issues found:
+1]sign up-> give option to nter user name along with email and password  confirm email redirects to localhost 300(can't reached): this must be changes: only after new user signup allow after confirming on email
+2]on android app: admin panel-> orders,inventary,rpoducts pages :the next page (ex: 1/2 -> the next page arrow in not visible so unable to go to next page on same section for remaining orders/rpoducts
+
+
+
+3]push notification failed in promotion notifications on admin panel got error message 
+4]admin search on main search bar is not working onanything any search (neither poduct nor userid/name)
+
+
+add to cart -> do to cart pop up must auto disappear after 3 seconds : in current app it  is not disappearing ,it is expecting manual swipe- kindly fix this 
+#on home page:  under - recommended for you - add to cart option works: but the button still shows add t cart: kindly update it to goto cart (once added to cart)
+
+on home page:  recommended for you,popular products  and festival specials , new arrivals  - keep these font size same as  shop by category font size  (means reduce font size):if fotn size  changes in dynamic to  screen size then do that since very small screen size phones it looks dsgusting if we keep large fonts  do this changes)
+
+
+
+
+web-app view: increase similar products card size : also keep orange scroll bar like other wihtout modifying android setups and fonts
+
+
+
+5]Download invoice fix cash on delivery must show as cash on delivery and pending payment not as  razorpay/other #2 ] also remove Spiritual product store under ANJANAM  invoice
+
+
+
+
+
+9]Pin code available or not for delivery check availability set by admin 
+
+10] can we implment auto tracking of product using Tracking no.. complete details for admin / even for users using tracking no.
+
+11]entered details   disappeared  once we save details on shipment (admin panel: orders-details - shipment ) 
+
+12] shipment details save properly (dont let it disappear after saving details of shipment )
+
+13] implementing real payment options
+
+14]Possibke Auto  tracking  using courier method
+
+
+
+16]Return option fix
+
+
+
+User block by admib
+Article setup
+
+Payed and free videos (course)
+
+Adhyathkika haadi (free and payed)
+Contact us for astrology  with astrologer photo n Video (proomotionS)
+
+Bye together
+
+reviews delete option for admins
+
+kannada lang translate
+
+share ppoducts

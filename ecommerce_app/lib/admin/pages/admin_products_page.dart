@@ -86,6 +86,7 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
         });
 
         final compact = kAdminAndroidCompactChrome;
+        final denseWeb = !compact;
         final theme = Theme.of(context);
 
         return Column(
@@ -163,7 +164,9 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
             Card(
               margin: compact ? EdgeInsets.zero : null,
               child: Padding(
-                padding: adminFilterCardPadding,
+                padding: denseWeb
+                    ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+                    : adminFilterCardPadding,
                 child: compact
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -268,12 +271,12 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
                         ],
                       )
                     : Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
+                        spacing: 8,
+                        runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           SizedBox(
-                            width: 250,
+                            width: 220,
                             child: TextField(
                               controller: _searchCtrl,
                               onChanged: (v) => setState(() {
@@ -282,10 +285,16 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
                               decoration: const InputDecoration(
                                 labelText: 'Search products',
                                 prefixIcon: Icon(Icons.search),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
                               ),
                             ),
                           ),
                           DropdownButton<String>(
+                            isDense: true,
                             value: _category,
                             items: categories
                                 .map(
@@ -303,6 +312,7 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
                             },
                           ),
                           DropdownButton<_StockFilter>(
+                            isDense: true,
                             value: _stockFilter,
                             items: const [
                               DropdownMenuItem(
@@ -330,6 +340,7 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
                             },
                           ),
                           DropdownButton<String>(
+                            isDense: true,
                             value: _sortBy,
                             items: const [
                               DropdownMenuItem(

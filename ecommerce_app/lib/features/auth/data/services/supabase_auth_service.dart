@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 import 'package:gotrue/gotrue.dart' show UserAttributes;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
@@ -26,21 +27,30 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   String? get _passwordResetRedirectTo =>
       _passwordResetRedirect.isEmpty ? null : _passwordResetRedirect;
 
+  Future<AppUser> _toAppUser(User authUser) async {
+    await _ensureProfileRow(authUser);
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
+    );
+    final profile = await _fetchProfile(authUser.id);
+    return AppUser(
+      id: authUser.id,
+      email: authUser.email ?? '',
+      fullName: profile?.fullName,
+      avatarUrl: profile?.avatarUrl,
+    );
+  }
+
   @override
   Stream<AppUser?> watchAuthState() {
     return () async* {
-      // Drop sessions that exist before email confirmation (defense in depth vs server misconfiguration).
       final initial = await _userIfEmailConfirmedOrSignOut(client.auth.currentUser);
       if (initial == null) {
         yield null;
       } else {
-        final profile = await _fetchProfile(initial.id);
-        yield AppUser(
-          id: initial.id,
-          email: initial.email ?? '',
-          fullName: profile?.fullName,
-          avatarUrl: profile?.avatarUrl,
-        );
+        yield await _toAppUser(initial);
       }
 
       await for (final event in client.auth.onAuthStateChange) {
@@ -50,13 +60,7 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
           yield null;
           continue;
         }
-        final profile = await _fetchProfile(authUser.id);
-        yield AppUser(
-          id: authUser.id,
-          email: authUser.email ?? '',
-          fullName: profile?.fullName,
-          avatarUrl: profile?.avatarUrl,
-        );
+        yield await _toAppUser(authUser);
       }
     }();
   }
@@ -91,16 +95,13 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
         kind: AuthFailureKind.emailNotConfirmed,
       );
     }
-
-    await _ensureProfileRow(authUser);
-
-    final profile = await _fetchProfile(authUser.id);
-    return AppUser(
-      id: authUser.id,
-      email: authUser.email ?? '',
-      fullName: profile?.fullName,
-      avatarUrl: profile?.avatarUrl,
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
     );
+
+    return _toAppUser(authUser);
   }
 
   @override
@@ -129,9 +130,14 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
       throw const AuthException('Sign-up failed: missing user.');
     }
 
-    // With "confirm email" enabled, sign-up usually returns a user but no session until they
-    // confirm — that is not an error. Only block if we somehow got a session without confirmation.
     final session = response.session;
+    if (_looksLikeExistingAccountSignUp(authUser, session)) {
+      throw const AuthException(
+        'An account with this email address already exists. '
+        'Please sign in with your existing account.',
+        kind: AuthFailureKind.accountExists,
+      );
+    }
     if (session != null && _isEmailPresentButUnconfirmed(authUser)) {
       try {
         await client.auth.signOut();
@@ -141,16 +147,13 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
         kind: AuthFailureKind.emailNotConfirmed,
       );
     }
-
-    await _ensureProfileRow(authUser);
-
-    final profile = await _fetchProfile(authUser.id);
-    return AppUser(
-      id: authUser.id,
-      email: authUser.email ?? '',
-      fullName: profile?.fullName,
-      avatarUrl: profile?.avatarUrl,
+    await ensureUserIsNotBlocked(
+      client,
+      userId: authUser.id,
+      signOutIfBlocked: true,
     );
+
+    return _toAppUser(authUser);
   }
 
   @override
@@ -166,16 +169,7 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   Future<AppUser?> getCurrentUser() async {
     final confirmed = await _userIfEmailConfirmedOrSignOut(client.auth.currentUser);
     if (confirmed == null) return null;
-
-    await _ensureProfileRow(confirmed);
-
-    final profile = await _fetchProfile(confirmed.id);
-    return AppUser(
-      id: confirmed.id,
-      email: confirmed.email ?? '',
-      fullName: profile?.fullName,
-      avatarUrl: profile?.avatarUrl,
-    );
+    return _toAppUser(confirmed);
   }
 
   @override
@@ -201,16 +195,14 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
 
   Future<ProfileModel?> _fetchProfile(String userId) async {
     try {
-      // Adjust selected columns to match your `profiles` table schema.
       final data = await client
           .from('profiles')
-          .select('id, full_name, avatar_url')
+          .select('id, full_name, avatar_url, status, blocked_reason')
           .eq('id', userId)
           .single();
 
       return ProfileModel.fromJson(data);
     } catch (_) {
-      // Profile row might not exist yet; auth still works.
       return null;
     }
   }
@@ -224,7 +216,7 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
         'id': authUser.id,
         'full_name': _deriveDisplayName(authUser),
         'avatar_url': null,
-        'role': 'user',
+        'role': 'customer',
         ...emailField,
       });
     } catch (_) {
@@ -235,16 +227,12 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
           'avatar_url': null,
           ...emailField,
         });
-      } catch (_) {
-        // Row may already exist or insert may be denied by policy; ignore safely.
-      }
+      } catch (_) {}
     }
     if (email != null && email.isNotEmpty) {
       try {
         await client.from('profiles').update({'email': email}).eq('id', authUser.id);
-      } catch (_) {
-        // Column may not exist on older DBs; ignore.
-      }
+      } catch (_) {}
     }
   }
 
@@ -267,11 +255,29 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
 
   Future<User?> _userIfEmailConfirmedOrSignOut(User? u) async {
     if (u == null) return null;
-    if (!_isEmailPresentButUnconfirmed(u)) return u;
+    if (_isEmailPresentButUnconfirmed(u)) {
+      try {
+        await client.auth.signOut();
+      } catch (_) {}
+      return null;
+    }
     try {
-      await client.auth.signOut();
-    } catch (_) {}
-    return null;
+      await ensureUserIsNotBlocked(
+        client,
+        userId: u.id,
+        signOutIfBlocked: true,
+      );
+    } on AuthException {
+      return null;
+    }
+    return u;
+  }
+
+  bool _looksLikeExistingAccountSignUp(User authUser, Session? session) {
+    // Supabase can return no error for existing users to prevent email enumeration.
+    // In that flow, the response commonly has no active session and no identities.
+    if (session != null) return false;
+    final identities = authUser.identities;
+    return identities != null && identities.isEmpty;
   }
 }
-

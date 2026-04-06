@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:ecommerce_app/core/auth/auth_email_link_navigation.dart';
 import 'package:ecommerce_app/features/auth/data/auth_error_mapper.dart';
 import 'package:ecommerce_app/features/auth/state/auth_actions_controller.dart';
+import 'package:ecommerce_app/features/auth/utils/auth_input_validators.dart';
 import 'package:ecommerce_app/presentation/utils/auth_issue_presenter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,10 +26,14 @@ class _UpdatePasswordPageState extends ConsumerState<UpdatePasswordPage> {
   bool _sessionReady = false;
   bool _timedOut = false;
   bool _isSubmitting = false;
+  String? _linkError;
 
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      _linkError = parseAuthCallbackErrorFromUri(Uri.base);
+    }
     if (Supabase.instance.client.auth.currentSession != null) {
       _sessionReady = true;
     } else {
@@ -82,6 +89,40 @@ class _UpdatePasswordPageState extends ConsumerState<UpdatePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_linkError != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Reset password')),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _linkError!,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Reset links expire after a short time and can only be used once. '
+                  'Request a new email from the sign-in page.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () =>
+                      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
+                  child: const Text('Back to sign in'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (_timedOut && !_sessionReady) {
       return Scaffold(
         appBar: AppBar(title: const Text('Reset password')),
@@ -143,8 +184,7 @@ class _UpdatePasswordPageState extends ConsumerState<UpdatePasswordPage> {
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: 'New password'),
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Password is required' : null,
+                  validator: validatePasswordField,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

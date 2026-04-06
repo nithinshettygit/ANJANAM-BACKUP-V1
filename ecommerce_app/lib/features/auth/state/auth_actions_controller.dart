@@ -87,4 +87,3 @@ final authActionsProvider =
     AsyncNotifierProvider<AuthActionsController, void>(
   () => AuthActionsController(),
 );
-

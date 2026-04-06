@@ -1,0 +1,75 @@
+
+# new super-admins:
+update public.profiles
+set role = 'super_admin'
+where email = 'super_admin@gmail.com';
+
+
+
+
+flutter build apk --release `
+  --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co `
+  --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr
+
+APK location
+Your release APK is here:
+
+d:\ANJANAM-NEW\ecommerce_app\build\app\outputs\flutter-apk\app-release.apk
+(~69.4 MB)
+
+
+
+
+$env:SUPABASE_URL="https://kgrlvagayvrswzbdhibn.supabase.co"
+$env:SUPABASE_ANON_KEY="sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr"
+
+flutter run -d RZCX70FW7JB --dart-define=SUPABASE_URL=$env:SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$env:SUPABASE_ANON_KEY
+
+
+
+
+
+
+npx supabase@latest secrets set FCM_SERVER_KEY="AIzaSyBcR88EY2Y4fKyWyb6MtSUsKt9EhDlF_aA"
+
+
+$env:SUPABASE_URL="https://kgrlvagayvrswzbdhibn.supabase.co"
+$env:SUPABASE_ANON_KEY="sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr"
+$env:SUPABASE_FUNCTIONS_BASE_URL="https://kgrlvagayvrswzbdhibn.functions.supabase.co"
+RAZORPAY_TEST_KEY=rzp_test_SYXPePOa5wmPPQ
+
+
+
+flutter run -d RZCX70FW7JB --dart-define=SUPABASE_URL=$env:SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$env:SUPABASE_ANON_KEY --dart-define=SUPABASE_FUNCTIONS_BASE_URL=$env:SUPABASE_FUNCTIONS_BASE_URL
+
+
+test_api_key=rzp_test_SYXPePOa5wmPPQ
+test_key_secret=vavZ6yiUivKalMBQB3JP34A7
+
+
+
+###kept secret (api json)$raw = Get-Content -Raw "D:\ANJANAM-NEW\new-app\anjanam-app-154cee8af042.json"
+$b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($raw))
+npx supabase@latest secrets set GOOGLE_SERVICE_ACCOUNT_JSON_BASE64="$b64"
+
+
+
+cd .\ecommerce_app\
+$env:SUPABASE_URL="https://kgrlvagayvrswzbdhibn.supabase.co"
+$env:SUPABASE_ANON_KEY="sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr"
+$env:SUPABASE_FUNCTIONS_BASE_URL="https://kgrlvagayvrswzbdhibn.functions.supabase.co"
+flutter run -d RZCX70FW7JB --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr --dart-define=RAZORPAY_TEST_KEY=rzp_test_SYXPePOa5wmPPQ
+
+
+
+
+
+chrome:
+
+cd .\ecommerce_app\
+$env:SUPABASE_URL="https://kgrlvagayvrswzbdhibn.supabase.co"
+$env:SUPABASE_ANON_KEY="sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr"
+flutter run -d chrome --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr --dart-define=RAZORPAY_TEST_KEY=rzp_test_SYXPePOa5wmPPQ
+
+
+flutter build web --release --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co  --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr
