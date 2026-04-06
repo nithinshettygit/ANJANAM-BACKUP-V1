@@ -55,6 +55,14 @@ class VideosSupabaseService extends SupabaseServiceBase {
         .toList();
   }
 
+  Future<StorefrontVideo?> fetchVideoById(String id) async {
+    final row = await guard(
+      () => client.from('videos').select(_columns).eq('id', id).maybeSingle(),
+    );
+    if (row == null) return null;
+    return StorefrontVideo.fromRow(Map<String, dynamic>.from(row));
+  }
+
   Future<void> insertVideo({
     required String title,
     required String youtubeUrl,

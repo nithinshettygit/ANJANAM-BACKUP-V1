@@ -1,5 +1,7 @@
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
+import 'package:ecommerce_app/features/articles/pages/article_detail_page.dart';
+import 'package:ecommerce_app/features/articles/providers/articles_providers.dart';
 import 'package:ecommerce_app/presentation/utils/buy_now_navigation.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
@@ -36,10 +38,24 @@ class OrderHistoryOrderCard extends ConsumerWidget {
         children: [
           InkWell(
             onTap: canOpenProduct
-                ? () => Navigator.of(context).pushNamed(
+                ? () async {
+                    final articleId = await ref
+                        .read(articlesSupabaseServiceProvider)
+                        .findArticleIdByCheckoutProductId(primary.productId);
+                    if (!context.mounted) return;
+                    if (articleId != null && articleId.isNotEmpty) {
+                      await Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ArticleDetailPage(articleId: articleId),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.of(context).pushNamed(
                       '/catalog/details',
                       arguments: primary.productId,
-                    )
+                    );
+                  }
                 : null,
             child: Padding(
               padding: const EdgeInsets.all(12),

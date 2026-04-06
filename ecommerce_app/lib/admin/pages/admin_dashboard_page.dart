@@ -89,6 +89,23 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                             value: formatInrAmount(summary.totalRevenue),
                             valueColor: AppColors.priceText,
                           ),
+                          _StatCard(
+                            title: 'Total Articles',
+                            value: summary.totalArticles.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Free Articles',
+                            value: summary.freeArticles.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Article Sales',
+                            value: summary.articleSales.toString(),
+                          ),
+                          _StatCard(
+                            title: 'Article Revenue',
+                            value: formatInrAmount(summary.articleRevenue),
+                            valueColor: AppColors.priceText,
+                          ),
                         ],
                       ),
                       SizedBox(height: statGap),

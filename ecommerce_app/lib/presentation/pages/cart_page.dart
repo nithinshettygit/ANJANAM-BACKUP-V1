@@ -2,6 +2,8 @@ import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/cart/domain/entities/cart.dart';
 import 'package:ecommerce_app/features/cart/domain/entities/cart_item.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
+import 'package:ecommerce_app/features/articles/pages/article_detail_page.dart';
+import 'package:ecommerce_app/features/articles/providers/articles_providers.dart';
 import 'package:ecommerce_app/features/product_details/state/product_details_providers.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
@@ -137,11 +139,25 @@ class _CartItemTile extends ConsumerWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: () => navigateToStorefrontProductDetails(
-            context,
-            ref,
-            item.productId,
-          ),
+          onTap: () async {
+            final articleId = await ref
+                .read(articlesSupabaseServiceProvider)
+                .findArticleIdByCheckoutProductId(item.productId);
+            if (!context.mounted) return;
+            if (articleId != null && articleId.isNotEmpty) {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => ArticleDetailPage(articleId: articleId),
+                ),
+              );
+              return;
+            }
+            navigateToStorefrontProductDetails(
+              context,
+              ref,
+              item.productId,
+            );
+          },
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Row(

@@ -17,6 +17,8 @@ import 'admin_returns_page.dart';
 import 'admin_products_page.dart';
 import 'admin_users_page.dart';
 import 'admin_videos_page.dart';
+import 'admin_articles_page.dart';
+import 'admin_explore_suggestions_page.dart';
 
 class AdminShellPage extends ConsumerWidget {
   final String currentRoute;
@@ -71,6 +73,10 @@ class AdminShellPage extends ConsumerWidget {
         return const AdminHomepagePage();
       case '/admin/videos':
         return const AdminVideosPage();
+      case '/admin/articles':
+        return const AdminArticlesPage();
+      case '/admin/explore-suggestions':
+        return const AdminExploreSuggestionsPage();
       case '/admin/categories':
         return const AdminCategoriesPage();
       case '/admin/notifications':

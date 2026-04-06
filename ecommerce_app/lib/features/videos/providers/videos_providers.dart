@@ -36,6 +36,12 @@ final adminVideosListProvider = FutureProvider.autoDispose<List<StorefrontVideo>
   return svc.fetchAdminVideos(limit: 500);
 });
 
+final videoByIdProvider =
+    FutureProvider.autoDispose.family<StorefrontVideo?, String>((ref, id) async {
+  final svc = ref.watch(videosSupabaseServiceProvider);
+  return svc.fetchVideoById(id);
+});
+
 class VideosFeedState {
   final List<StorefrontVideo> items;
   final bool initialLoading;

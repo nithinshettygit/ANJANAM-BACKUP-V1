@@ -26,6 +26,7 @@ import '../pages/email_confirmation_callback_page.dart';
 import '../pages/signup_page.dart';
 import '../pages/update_password_page.dart';
 import '../pages/videos_page.dart';
+import '../../features/articles/pages/articles_page.dart';
 import '../pages/wishlist_page.dart';
 import '../pages/write_review_page.dart';
 import '../pages/request_return_page.dart';
@@ -150,6 +151,8 @@ class AppRouter {
         return _customerRoute(const MorePage());
       case '/videos':
         return _customerRoute(const VideosPage());
+      case '/articles':
+        return _customerRoute(const ArticlesPage());
       case '/music':
         return _customerRoute(const MusicPage());
       case '/wishlist':
@@ -331,6 +334,8 @@ class AppRouter {
       case '/admin/notifications':
       case '/admin/returns':
       case '/admin/videos':
+      case '/admin/articles':
+      case '/admin/explore-suggestions':
         return _AdminMaterialPageRoute<void>(
           settings: settings,
           builder: (_) => AdminShellPage(currentRoute: settings.name ?? '/admin'),

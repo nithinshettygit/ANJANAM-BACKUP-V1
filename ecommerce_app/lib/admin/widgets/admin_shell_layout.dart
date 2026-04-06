@@ -32,6 +32,12 @@ class AdminShellLayout extends StatefulWidget {
     AdminMenuItem(label: 'Dashboard', icon: Icons.dashboard_outlined, route: '/admin'),
     AdminMenuItem(label: 'Homepage', icon: Icons.home_work_outlined, route: '/admin/homepage'),
     AdminMenuItem(label: 'Videos', icon: Icons.play_circle_outline, route: '/admin/videos'),
+    AdminMenuItem(label: 'Articles', icon: Icons.article_outlined, route: '/admin/articles'),
+    AdminMenuItem(
+      label: 'Explore Suggestions',
+      icon: Icons.view_carousel_outlined,
+      route: '/admin/explore-suggestions',
+    ),
     AdminMenuItem(label: 'Categories', icon: Icons.category_outlined, route: '/admin/categories'),
     AdminMenuItem(label: 'Products', icon: Icons.inventory_2_outlined, route: '/admin/products'),
     AdminMenuItem(label: 'Product Questions', icon: Icons.question_answer_outlined, route: '/admin/product-questions'),
@@ -166,11 +172,16 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
                     color: selected ? AppColors.deepGold : AppColors.warmGray,
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    item.label,
-                    style: TextStyle(
-                      color: selected ? AppColors.deepGold : AppColors.textDark,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: selected ? AppColors.deepGold : AppColors.textDark,
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],

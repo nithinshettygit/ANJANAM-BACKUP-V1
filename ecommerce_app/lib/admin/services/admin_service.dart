@@ -14,6 +14,11 @@ class AdminDashboardSummary {
   final int totalUsers;
   final double totalRevenue;
   final List<AdminOrderRow> recentOrders;
+  final int totalArticles;
+  final int freeArticles;
+  final int premiumArticles;
+  final int articleSales;
+  final double articleRevenue;
 
   const AdminDashboardSummary({
     required this.totalProducts,
@@ -21,6 +26,11 @@ class AdminDashboardSummary {
     required this.totalUsers,
     required this.totalRevenue,
     required this.recentOrders,
+    this.totalArticles = 0,
+    this.freeArticles = 0,
+    this.premiumArticles = 0,
+    this.articleSales = 0,
+    this.articleRevenue = 0,
   });
 }
 
@@ -632,6 +642,22 @@ class AdminService {
         .where((e) => e.isNotEmpty)
         .toList();
     final revenue = await _fetchRevenueForOrderIds(allOrderIds);
+    final articlesData = await client.from('articles').select('id, is_free, price');
+    final purchasesData = await client.from('article_purchases').select('id, article_id');
+    final articleRows = (articlesData as List).cast<Map<String, dynamic>>();
+    final purchaseRows = (purchasesData as List).cast<Map<String, dynamic>>();
+    final articleById = <String, Map<String, dynamic>>{
+      for (final row in articleRows) (row['id'] ?? '').toString(): row,
+    };
+    var articleRevenue = 0.0;
+    for (final row in purchaseRows) {
+      final articleId = (row['article_id'] ?? '').toString();
+      final article = articleById[articleId];
+      if (article == null) continue;
+      articleRevenue += (article['price'] as num?)?.toDouble() ?? 0;
+    }
+    final freeArticles = articleRows.where((e) => e['is_free'] == true).length;
+    final premiumArticles = articleRows.length - freeArticles;
 
     return AdminDashboardSummary(
       totalProducts: (products as List).length,
@@ -639,6 +665,11 @@ class AdminService {
       totalUsers: (users as List).length,
       totalRevenue: revenue,
       recentOrders: recentOrders,
+      totalArticles: articleRows.length,
+      freeArticles: freeArticles,
+      premiumArticles: premiumArticles,
+      articleSales: purchaseRows.length,
+      articleRevenue: articleRevenue,
     );
   }
 

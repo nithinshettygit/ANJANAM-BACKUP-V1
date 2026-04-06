@@ -13,6 +13,11 @@ import '../models/cart_item_model.dart';
 class SupabaseCartService extends SupabaseServiceBase implements CartRepository {
   SupabaseCartService(super.client);
 
+  static bool _looksLikeHttp(String? value) {
+    final v = value?.trim() ?? '';
+    return v.startsWith('http://') || v.startsWith('https://');
+  }
+
   @override
   Future<Cart> getCart() async {
     final cartId = await _ensureCartId();
@@ -49,6 +54,41 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
       for (final row in (productsData as List).cast<Map<String, dynamic>>()) {
         final id = (row['id'] ?? '').toString();
         if (id.isNotEmpty) productById[id] = row;
+      }
+
+      // Premium article checkout products may not always have a directly renderable
+      // image URL in `products.image_urls`. Enrich missing image rows from linked
+      // article covers so cart cards always show a thumbnail.
+      final missingImageProductIds = productById.entries
+          .where((e) {
+            final urls = e.value['image_urls'];
+            if (urls is List && urls.isNotEmpty) {
+              final first = urls.first?.toString();
+              return first == null || first.trim().isEmpty;
+            }
+            return true;
+          })
+          .map((e) => e.key)
+          .toList();
+      if (missingImageProductIds.isNotEmpty) {
+        final articleRows = await guard(
+          () => client
+              .from('articles')
+              .select('checkout_product_id, cover_image_url')
+              .inFilter('checkout_product_id', missingImageProductIds),
+        );
+        for (final row in (articleRows as List).cast<Map<String, dynamic>>()) {
+          final productId = (row['checkout_product_id'] ?? '').toString();
+          if (productId.isEmpty) continue;
+          final rawCover = row['cover_image_url']?.toString();
+          if (rawCover == null || rawCover.trim().isEmpty) continue;
+          final imageUrl = _looksLikeHttp(rawCover)
+              ? rawCover
+              : await client.storage.from('articles').createSignedUrl(rawCover, 60 * 60);
+          final existing = productById[productId];
+          if (existing == null) continue;
+          existing['image_urls'] = [imageUrl];
+        }
       }
     }
 

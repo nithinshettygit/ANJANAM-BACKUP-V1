@@ -3,7 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/wishlist_heart_sizes.dart';
+import '../../features/articles/providers/articles_providers.dart';
+import '../../features/articles/widgets/explore_articles_sections.dart';
 import '../../features/cart/state/cart_controller.dart';
+import '../../features/explore_suggestions/providers/explore_suggestions_providers.dart';
+import '../../features/explore_suggestions/widgets/suggested_for_you_carousel.dart';
+import '../../features/videos/providers/videos_providers.dart';
+import '../../features/videos/widgets/explore_new_videos_swiper.dart';
 import '../../features/wishlist/state/wishlist_provider.dart';
 import '../utils/main_shell_navigation.dart';
 
@@ -83,30 +89,56 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           ),
         ],
       ),
-      body: ListView(
-        controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        children: [
-          const _ExploreMediaBanner(),
-          const SizedBox(height: 18),
-          _ExploreEntryCard(
-            title: 'Videos',
-            subtitle: 'Watch stories, talks and highlights',
-            icon: Icons.smart_display_rounded,
-            accent: const Color(0xFFFF0000),
-            badge: 'Popular',
-            onTap: () => Navigator.of(context).pushNamed('/videos'),
-          ),
-          const SizedBox(height: 12),
-          _ExploreEntryCard(
-            title: 'Music',
-            subtitle: 'Listen and browse devotional tracks',
-            icon: Icons.music_note_rounded,
-            accent: AppColors.forestGreen,
-            badge: 'New',
-            onTap: () => Navigator.of(context).pushNamed('/music'),
-          ),
-        ],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(activeExploreSuggestionsProvider);
+          ref.invalidate(publishedArticlesProvider);
+          ref.invalidate(articlesRevisionProvider);
+          ref.invalidate(exploreSuggestionsRevisionProvider);
+          await Future.wait([
+            ref.read(activeExploreSuggestionsProvider.future),
+            ref.read(publishedArticlesProvider.future),
+            ref.read(homeVideosPreviewProvider.future),
+          ]);
+        },
+        child: ListView(
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            const SuggestedForYouCarousel(),
+            const SizedBox(height: 12),
+            const ExploreArticlesSections(),
+            const SizedBox(height: 12),
+            const ExploreNewVideosSwiper(),
+            const SizedBox(height: 12),
+            _ExploreEntryCard(
+              title: 'Articles',
+              subtitle: 'Read free and premium knowledge PDFs',
+              icon: Icons.menu_book_rounded,
+              accent: const Color(0xFF5E35B1),
+              badge: 'Featured',
+              onTap: () => Navigator.of(context).pushNamed('/articles'),
+            ),
+            const SizedBox(height: 12),
+            _ExploreEntryCard(
+              title: 'Videos',
+              subtitle: 'Watch stories, talks and highlights',
+              icon: Icons.smart_display_rounded,
+              accent: const Color(0xFFFF0000),
+              badge: 'Popular',
+              onTap: () => Navigator.of(context).pushNamed('/videos'),
+            ),
+            const SizedBox(height: 12),
+            _ExploreEntryCard(
+              title: 'Music',
+              subtitle: 'Listen and browse devotional tracks',
+              icon: Icons.music_note_rounded,
+              accent: AppColors.forestGreen,
+              badge: 'New',
+              onTap: () => Navigator.of(context).pushNamed('/music'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -201,55 +233,3 @@ class _ExploreEntryCard extends StatelessWidget {
   }
 }
 
-class _ExploreMediaBanner extends StatelessWidget {
-  const _ExploreMediaBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: AppColors.marigoldOrange.withValues(alpha: 0.16),
-        border: Border.all(
-          color: AppColors.marigoldOrange.withValues(alpha: 0.45),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: theme.colorScheme.surface,
-            ),
-            child: const Icon(Icons.explore_rounded, color: AppColors.marigoldOrange),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Explore Media',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Discover videos and music in one place.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

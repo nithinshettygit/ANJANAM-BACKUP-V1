@@ -1,8 +1,19 @@
 
 # new super-admins:
-update public.profiles
+begin;
+
+-- Temporarily bypass role-change trigger only for this transaction
+alter table public.profiles disable trigger trg_profiles_enforce_role_update;
+
+update public.profiles p
 set role = 'super_admin'
-where email = 'super_admin@gmail.com';
+from auth.users au
+where p.id = au.id
+  and lower(au.email) = lower('officialanjanam@gmail.com');
+
+alter table public.profiles enable trigger trg_profiles_enforce_role_update;
+
+commit;
 
 
 
