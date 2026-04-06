@@ -2553,8 +2553,8 @@ class AdminService {
   }
 
   static String _orderPaymentMethodRaw(Map<String, dynamic> row) {
-    final m = row['payment_method']?.toString().toLowerCase().trim();
-    return m == 'cod' ? 'cod' : 'razorpay';
+    final raw = row['payment_method']?.toString();
+    return _isCodPaymentMethodRaw(raw) ? 'cod' : 'razorpay';
   }
 
   static String _orderPaymentStatusRaw(Map<String, dynamic> row) {
@@ -2574,7 +2574,19 @@ class AdminService {
   }
 
   static String _paymentMethodDisplayLabel(String raw) {
-    return raw == 'cod' ? 'Cash on Delivery' : 'Razorpay';
+    return _isCodPaymentMethodRaw(raw) ? 'Cash on Delivery' : 'Razorpay';
+  }
+
+  static bool _isCodPaymentMethodRaw(String? raw) {
+    final value = raw?.toLowerCase().trim() ?? '';
+    if (value.isEmpty) return false;
+    if (value == 'cod') return true;
+    if (value.contains('cash') && value.contains('delivery')) return true;
+    if (value.contains('cash_on_delivery')) return true;
+    if (value.contains('cash on delivery')) return true;
+    if (value.contains('cashondelivery')) return true;
+    if (value.contains('pay_on_delivery')) return true;
+    return false;
   }
 
   static double _deliveryFeeFromRow(Map<String, dynamic> row) {

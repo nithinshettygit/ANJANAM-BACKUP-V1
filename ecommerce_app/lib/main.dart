@@ -16,7 +16,29 @@ import 'core/web/web_url_strategy_stub.dart'
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.android);
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await LocalNotificationService.initialize();
+  // Background/system messages with only `data` payload do not always appear in tray.
+  // Show a local notification fallback so order/refund updates still reach notification bar.
+  if (message.notification == null) {
+    final title = message.data['title']?.toString().trim().isNotEmpty == true
+        ? message.data['title'].toString().trim()
+        : 'Notification';
+    final body = message.data['message']?.toString().trim() ?? '';
+    final dedupKey = [
+      message.data['notification_id']?.toString().trim(),
+      message.data['kind']?.toString().trim(),
+      message.data['order_id']?.toString().trim(),
+      title,
+      body,
+    ].where((e) => e != null && e.isNotEmpty).join('|');
+    await LocalNotificationService.show(
+      title: title,
+      body: body,
+      payload: message.data.toString(),
+      dedupKey: dedupKey.isEmpty ? null : dedupKey,
+    );
+  }
 }
 
 Future<void> main() async {

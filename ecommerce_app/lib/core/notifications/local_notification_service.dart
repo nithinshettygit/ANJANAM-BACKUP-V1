@@ -13,6 +13,7 @@ class LocalNotificationService {
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
+  static final Map<String, DateTime> _recentDedupKeys = <String, DateTime>{};
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -57,12 +58,62 @@ class LocalNotificationService {
       ticker: 'ticker',
     );
 
-    await _plugin.show(
-      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    final dedupKey = [
+      message.data['notification_id']?.toString().trim(),
+      message.data['kind']?.toString().trim(),
+      message.data['order_id']?.toString().trim(),
+      title,
+      body,
+    ].where((e) => e != null && e.isNotEmpty).join('|');
+    await show(
       title: title,
       body: body,
-      notificationDetails: NotificationDetails(android: androidDetails),
       payload: message.data.toString(),
+      dedupKey: dedupKey.isEmpty ? null : dedupKey,
+      androidDetails: androidDetails,
+    );
+  }
+
+  static Future<void> show({
+    required String title,
+    required String body,
+    String? payload,
+    String? dedupKey,
+    AndroidNotificationDetails? androidDetails,
+  }) async {
+    if (!_initialized) {
+      await initialize();
+    }
+
+    final normalizedTitle = title.trim().isEmpty ? 'Notification' : title.trim();
+    final normalizedBody = body.trim();
+    final now = DateTime.now();
+    if (dedupKey != null && dedupKey.trim().isNotEmpty) {
+      final key = dedupKey.trim();
+      final prev = _recentDedupKeys[key];
+      if (prev != null && now.difference(prev).inSeconds < 4) {
+        return;
+      }
+      _recentDedupKeys[key] = now;
+      _recentDedupKeys.removeWhere((_, time) => now.difference(time).inMinutes > 2);
+    }
+
+    final details = androidDetails ??
+        const AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDescription,
+          importance: Importance.max,
+          priority: Priority.high,
+          ticker: 'ticker',
+        );
+
+    await _plugin.show(
+      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: normalizedTitle,
+      body: normalizedBody,
+      notificationDetails: NotificationDetails(android: details),
+      payload: payload,
     );
   }
 }

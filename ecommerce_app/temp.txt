@@ -45,10 +45,16 @@ on home page:  recommended for you,popular products  and festival specials , new
 web-app view: increase similar products card size : also keep orange scroll bar like other wihtout modifying android setups and fonts
 
 
+16]Return option fix
 
 5]Download invoice fix cash on delivery must show as cash on delivery and pending payment not as  razorpay/other #2 ] also remove Spiritual product store under ANJANAM  invoice
 
+11]entered details   disappeared  once we save details on shipment (admin panel: orders-details - shipment ) 
 
+
+
+
+===================================================
 
 
 
@@ -56,21 +62,16 @@ web-app view: increase similar products card size : also keep orange scroll bar 
 
 10] can we implment auto tracking of product using Tracking no.. complete details for admin / even for users using tracking no.
 
-11]entered details   disappeared  once we save details on shipment (admin panel: orders-details - shipment ) 
 
-12] shipment details save properly (dont let it disappear after saving details of shipment )
 
 13] implementing real payment options
 
-14]Possibke Auto  tracking  using courier method
 
 
 
-16]Return option fix
 
 
 
-User block by admib
 Article setup
 
 Payed and free videos (course)
@@ -84,4 +85,4 @@ reviews delete option for admins
 
 kannada lang translate
 
-share ppoducts
+share ppoducts copy link option and  insta only image send

@@ -38,6 +38,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   DateTime? _estDelivery;
   bool _shipmentDirty = false;
   String? _syncedShipmentOrderId;
+  String? _syncedShipmentSignature;
   bool _statusBusy = false;
   bool _shipmentSaving = false;
 
@@ -55,6 +56,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.orderId != widget.orderId) {
       _syncedShipmentOrderId = null;
+      _syncedShipmentSignature = null;
       _shipmentDirty = false;
     }
   }
@@ -85,7 +87,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
 
   void _syncShipmentFieldsFromDetails(AdminOrderDetails details, String orderId) {
     if (_shipmentDirty) return;
-    if (_syncedShipmentOrderId == orderId) return;
+    final nextSignature = _shipmentSignatureFrom(details);
+    if (_syncedShipmentOrderId == orderId && _syncedShipmentSignature == nextSignature) {
+      return;
+    }
     _trackCtrl.text = details.trackingNumber ?? '';
     _courierCtrl.text = details.courierName ?? '';
     _pkgWeightCtrl.text = details.packageWeightKg == null
@@ -95,7 +100,21 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     setState(() {
       _estDelivery = details.estimatedDeliveryDate;
       _syncedShipmentOrderId = orderId;
+      _syncedShipmentSignature = nextSignature;
     });
+  }
+
+  String _shipmentSignatureFrom(AdminOrderDetails details) {
+    final tracking = (details.trackingNumber ?? '').trim();
+    final courier = (details.courierName ?? '').trim();
+    final weight = details.packageWeightKg?.toString() ?? '';
+    final dimensions = (details.packageDimensionsCm ?? '').trim();
+    final date = details.estimatedDeliveryDate == null
+        ? ''
+        : '${details.estimatedDeliveryDate!.year.toString().padLeft(4, '0')}-'
+            '${details.estimatedDeliveryDate!.month.toString().padLeft(2, '0')}-'
+            '${details.estimatedDeliveryDate!.day.toString().padLeft(2, '0')}';
+    return '$tracking|$courier|$weight|$dimensions|$date';
   }
 
   String _statusDisplayLabel(String raw) {

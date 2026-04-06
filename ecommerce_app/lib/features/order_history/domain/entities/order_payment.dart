@@ -12,15 +12,19 @@ enum OrderPaymentStatus {
 }
 
 OrderPaymentMethod orderPaymentMethodFromDb(String? raw) {
-  switch (raw?.toLowerCase().trim()) {
-    case 'cod':
-    case 'cash_on_delivery':
-    case 'cash on delivery':
-    case 'cashondelivery':
-      return OrderPaymentMethod.cod;
-    default:
-      return OrderPaymentMethod.razorpay;
+  final value = raw?.toLowerCase().trim() ?? '';
+  if (value.isEmpty) return OrderPaymentMethod.razorpay;
+  if (value == 'cod') return OrderPaymentMethod.cod;
+  if (value.contains('cash') && value.contains('delivery')) {
+    return OrderPaymentMethod.cod;
   }
+  if (value.contains('cash_on_delivery') ||
+      value.contains('cash on delivery') ||
+      value.contains('cashondelivery') ||
+      value.contains('pay_on_delivery')) {
+    return OrderPaymentMethod.cod;
+  }
+  return OrderPaymentMethod.razorpay;
 }
 
 OrderPaymentStatus orderPaymentStatusFromDb(String? raw) {
