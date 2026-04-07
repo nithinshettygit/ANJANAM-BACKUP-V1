@@ -1,5 +1,8 @@
 {
   "hosting": {
+    "predeploy": [
+      "dart run tool/ensure_well_known_for_hosting.dart"
+    ],
     "public": "build/web",
     "ignore": [
       "firebase.json",
@@ -15,7 +18,7 @@
           },
           {
             "key": "Cache-Control",
-            "value": "public, max-age=3600"
+            "value": "public, max-age=120, must-revalidate"
           }
         ]
       },
@@ -30,6 +33,22 @@
       }
     ],
     "rewrites": [
+      {
+        "source": "/privacy-policy",
+        "destination": "/privacy-policy/index.html"
+      },
+      {
+        "source": "/terms",
+        "destination": "/terms/index.html"
+      },
+      {
+        "source": "/refund-policy",
+        "destination": "/refund-policy/index.html"
+      },
+      {
+        "source": "/support",
+        "destination": "/support/index.html"
+      },
       {
         "source": "**",
         "destination": "/index.html"

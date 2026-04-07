@@ -63,7 +63,7 @@ class RazorpayService {
   }) {
     if (_keyId.isEmpty) {
       onPaymentError?.call(
-        'Payments are not configured. Add your test Key Id at build time '
+        'Payments are not configured. Add your Razorpay Key Id at build time '
         '(--dart-define=RAZORPAY_KEY_ID=...).',
       );
       return;
@@ -148,7 +148,7 @@ class RazorpayService {
       );
     });
 
-    final ondismiss = js_util.allowInterop(() {
+    final ondismiss = js_util.allowInterop((dynamic _) {
       if (!completed) {
         completeError('Payment was cancelled.');
       }
@@ -175,7 +175,7 @@ class RazorpayService {
       'name': 'ANJANAM',
       'description': 'Spiritual Products Order',
       'currency': 'INR',
-      if (oid.isEmpty) 'amount': amountPaise,
+      'amount': amountPaise,
       if (oid.isNotEmpty) 'order_id': oid,
       'prefill': prefill,
       'theme': <String, dynamic>{'color': themeColorHex},

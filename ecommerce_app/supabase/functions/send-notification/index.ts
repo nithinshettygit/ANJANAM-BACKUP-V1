@@ -457,6 +457,34 @@ serve(async (req) => {
         .map((r: any) => r.fcm_token?.toString())
         .filter((t: string | undefined) => !!t);
 
+      // Fallback: latest profile-level token for user-specific events.
+      if (tokens.length === 0) {
+        const { data: profileRow, error: profileErr } = await supabaseAdmin
+          .from("profiles")
+          .select("fcm_token")
+          .eq("id", userNorm)
+          .maybeSingle();
+        if (profileErr) {
+          console.error("FCM token fallback(profile) lookup failed", {
+            user_id: userNorm,
+            detail: profileErr.message ?? String(profileErr),
+          });
+        } else {
+          const profileToken = (profileRow as any)?.fcm_token?.toString()?.trim();
+          if (profileToken) {
+            tokens.push(profileToken);
+          }
+        }
+      }
+
+      if (tokens.length === 0) {
+        console.error("FCM token missing for user-specific event", {
+          user_id: userNorm,
+          order_id: orderId,
+          action,
+        });
+      }
+
       const data: Record<string, string> = withFcmTextPayload(
         {
           kind,
@@ -477,6 +505,17 @@ serve(async (req) => {
         message,
         data,
       });
+
+      if (summary.failure > 0) {
+        console.error("FCM send had token failures", {
+          user_id: userNorm,
+          order_id: orderId,
+          failures: summary.failures.map((f) => ({
+            status: f.status,
+            detail: f.detail.slice(0, 200),
+          })),
+        });
+      }
 
       return jsonRes(200, { ok: true, fcm: summary });
     }

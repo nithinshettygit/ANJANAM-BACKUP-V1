@@ -338,7 +338,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           const SnackBar(
             behavior: SnackBarBehavior.fixed,
             content: Text(
-              'Razorpay is not configured. Add RAZORPAY_KEY_ID (or RAZORPAY_TEST_KEY) '
+              'Razorpay is not configured. Add RAZORPAY_KEY_ID '
               'at build time, or choose Cash on Delivery.',
             ),
           ),
@@ -405,11 +405,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         if (!mounted) return;
         setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
         try {
-          await paymentSvc.ensureTestPaymentCaptured(
-            orderId: order.id,
-            razorpayPaymentId: paymentId,
-            isTestMode: env.isRazorpayTestMode,
-          );
           await paymentSvc.verifyRazorpayPaymentAndMarkPaid(
             orderId: order.id,
             razorpayPaymentId: paymentId,
@@ -473,7 +468,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.fixed,
-            content: Text(message),
+            content: const Text('Payment failed. Please try again.'),
           ),
         );
         Navigator.of(context).pushReplacementNamed('/orders');

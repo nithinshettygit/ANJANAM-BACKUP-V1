@@ -4,7 +4,7 @@ import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 /// Wraps [Razorpay] checkout: init, open, success / error / external wallet.
 ///
-/// Use only the **Key Id** (`rzp_test_...` or `rzp_live_...`). Never ship the Razorpay secret.
+/// Use only the **Key Id** (`rzp_live_...`). Never ship the Razorpay secret.
 ///
 /// IO / mobile only — web uses [razorpay_service_web.dart].
 class RazorpayService {
@@ -38,7 +38,7 @@ class RazorpayService {
   }) {
     if (_keyId.isEmpty) {
       onPaymentError?.call(
-        'Payments are not configured. Add your test Key Id at build time '
+        'Payments are not configured. Add your Razorpay Key Id at build time '
         '(--dart-define=RAZORPAY_KEY_ID=...).',
       );
       return;

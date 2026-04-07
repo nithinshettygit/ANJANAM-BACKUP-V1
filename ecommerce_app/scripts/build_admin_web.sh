@@ -29,8 +29,8 @@ DEFINES=(
 if [[ -n "${SUPABASE_FUNCTIONS_BASE_URL:-}" ]]; then
   DEFINES+=("--dart-define=SUPABASE_FUNCTIONS_BASE_URL=${SUPABASE_FUNCTIONS_BASE_URL}")
 fi
-if [[ -n "${RAZORPAY_TEST_KEY:-}" ]]; then
-  DEFINES+=("--dart-define=RAZORPAY_TEST_KEY=${RAZORPAY_TEST_KEY}")
+if [[ -n "${RAZORPAY_KEY_ID:-}" ]]; then
+  DEFINES+=("--dart-define=RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}")
 fi
 
 # HTML renderer: avoids blank page when CanvasKit CDN is blocked. PWA none: fewer stale SW caches.

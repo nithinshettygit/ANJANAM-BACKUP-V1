@@ -2,15 +2,27 @@ import 'package:flutter/foundation.dart';
 
 import 'auth_redirect_config.dart';
 
+AppEnv? _registeredAppEnv;
+
+/// Set once from [main] after resolving Supabase config (compile-time or hosted JSON on web).
+void registerAppEnv(AppEnv env) {
+  _registeredAppEnv = env;
+}
+
+/// For tests only.
+void clearRegisteredAppEnv() {
+  _registeredAppEnv = null;
+}
+
 class AppEnv {
   final String supabaseUrl;
   final String supabaseAnonKey;
   final String supabaseFunctionsBaseUrl;
 
-  /// Razorpay **Key Id** only (`rzp_test_...` or `rzp_live_...`). Never put the secret in the app.
+  /// Razorpay **Key Id** only (`rzp_live_...`). Never put the secret in the app.
   ///
-  /// Build: `--dart-define=RAZORPAY_KEY_ID=...` (preferred for production), or legacy
-  /// `--dart-define=RAZORPAY_TEST_KEY=...`. Must match Supabase secret `RAZORPAY_KEY_ID` for Edge Functions.
+  /// Build: `--dart-define=RAZORPAY_KEY_ID=...`.
+  /// Must match Supabase secret `RAZORPAY_KEY_ID` for Edge Functions.
   final String razorpayKeyId;
 
   /// Optional override from `--dart-define=SUPABASE_AUTH_REDIRECT_URL=...`.
@@ -60,9 +72,6 @@ class AppEnv {
     return AuthRedirectConfig.androidPasswordResetRedirectUrl;
   }
 
-  /// Test mode: app may call `capture-razorpay-payment` after checkout. Live mode skips that (auto-capture).
-  bool get isRazorpayTestMode => razorpayKeyId.trim().startsWith('rzp_test_');
-
   /// Trims whitespace and strips stray trailing `\` often introduced when a PowerShell
   /// `flutter run` line accidentally ends with `\)` next to `--dart-define=...=$env:...`.
   static String _cleanDefine(String value) {
@@ -99,7 +108,6 @@ class AppEnv {
       defaultValue: '',
     );
     const razorpayPrimaryRaw = String.fromEnvironment('RAZORPAY_KEY_ID', defaultValue: '');
-    const razorpayLegacyRaw = String.fromEnvironment('RAZORPAY_TEST_KEY', defaultValue: '');
     const authRedirectRaw = String.fromEnvironment(
       'SUPABASE_AUTH_REDIRECT_URL',
       defaultValue: '',
@@ -115,8 +123,7 @@ class AppEnv {
       explicitFromDefine: functionsBaseUrlRaw,
     );
     final primary = _cleanDefine(razorpayPrimaryRaw);
-    final legacy = _cleanDefine(razorpayLegacyRaw);
-    final razorpayKeyId = primary.isNotEmpty ? primary : legacy;
+    final razorpayKeyId = primary;
     final authEmailRedirectUrl = _cleanDefine(authRedirectRaw);
     final authPasswordResetRedirectUrl = _cleanDefine(passwordResetRedirectRaw);
 
@@ -136,5 +143,46 @@ class AppEnv {
       authEmailRedirectUrl: authEmailRedirectUrl,
       authPasswordResetRedirectUrl: authPasswordResetRedirectUrl,
     );
+  }
+
+  /// Same shape as [web/app-config.json.example] (Firebase Hosting root).
+  factory AppEnv.fromHostedConfigJson(Map<String, dynamic> json) {
+    final url = _cleanDefine(json['supabase_url']?.toString() ?? '');
+    final anonKey = _cleanDefine(json['supabase_anon_key']?.toString() ?? '');
+    final functionsBaseUrlRaw = json['supabase_functions_base_url']?.toString() ?? '';
+    final razorpayPrimaryRaw = json['razorpay_key_id']?.toString() ?? '';
+    final authRedirectRaw = json['supabase_auth_redirect_url']?.toString() ?? '';
+    final passwordResetRedirectRaw = json['supabase_password_reset_redirect_url']?.toString() ?? '';
+
+    final functionsBaseUrl = resolvedFunctionsBaseUrl(
+      supabaseUrl: url,
+      explicitFromDefine: functionsBaseUrlRaw,
+    );
+    final primary = _cleanDefine(razorpayPrimaryRaw);
+    final razorpayKeyId = primary;
+    final authEmailRedirectUrl = _cleanDefine(authRedirectRaw);
+    final authPasswordResetRedirectUrl = _cleanDefine(passwordResetRedirectRaw);
+
+    if (url.isEmpty || anonKey.isEmpty) {
+      throw FlutterError(
+        'app-config.json must include non-empty supabase_url and supabase_anon_key.',
+      );
+    }
+
+    return AppEnv(
+      supabaseUrl: url,
+      supabaseAnonKey: anonKey,
+      supabaseFunctionsBaseUrl: functionsBaseUrl,
+      razorpayKeyId: razorpayKeyId,
+      authEmailRedirectUrl: authEmailRedirectUrl,
+      authPasswordResetRedirectUrl: authPasswordResetRedirectUrl,
+    );
+  }
+
+  /// Prefer [registerAppEnv]; otherwise compile-time defines ([fromEnvironment]).
+  static AppEnv resolve() {
+    final r = _registeredAppEnv;
+    if (r != null) return r;
+    return fromEnvironment();
   }
 }

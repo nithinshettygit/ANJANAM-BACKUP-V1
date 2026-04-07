@@ -20,7 +20,7 @@
 #      cd ecommerce_app
 #      Copy-Item tool\web_build.env.example tool\web_build.env
 #    Edit tool\web_build.env: set SUPABASE_URL and SUPABASE_ANON_KEY (see comments in that file).
-#    Optional lines: SUPABASE_FUNCTIONS_BASE_URL, RAZORPAY_TEST_KEY
+#    Optional lines: SUPABASE_FUNCTIONS_BASE_URL, RAZORPAY_KEY_ID
 #
 # 3) Android: place Firebase google-services.json
 #    Download from Firebase Console → Project settings → Your apps → Android app.
@@ -93,7 +93,7 @@
 # ---------- CI ----------
 #
 # GitHub Actions: .github/workflows/deploy-admin-web.yml — set repo secrets:
-# SUPABASE_URL, SUPABASE_ANON_KEY, optional SUPABASE_FUNCTIONS_BASE_URL, RAZORPAY_TEST_KEY,
+# SUPABASE_URL, SUPABASE_ANON_KEY, optional SUPABASE_FUNCTIONS_BASE_URL, RAZORPAY_KEY_ID,
 # FIREBASE_SERVICE_ACCOUNT (full JSON).
 #
 # ---------- Android App Links — shared https://…/product/<id> opens the app ----------

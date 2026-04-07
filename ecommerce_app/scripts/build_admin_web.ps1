@@ -40,7 +40,7 @@ foreach ($name in @("SUPABASE_URL", "SUPABASE_ANON_KEY")) {
 $supabaseUrl = [Environment]::GetEnvironmentVariable("SUPABASE_URL")
 $supabaseKey = [Environment]::GetEnvironmentVariable("SUPABASE_ANON_KEY")
 $functionsBase = [Environment]::GetEnvironmentVariable("SUPABASE_FUNCTIONS_BASE_URL")
-$rzp = [Environment]::GetEnvironmentVariable("RAZORPAY_TEST_KEY")
+$rzp = [Environment]::GetEnvironmentVariable("RAZORPAY_KEY_ID")
 $authRedirect = [Environment]::GetEnvironmentVariable("SUPABASE_AUTH_REDIRECT_URL")
 $passwordResetRedirect = [Environment]::GetEnvironmentVariable("SUPABASE_PASSWORD_RESET_REDIRECT_URL")
 
@@ -52,7 +52,7 @@ if (-not [string]::IsNullOrWhiteSpace($functionsBase)) {
   $defines += "--dart-define=SUPABASE_FUNCTIONS_BASE_URL=$functionsBase"
 }
 if (-not [string]::IsNullOrWhiteSpace($rzp)) {
-  $defines += "--dart-define=RAZORPAY_TEST_KEY=$rzp"
+  $defines += "--dart-define=RAZORPAY_KEY_ID=$rzp"
 }
 if (-not [string]::IsNullOrWhiteSpace($authRedirect)) {
   $defines += "--dart-define=SUPABASE_AUTH_REDIRECT_URL=$authRedirect"
@@ -70,6 +70,10 @@ if ($LASTEXITCODE -ne 0) {
   & flutter build web --release --base-href=$BaseHref @defines
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
+
+Write-Host "Syncing hosting extras (assetlinks, legal pages, optional app-config.json)..."
+& dart run tool/ensure_well_known_for_hosting.dart
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if ($Deploy) {
   & firebase deploy --only hosting --project $ProjectId

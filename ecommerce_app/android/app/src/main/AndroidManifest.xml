@@ -49,14 +49,52 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="com.anjanam.app" android:host="product" android:pathPrefix="/"/>
             </intent-filter>
-            <!-- Product share URLs: https://…/product/<id> → open app when App Links verify (see web/.well-known/assetlinks.json). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="com.anjanam.app" android:host="video" android:pathPrefix="/"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="com.anjanam.app" android:host="article" android:pathPrefix="/"/>
+            </intent-filter>
+            <!-- Storefront HTTPS App Links: product / video / article.
+                 Opens in app when installed if Digital Asset Links verify on each host
+                 (/.well-known/assetlinks.json). Re-add anjanam.app / www when domain is ready. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="anjanam-app.web.app" android:pathPrefix="/product"/>
-                <data android:scheme="https" android:host="anjanam-app.firebaseapp.com" android:pathPrefix="/product"/>
-                <data android:scheme="https" android:host="anjanam.app" android:pathPrefix="/product"/>
+                <!-- Product links -->
+                <data
+                    android:scheme="https"
+                    android:host="anjanam-app.web.app"
+                    android:pathPrefix="/product"/>
+                <data
+                    android:scheme="https"
+                    android:host="anjanam-app.firebaseapp.com"
+                    android:pathPrefix="/product"/>
+                <!-- Video links -->
+                <data
+                    android:scheme="https"
+                    android:host="anjanam-app.web.app"
+                    android:pathPrefix="/video"/>
+                <data
+                    android:scheme="https"
+                    android:host="anjanam-app.firebaseapp.com"
+                    android:pathPrefix="/video"/>
+                <!-- Article links -->
+                <data
+                    android:scheme="https"
+                    android:host="anjanam-app.web.app"
+                    android:pathPrefix="/article"/>
+                <data
+                    android:scheme="https"
+                    android:host="anjanam-app.firebaseapp.com"
+                    android:pathPrefix="/article"/>
             </intent-filter>
             <!-- Supabase email verify + password reset: canonical `/auth/*` plus legacy `/auth-callback`, `/reset-password`. -->
             <intent-filter android:autoVerify="true">

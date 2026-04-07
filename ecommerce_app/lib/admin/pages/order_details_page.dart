@@ -601,6 +601,22 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                   valueColor: AppColors.priceText,
                                 ),
                                 _AdminPaymentDetailLine(
+                                  label: 'Transaction Date',
+                                  value: details.paidAt == null
+                                      ? '—'
+                                      : formatOrderDetailsDateTime(details.paidAt!.toLocal()),
+                                ),
+                                _AdminPaymentDetailLine(
+                                  label: 'Refund Status',
+                                  value: _dashIfEmpty(
+                                    orderReturns.isEmpty
+                                        ? null
+                                        : orderReturns
+                                            .map((r) => r.refundStatus?.trim() ?? '')
+                                            .firstWhere((s) => s.isNotEmpty, orElse: () => ''),
+                                  ),
+                                ),
+                                _AdminPaymentDetailLine(
                                   label: 'Created At',
                                   value: formatOrderDetailsDateTime(order.createdAt.toLocal()),
                                 ),
@@ -1122,6 +1138,8 @@ String _adminPaymentStatusLabel(String raw) {
       return 'Paid';
     case 'failed':
       return 'Failed';
+    case 'refunded':
+      return 'Refunded';
     default:
       return 'Pending';
   }

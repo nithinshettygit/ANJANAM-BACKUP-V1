@@ -139,6 +139,7 @@ class ProductModel {
       category: category,
       tags: tags,
       inventoryCount: inventoryCount,
+      availableStock: availableStock,
       createdAt: createdAt,
       displayDiscountPercent: displayDiscountPercent,
       averageRating: averageRating,

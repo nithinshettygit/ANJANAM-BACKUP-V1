@@ -79,6 +79,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
     Future<List<Map<String, dynamic>>> runSelect(
       String columns, {
       bool useTagCs = true,
+      bool useAvailableStock = true,
     }) async {
       dynamic query = client
           .from('products')
@@ -125,7 +126,9 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
         query = query.lte('price', max);
       }
       if (inStockOnly) {
-        query = query.gt('inventory_count', 0);
+        query = useAvailableStock
+            ? query.gt('available_stock', 0)
+            : query.gt('inventory_count', 0);
       }
       if (popularOnly) {
         query = query.eq('is_popular', true);
@@ -145,12 +148,23 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
       return (data as List).cast<Map<String, dynamic>>();
     }
 
-    Future<List<Product>> fetchColumns(String columns) async {
+    Future<List<Product>> fetchColumns(
+      String columns, {
+      bool useAvailableStock = true,
+    }) async {
       try {
-        final list = await runSelect(columns, useTagCs: true);
+        final list = await runSelect(
+          columns,
+          useTagCs: true,
+          useAvailableStock: useAvailableStock,
+        );
         return list.map((e) => ProductModel.fromJson(e).toEntity()).toList();
       } catch (_) {
-        final list = await runSelect(columns, useTagCs: false);
+        final list = await runSelect(
+          columns,
+          useTagCs: false,
+          useAvailableStock: useAvailableStock,
+        );
         return list.map((e) => ProductModel.fromJson(e).toEntity()).toList();
       }
     }
@@ -159,16 +173,17 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
     // Search still filters on description server-side when [nameSearch] is set.
     try {
       return await fetchColumns(
-        'id, title, price, currency, image_urls, category, tags, inventory_count, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
+        'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
       );
     } catch (_) {
       try {
         return await fetchColumns(
-          'id, title, price, currency, image_urls, category, tags, inventory_count, created_at, display_discount_percent',
+          'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent',
         );
       } catch (_) {
         return await fetchColumns(
           'id, title, price, currency, image_urls, category, tags, inventory_count, created_at',
+          useAvailableStock: false,
         );
       }
     }
@@ -211,7 +226,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
         dynamic q = client
             .from('products')
             .select(
-              'id, title, price, currency, image_urls, category, tags, inventory_count, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
+              'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
             )
             .eq('is_active', true)
             .neq('id', currentProductId);
@@ -335,13 +350,13 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
       try {
         return await runBatch(
           batch,
-          'id, title, price, currency, image_urls, category, tags, inventory_count, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
+          'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
         );
       } catch (_) {
         try {
           return await runBatch(
             batch,
-            'id, title, price, currency, image_urls, category, tags, inventory_count, created_at, display_discount_percent',
+            'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent',
           );
         } catch (_) {
           return await runBatch(
@@ -369,7 +384,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
         () => client
             .from('products')
             .select(
-              'id, title, description, price, currency, image_urls, category, tags, inventory_count, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
+              'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
             )
             .eq('id', productId)
             .eq('is_active', true)
@@ -382,7 +397,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
           () => client
               .from('products')
               .select(
-                'id, title, description, price, currency, image_urls, category, tags, inventory_count, created_at, display_discount_percent',
+                'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent',
               )
               .eq('id', productId)
               .eq('is_active', true)

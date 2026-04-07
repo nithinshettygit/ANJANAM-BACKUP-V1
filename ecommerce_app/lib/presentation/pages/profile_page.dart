@@ -12,6 +12,9 @@ import '../../features/auth/state/auth_session_provider.dart';
 import '../../features/checkout/domain/shipping_details.dart';
 import '../utils/main_shell_navigation.dart';
 import '../utils/auth_issue_presenter.dart';
+import '../utils/open_storefront_legal_page.dart';
+import '../widgets/legal_support_links.dart';
+import '../../core/config/storefront_legal_urls.dart';
 
 class _ProfileSnapshot {
   final String fullName;
@@ -182,6 +185,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ],
                     ),
                     const SizedBox(height: 14),
+                    const _Label('Legal & Support'),
+                    const LegalSupportLinksCard(),
+                    const SizedBox(height: 14),
                     const _Label('Account options'),
                     Card(
                       elevation: 1,
@@ -229,10 +235,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           _MenuRow(
                             icon: Icons.help_outline,
                             title: 'Help / Support',
-                            subtitle: 'Get support and help',
-                            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Support will be available soon.')),
-                            ),
+                            subtitle: 'FAQs and contact',
+                            onTap: () => openStorefrontLegalPage(context, StorefrontLegalPage.support),
                             showDivider: false,
                           ),
                         ],

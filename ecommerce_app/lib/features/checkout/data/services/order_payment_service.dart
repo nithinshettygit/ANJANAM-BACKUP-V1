@@ -1,13 +1,64 @@
 import 'dart:developer' as developer;
+import 'dart:convert';
 
+import 'package:ecommerce_app/core/config/app_env.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 
-/// Persists Razorpay outcome: successful checkouts use [verifyRazorpayPaymentAndMarkPaid]
-/// (Edge Function: signature + payment API). Failures still use [update_order_payment_status].
+/// Persists Razorpay outcome: successful checkouts use
+/// [verifyRazorpayPaymentAndMarkPaid] (Edge Function: signature + payment API).
+/// Failures still use [update_order_payment_status].
 class OrderPaymentService extends SupabaseServiceBase {
   OrderPaymentService(super.client);
+
+  Future<({int status, dynamic data})> _invokeVerifyPaymentNoPreflightWeb({
+    required Map<String, dynamic> body,
+  }) async {
+    final base = AppEnv.resolve().supabaseFunctionsBaseUrl.trim();
+    if (base.isEmpty) {
+      throw const RepositoryException('Missing Supabase functions base URL.');
+    }
+    final uri = Uri.parse('$base/verify_payment');
+    // Keep this as a CORS-safelisted request (text/plain, no custom headers)
+    // so web clients can bypass broken OPTIONS preflight at the gateway.
+    final res = await http.post(
+      uri,
+      headers: const <String, String>{'Content-Type': 'text/plain'},
+      body: jsonEncode(body),
+    );
+    dynamic data;
+    try {
+      data = jsonDecode(res.body);
+    } catch (_) {
+      data = <String, dynamic>{'raw': res.body};
+    }
+    return (status: res.statusCode, data: data);
+  }
+
+  Future<({int status, dynamic data})> _invokeCreatePaymentOrderNoPreflightWeb({
+    required Map<String, dynamic> body,
+  }) async {
+    final base = AppEnv.resolve().supabaseFunctionsBaseUrl.trim();
+    if (base.isEmpty) {
+      throw const RepositoryException('Missing Supabase functions base URL.');
+    }
+    final uri = Uri.parse('$base/create_payment_order');
+    final res = await http.post(
+      uri,
+      headers: const <String, String>{'Content-Type': 'text/plain'},
+      body: jsonEncode(body),
+    );
+    dynamic data;
+    try {
+      data = jsonDecode(res.body);
+    } catch (_) {
+      data = <String, dynamic>{'raw': res.body};
+    }
+    return (status: res.statusCode, data: data);
+  }
 
   static bool _functionPathNotFound(Object e) {
     final t = e.toString().toLowerCase();
@@ -16,44 +67,75 @@ class OrderPaymentService extends SupabaseServiceBase {
         t.contains('requested function was not found');
   }
 
-  /// Creates a Razorpay Order (`order_...`) via Edge Function, or returns `null` if the
-  /// function is not deployed (HTTP 404) so checkout can fall back to key+amount flow.
+  /// Creates a Razorpay Order (`order_...`) via Edge Function.
   ///
-  /// App `RAZORPAY_KEY_ID` / `RAZORPAY_TEST_KEY` must match Supabase secrets `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` (test or live pair).
+  /// Uses `create_payment_order` (production name), and transparently falls back to
+  /// `create-razorpay-order` for backward compatibility.
   Future<String?> tryCreateRazorpayServerOrder({required String orderId}) async {
     try {
       await client.auth.refreshSession();
     } catch (_) {}
     final accessToken = client.auth.currentSession?.accessToken.trim() ?? '';
+    final userId = client.auth.currentUser?.id.trim() ?? '';
     if (accessToken.isEmpty) {
       throw const AuthException('Sign in required.');
     }
+    if (userId.isEmpty) {
+      throw const AuthException('Sign in required.');
+    }
     try {
-      final res = await client.functions.invoke(
-        'create-razorpay-order',
-        headers: <String, String>{
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: <String, dynamic>{'order_id': orderId},
-      );
-      if (res.status == 404) {
+      final body = <String, dynamic>{'order_id': orderId, 'user_id': userId};
+      late final int status;
+      late final dynamic data;
+      if (kIsWeb) {
+        final res = await _invokeCreatePaymentOrderNoPreflightWeb(body: body);
+        status = res.status;
+        data = res.data;
+      } else {
+        final res = await client.functions.invoke(
+          'create_payment_order',
+          headers: <String, String>{
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: body,
+        );
+        status = res.status;
+        data = res.data;
+      }
+      var fallbackStatus = status;
+      var fallbackData = data;
+      if (fallbackStatus == 404) {
+        final res = await client.functions.invoke(
+          'create-razorpay-order',
+          headers: <String, String>{
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: body,
+        );
+        fallbackStatus = res.status;
+        fallbackData = res.data;
+      }
+      if (fallbackStatus == 404) {
         developer.log(
-          'Edge Function create-razorpay-order returned 404 (not deployed?). '
+          'Edge Function create_payment_order returned 404 (not deployed?). '
           'Using Razorpay checkout without server order_id.',
           name: 'OrderPaymentService',
         );
         return null;
       }
-      final data = res.data;
-      if (res.status < 200 || res.status >= 300) {
-        final err = (data is Map ? data['error']?.toString() : null) ?? 'invoke_failed';
-        final detail = (data is Map ? data['detail']?.toString() : null) ?? '';
+      if (fallbackStatus < 200 || fallbackStatus >= 300) {
+        final err =
+            (fallbackData is Map ? fallbackData['error']?.toString() : null) ??
+            'invoke_failed';
+        final detail =
+            (fallbackData is Map ? fallbackData['detail']?.toString() : null) ??
+            '';
         throw RepositoryException(
           detail.isEmpty ? 'Could not start payment ($err).' : 'Could not start payment ($err): $detail',
         );
       }
-      if (data is Map) {
-        final id = data['razorpay_order_id']?.toString().trim();
+      if (fallbackData is Map) {
+        final id = fallbackData['razorpay_order_id']?.toString().trim();
         if (id != null && id.isNotEmpty) return id;
       }
       throw const RepositoryException('Could not start payment (missing order id).');
@@ -65,7 +147,7 @@ class OrderPaymentService extends SupabaseServiceBase {
       // Browser blocks cross-origin Edge Function calls without CORS (shows as ClientException: Failed to fetch).
       if (msg.contains('failed to fetch')) {
         developer.log(
-          'create-razorpay-order: network/CORS blocked (redeploy Edge Function with CORS headers). '
+          'create_payment_order: network/CORS blocked (redeploy Edge Function with CORS headers). '
           'Falling back to Razorpay checkout without server order_id.',
           name: 'OrderPaymentService',
         );
@@ -78,7 +160,7 @@ class OrderPaymentService extends SupabaseServiceBase {
       }
       if (_functionPathNotFound(e)) {
         developer.log(
-          'create-razorpay-order unavailable ($e). Opening Razorpay without server order_id.',
+          'create_payment_order unavailable ($e). Opening Razorpay without server order_id.',
           name: 'OrderPaymentService',
         );
         return null;
@@ -115,98 +197,7 @@ class OrderPaymentService extends SupabaseServiceBase {
     }
   }
 
-  /// Test-mode only: Razorpay test payments often need an explicit capture before marking paid.
-  /// Live (`rzp_live_`) checkouts skip this — payments are typically auto-captured.
-  Future<void> ensureTestPaymentCaptured({
-    required String orderId,
-    required String razorpayPaymentId,
-    required bool isTestMode,
-  }) async {
-    if (!isTestMode) return;
-    final pid = razorpayPaymentId.trim();
-    if (pid.isEmpty) {
-      throw const ValidationException('Missing payment reference.');
-    }
-    // Ensure JWT used for function auth is fresh.
-    // Some browsers/devices may have an expired access token at the moment
-    // of Razorpay success callback.
-    try {
-      await client.auth.refreshSession();
-    } catch (_) {
-      // Best-effort refresh; invoke will still work if token is valid.
-    }
-    final accessToken = client.auth.currentSession?.accessToken.trim() ?? '';
-    if (accessToken.isEmpty) {
-      throw const AuthException('Sign in required.');
-    }
-    try {
-      final res = await client.functions.invoke(
-        'capture-razorpay-payment',
-        headers: <String, String>{
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: <String, dynamic>{
-          'order_id': orderId,
-          'razorpay_payment_id': pid,
-        },
-      );
-      final data = res.data;
-      if (res.status < 200 || res.status >= 300) {
-        final err = (data is Map ? data['error']?.toString() : null) ?? null;
-        final detail = (data is Map ? data['detail']?.toString() : null) ?? null;
-        throw RepositoryException(
-          err == null
-              ? 'Could not verify payment capture (status ${res.status}).'
-              : 'Payment capture verification failed: $err'
-                  '${detail == null || detail.isEmpty ? '' : ' ($detail)'}.',
-        );
-      }
-      if (data is Map) {
-        final ok = data['ok'] == true;
-        if (!ok) {
-          final err = data['error']?.toString();
-          throw RepositoryException(
-            err == null || err.isEmpty
-                ? 'Could not verify payment capture.'
-                : err,
-          );
-        }
-      }
-    } on PostgrestException catch (e) {
-      throw RepositoryException(e.message.trim().isEmpty ? e.toString() : e.message);
-    } catch (e) {
-      final msg = e.toString();
-      final lower = msg.toLowerCase();
-      if (lower.contains('missing_auth')) {
-        throw const RepositoryException(
-          'Payment authorized but capture verification failed: missing auth token. Please sign in again and retry.',
-        );
-      }
-      if (lower.contains('invalid_jwt_format')) {
-        throw const RepositoryException(
-          'Payment authorized but capture verification failed: invalid auth token format. Please sign in again and retry.',
-        );
-      }
-      if (lower.contains('status 401') || lower.contains('unauthorized')) {
-        throw const RepositoryException(
-          'Payment succeeded but capture verification failed (auth). Please sign in again and retry.',
-        );
-      }
-      if (msg.toLowerCase().contains('payment_capture_failed')) {
-        throw const RepositoryException(
-          'Payment authorized but capture failed. Please retry or contact support.',
-        );
-      }
-      if (msg.toLowerCase().contains('razorpay_order_mismatch')) {
-        throw const RepositoryException(
-          'Payment does not match this checkout session. Do not change payment apps mid-flow; place a new order if needed.',
-        );
-      }
-      rethrow;
-    }
-  }
-
-  /// Verifies payment on the server ([verify-razorpay-payment] Edge Function): Razorpay API check,
+  /// Verifies payment on the server (`verify_payment` Edge Function): Razorpay API check,
   /// HMAC of `order_id|payment_id` when a Razorpay order exists, then sets `payment_status` paid.
   Future<void> verifyRazorpayPaymentAndMarkPaid({
     required String orderId,
@@ -218,11 +209,16 @@ class OrderPaymentService extends SupabaseServiceBase {
       await client.auth.refreshSession();
     } catch (_) {}
     final accessToken = client.auth.currentSession?.accessToken.trim() ?? '';
+    final userId = client.auth.currentUser?.id.trim() ?? '';
     if (accessToken.isEmpty) {
+      throw const AuthException('Sign in required.');
+    }
+    if (userId.isEmpty) {
       throw const AuthException('Sign in required.');
     }
     final body = <String, dynamic>{
       'order_id': orderId,
+      'user_id': userId,
       'razorpay_payment_id': razorpayPaymentId.trim(),
       if (razorpayOrderId != null && razorpayOrderId.trim().isNotEmpty)
         'razorpay_order_id': razorpayOrderId.trim(),
@@ -230,29 +226,60 @@ class OrderPaymentService extends SupabaseServiceBase {
         'razorpay_signature': razorpaySignature.trim(),
     };
     try {
-      final res = await client.functions.invoke(
-        'verify-razorpay-payment',
-        headers: <String, String>{
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: body,
-      );
-      final data = res.data;
-      if (res.status == 404) {
+      // Production canonical function name is `verify_payment`.
+      // Keep legacy fallback for older deployments still using dashed naming.
+      const primaryVerifyFn = 'verify_payment';
+      const fallbackVerifyFn = 'verify-razorpay-payment';
+
+      late final int status;
+      late final dynamic data;
+      if (kIsWeb) {
+        final res = await _invokeVerifyPaymentNoPreflightWeb(body: body);
+        status = res.status;
+        data = res.data;
+      } else {
+        final res = await client.functions.invoke(
+          primaryVerifyFn,
+          headers: <String, String>{
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: body,
+        );
+        status = res.status;
+        data = res.data;
+      }
+      var fallbackStatus = status;
+      var fallbackData = data;
+      if (fallbackStatus == 404) {
+        final res = await client.functions.invoke(
+          fallbackVerifyFn,
+          headers: <String, String>{
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: body,
+        );
+        fallbackStatus = res.status;
+        fallbackData = res.data;
+      }
+      if (fallbackStatus == 404) {
         throw const RepositoryException(
-          'Payment verification is not deployed. Deploy the verify-razorpay-payment Edge Function.',
+          'Payment verification is not deployed. Deploy the verify_payment Edge Function.',
         );
       }
-      if (res.status < 200 || res.status >= 300) {
-        final err = (data is Map ? data['error']?.toString() : null) ?? 'verify_failed';
-        final detail = (data is Map ? data['detail']?.toString() : null) ?? '';
+      if (fallbackStatus < 200 || fallbackStatus >= 300) {
+        final err =
+            (fallbackData is Map ? fallbackData['error']?.toString() : null) ??
+            'verify_failed';
+        final detail =
+            (fallbackData is Map ? fallbackData['detail']?.toString() : null) ??
+            '';
         throw RepositoryException(
           detail.isEmpty
               ? 'Could not verify payment ($err).'
               : 'Could not verify payment ($err): $detail',
         );
       }
-      if (data is Map && data['ok'] == true) return;
+      if (fallbackData is Map && fallbackData['ok'] == true) return;
       throw const RepositoryException('Could not verify payment.');
     } on AuthException {
       rethrow;
@@ -263,7 +290,7 @@ class OrderPaymentService extends SupabaseServiceBase {
       if (msg.contains('failed to fetch')) {
         throw const RepositoryException(
           'Could not reach payment verification (network or CORS). '
-          'Deploy verify-razorpay-payment with CORS headers, same as other Razorpay functions.',
+          'Deploy verify_payment with CORS headers, same as other Razorpay functions.',
         );
       }
       if (msg.contains('status 401') || msg.contains('unauthorized')) {

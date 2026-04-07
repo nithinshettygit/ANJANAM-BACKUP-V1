@@ -12,6 +12,7 @@ import '../../features/videos/providers/videos_providers.dart';
 import '../../features/videos/widgets/explore_new_videos_swiper.dart';
 import '../../features/wishlist/state/wishlist_provider.dart';
 import '../utils/main_shell_navigation.dart';
+import '../widgets/legal_support_links.dart';
 
 /// Hub for media experiences (videos, music) from the main bottom nav.
 class ExplorePage extends ConsumerStatefulWidget {
@@ -137,6 +138,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
               badge: 'New',
               onTap: () => Navigator.of(context).pushNamed('/music'),
             ),
+            const LegalSupportFooterCompact(),
           ],
         ),
       ),

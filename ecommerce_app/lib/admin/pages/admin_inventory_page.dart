@@ -42,8 +42,8 @@ class _AdminInventoryPageState extends ConsumerState<AdminInventoryPage> {
               p.id.toLowerCase().contains(q) ||
               (p.category ?? '').toLowerCase().contains(q);
         }).toList();
-        final lowStock = filtered.where((p) => p.inventoryCount > 0 && p.inventoryCount < 10).length;
-        final outOfStock = filtered.where((p) => p.inventoryCount <= 0).length;
+        final lowStock = filtered.where((p) => p.sellableStock > 0 && p.sellableStock < 10).length;
+        final outOfStock = filtered.where((p) => p.sellableStock <= 0).length;
 
         final theme = Theme.of(context);
         final compact = kAdminAndroidCompactChrome;
@@ -257,9 +257,14 @@ class _AdminInventoryPageState extends ConsumerState<AdminInventoryPage> {
                     cellBuilder: (p) => Text(p.category ?? '-'),
                   ),
                   AdminTableColumn<AdminProduct>(
-                    label: 'Stock Count',
-                    sortValue: (p) => p.inventoryCount,
-                    cellBuilder: (p) => Text(p.inventoryCount.toString()),
+                    label: 'Sellable',
+                    sortValue: (p) => p.sellableStock,
+                    cellBuilder: (p) => Text(p.sellableStock.toString()),
+                  ),
+                  AdminTableColumn<AdminProduct>(
+                    label: 'Reserved',
+                    sortValue: (p) => p.reservedQuantity,
+                    cellBuilder: (p) => Text(p.reservedQuantity.toString()),
                   ),
                   AdminTableColumn<AdminProduct>(
                     label: 'Card % off',
@@ -270,15 +275,15 @@ class _AdminInventoryPageState extends ConsumerState<AdminInventoryPage> {
                   ),
                   AdminTableColumn<AdminProduct>(
                     label: 'Alert',
-                    sortValue: (p) => p.inventoryCount,
+                    sortValue: (p) => p.sellableStock,
                     cellBuilder: (p) {
-                      if (p.inventoryCount <= 0) {
+                      if (p.sellableStock <= 0) {
                         return const Chip(
                           label: Text('Out of stock'),
                           backgroundColor: Color(0x22F44336),
                         );
                       }
-                      if (p.inventoryCount < 10) {
+                      if (p.sellableStock < 10) {
                         return const Chip(
                           label: Text('Low stock (<10)'),
                           backgroundColor: Color(0x22FF9800),

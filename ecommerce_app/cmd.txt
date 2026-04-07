@@ -1,3 +1,13 @@
+cd D:\ANJANAM-NEW\ecommerce_app
+flutter build web --release --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr --dart-define=RAZORPAY_KEY_ID=rzp_live_SaY3QmPeB5ET3Q
+dart run tool/ensure_well_known_for_hosting.dart
+firebase deploy --only hosting
+
+
+
+
+==============================================
+
 
 # new super-admins:
 begin;
@@ -14,6 +24,34 @@ where p.id = au.id
 alter table public.profiles enable trigger trg_profiles_enforce_role_update;
 
 commit;
+
+=========================================================
+
+
+What you should do now (pick one path)
+Path A — Build with defines (recommended for CI)
+
+Copy tool/web_build.env.example → tool/web_build.env and set real SUPABASE_URL, SUPABASE_ANON_KEY, etc.
+In Supabase → Authentication → URL configuration, allow:
+https://anjanam-app.web.app/auth/callback
+https://anjanam-app.web.app/auth/reset-password
+Run:
+.\scripts\build_admin_web.ps1
+(optionally -Deploy)  | firebase deploy --only hosting        
+Path B — Plain flutter build web + config file
+
+Copy web/app-config.json.example → web/app-config.json and put your real supabase_url and supabase_anon_key (optional fields as in the example).
+Run flutter build web --release, then dart run tool/ensure_well_known_for_hosting.dart, then firebase deploy.
+Confirm in the browser: https://anjanam-app.web.app/app-config.json returns JSON (not 404).
+After deploy, use a private window or clear site data once so an old service worker doesn’t keep a bad bundle.
+
+Note: web_build.env.example no longer contains real keys; it uses placeholders so nothing secret is committed. Your real values stay in tool/web_build.env and/or web/app-config.json (ignored by git)
+
+
+
+=============================================================
+
+
 
 
 

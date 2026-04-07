@@ -578,7 +578,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
         const SnackBar(
           behavior: SnackBarBehavior.fixed,
           content: Text(
-            'Razorpay is not configured. Add RAZORPAY_KEY_ID (or RAZORPAY_TEST_KEY) for this build.',
+            'Razorpay is not configured. Add RAZORPAY_KEY_ID for this build.',
           ),
         ),
       );
@@ -632,11 +632,6 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
         razorpayOrderId: rzpCheckoutOrderId,
         onPaymentSuccess: (paymentId, razorpayOrderId, razorpaySignature) async {
           try {
-            await paymentSvc.ensureTestPaymentCaptured(
-              orderId: widget.orderId,
-              razorpayPaymentId: paymentId,
-              isTestMode: env.isRazorpayTestMode,
-            );
             await paymentSvc.verifyRazorpayPaymentAndMarkPaid(
               orderId: widget.orderId,
               razorpayPaymentId: paymentId,
@@ -682,7 +677,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 behavior: SnackBarBehavior.fixed,
-                content: Text(message),
+                  content: const Text('Payment failed. Please try again.'),
               ),
             );
           }

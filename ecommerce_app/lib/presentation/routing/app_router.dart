@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/auth_redirect_config.dart';
@@ -27,6 +28,9 @@ import '../pages/signup_page.dart';
 import '../pages/update_password_page.dart';
 import '../pages/videos_page.dart';
 import '../../features/articles/pages/articles_page.dart';
+import '../../features/articles/pages/article_detail_page.dart';
+import '../../features/videos/pages/video_player_page.dart';
+import '../../features/videos/providers/videos_providers.dart';
 import '../pages/wishlist_page.dart';
 import '../pages/write_review_page.dart';
 import '../pages/request_return_page.dart';
@@ -107,6 +111,36 @@ class AppRouter {
       return MaterialPageRoute(
         builder: (_) => const _RouteErrorPage(
           message: 'Missing product id for product link.',
+        ),
+      );
+    }
+    if (path != null && path.startsWith('/video/')) {
+      final raw = path.substring('/video/'.length);
+      final videoId = Uri.decodeComponent(raw);
+      if (videoId.isNotEmpty) {
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => _SharedVideoRoutePage(videoId: videoId),
+        );
+      }
+      return MaterialPageRoute(
+        builder: (_) => const _RouteErrorPage(
+          message: 'Missing video id for video link.',
+        ),
+      );
+    }
+    if (path != null && path.startsWith('/article/')) {
+      final raw = path.substring('/article/'.length);
+      final articleId = Uri.decodeComponent(raw);
+      if (articleId.isNotEmpty) {
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => ArticleDetailPage(articleId: articleId),
+        );
+      }
+      return MaterialPageRoute(
+        builder: (_) => const _RouteErrorPage(
+          message: 'Missing article id for article link.',
         ),
       );
     }
@@ -466,6 +500,27 @@ class _RouteErrorPage extends StatelessWidget {
           child: Text(message),
         ),
       ),
+    );
+  }
+}
+
+class _SharedVideoRoutePage extends ConsumerWidget {
+  final String videoId;
+
+  const _SharedVideoRoutePage({required this.videoId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(videoByIdProvider(videoId));
+    return async.when(
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('Video load failed: $e'))),
+      data: (video) {
+        if (video == null) {
+          return const Scaffold(body: Center(child: Text('Video not found.')));
+        }
+        return VideoPlayerPage(video: video);
+      },
     );
   }
 }

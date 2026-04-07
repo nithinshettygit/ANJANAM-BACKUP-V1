@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-Future<bool> tryShareProductWithImage({
+Future<bool> tryShareWithImage({
   required String text,
   required String subject,
   required String imageUrl,

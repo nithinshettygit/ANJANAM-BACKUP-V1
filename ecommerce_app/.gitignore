@@ -50,6 +50,9 @@ app.*.map.json
 # Local env for web builds (copy from tool/web_build.env.example)
 tool/web_build.env
 
+# Web runtime Supabase config (copy from web/app-config.json.example)
+web/app-config.json
+
 # Dart/Flutter env files (secrets — use tool/web_build.env or --dart-define)
 .env
 .env.*

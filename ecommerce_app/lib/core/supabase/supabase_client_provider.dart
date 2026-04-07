@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/app_env.dart';
 
-final appEnvProvider = Provider<AppEnv>((ref) => AppEnv.fromEnvironment());
+final appEnvProvider = Provider<AppEnv>((ref) => AppEnv.resolve());
 
 /// Single SupabaseClient instance for the whole app.
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {

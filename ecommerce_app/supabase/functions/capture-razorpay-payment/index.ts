@@ -60,8 +60,6 @@ serve(async (req) => {
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
       return json(500, { error: "missing_razorpay_secrets" });
     }
-    // Supports both rzp_test_* (manual capture often needed) and rzp_live_* (usually auto-capture).
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: { headers: { "Content-Type": "application/json" } },
     });
@@ -89,39 +87,7 @@ serve(async (req) => {
     requesterId = authData.user.id;
 
     const body = await req.json();
-    const action = (typeof body["action"] === "string" ? body["action"] : "capture")
-      .trim()
-      .toLowerCase();
-
     const auth = basicAuthHeader(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET);
-
-    // Debug mode to quickly validate that this key pair is connected and can read payments.
-    if (action === "health") {
-      const listRes = await fetch("https://api.razorpay.com/v1/payments?count=3", {
-        method: "GET",
-        headers: { Authorization: auth },
-      });
-      const txt = await listRes.text().catch(() => "");
-      if (!listRes.ok) {
-        return json(400, {
-          error: "healthcheck_failed",
-          detail: txt.slice(0, 1200),
-        });
-      }
-      let parsed: any = {};
-      try {
-        parsed = JSON.parse(txt);
-      } catch (_) {
-        parsed = {};
-      }
-      const items = Array.isArray(parsed.items) ? parsed.items : [];
-      return json(200, {
-        ok: true,
-        mode: "health",
-        payments_seen: items.length,
-        sample_payment_ids: items.map((x: any) => x?.id).filter(Boolean),
-      });
-    }
 
     const orderId = reqString(body["order_id"], "order_id");
     const paymentIdInput = reqString(body["razorpay_payment_id"], "razorpay_payment_id");

@@ -8,6 +8,7 @@ class Product {
   final String? category;
   final List<String> tags;
   final int? inventoryCount;
+  final int? availableStock;
   final DateTime? createdAt;
   /// Storefront card promo: 0 = hide "% OFF" and strikethrough list price.
   final int displayDiscountPercent;
@@ -27,11 +28,14 @@ class Product {
     this.category,
     this.tags = const [],
     this.inventoryCount,
+    this.availableStock,
     this.createdAt,
     this.displayDiscountPercent = 0,
     this.averageRating,
     this.totalReviews = 0,
     this.totalWrittenReviews = 0,
   });
+
+  int? get sellableStock => availableStock ?? inventoryCount;
 }
 

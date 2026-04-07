@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, Tar
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:ecommerce_app/presentation/utils/universal_share.dart';
 
 import '../models/storefront_video.dart';
 import '../utils/youtube_url_parser.dart';
@@ -66,6 +67,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     });
   }
 
+  Future<void> _shareVideo(BuildContext context) async {
+    await showUniversalShareSheet(
+      context,
+      payload: UniversalSharePayload(
+        contentType: ShareContentType.video,
+        idOrSlug: widget.video.id,
+        title: widget.video.title,
+        description: widget.video.description,
+        imageUrl: widget.video.effectiveThumbnailUrl,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -79,6 +93,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Share',
+            onPressed: () => _shareVideo(context),
+            icon: const Icon(Icons.share_outlined),
+          ),
+        ],
       ),
       body: id == null
           ? _UnsupportedVideoView(

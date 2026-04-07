@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js";
 
 /** Required for Flutter Web / browser: preflight + cross-origin POST with Authorization. */
@@ -21,6 +20,29 @@ function authHeader(req: Request): string | null {
   return req.headers.get("authorization") ?? req.headers.get("Authorization");
 }
 
+function requesterIdFromAuthHeader(req: Request): string | null {
+  const directUser =
+    req.headers.get("x-supabase-auth-user") ??
+    req.headers.get("x-supabase-user-id") ??
+    req.headers.get("x-sb-auth-user");
+  if (directUser && directUser.trim().length > 0) return directUser.trim();
+
+  const h = authHeader(req)?.trim() ?? "";
+  const token = h.replace(/^Bearer\s+/i, "").trim();
+  if (!token || !token.includes(".")) return null;
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  const payloadB64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+  const padded = payloadB64 + "=".repeat((4 - (payloadB64.length % 4)) % 4);
+  try {
+    const payload = JSON.parse(atob(padded)) as { sub?: unknown };
+    const sub = typeof payload.sub === "string" ? payload.sub.trim() : "";
+    return sub.length > 0 ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
 function reqString(v: unknown, name: string): string {
   if (typeof v !== "string") throw new Error(`missing_${name}`);
   const s = v.trim();
@@ -28,11 +50,16 @@ function reqString(v: unknown, name: string): string {
   return s;
 }
 
+function optionalString(v: unknown): string {
+  if (v == null || typeof v !== "string") return "";
+  return v.trim();
+}
+
 function basicAuthHeader(keyId: string, keySecret: string): string {
   return `Basic ${btoa(`${keyId}:${keySecret}`)}`;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 204, headers: corsHeaders });
   }
@@ -54,20 +81,10 @@ serve(async (req) => {
       global: { headers: { "Content-Type": "application/json" } },
     });
 
-    const h = authHeader(req)?.trim() ?? "";
-    const tokenPart = h.split(/\s+/).filter(Boolean).pop() ?? "";
-    const accessToken = tokenPart.replace(/^Bearer$/i, "").trim();
-    if (!accessToken || !accessToken.includes(".")) {
-      return json(401, { error: "missing_auth", detail: "Authorization Bearer JWT required." });
-    }
-
-    const { data: authData, error: authErr } = await supabase.auth.getUser(accessToken);
-    if (authErr || !authData?.user?.id) {
-      return json(401, { error: "invalid_auth", detail: authErr?.message ?? "invalid_token" });
-    }
-    const requesterId = authData.user.id;
+    const requesterId = requesterIdFromAuthHeader(req);
 
     const body = await req.json();
+    const userIdInput = optionalString(body["user_id"]);
     const orderId = reqString(body["order_id"], "order_id");
 
     const { data: order, error: orderErr } = await supabase
@@ -77,7 +94,11 @@ serve(async (req) => {
       .single();
     if (orderErr || !order) return json(404, { error: "order_not_found" });
 
-    if (order.user_id?.toString() !== requesterId) {
+    const orderUserId = order.user_id?.toString() ?? "";
+    if (requesterId && orderUserId !== requesterId) {
+      return json(403, { error: "forbidden" });
+    }
+    if (!requesterId && userIdInput && orderUserId !== userIdInput) {
       return json(403, { error: "forbidden" });
     }
     const pm = (order.payment_method ?? "").toString().toLowerCase().trim();
@@ -145,10 +166,28 @@ serve(async (req) => {
       return json(500, { error: "razorpay_order_id_missing" });
     }
 
+    let up = supabase
+      .from("orders")
+      .update({
+        razorpay_order_id: razorpayOrderId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId);
+    const guardUserId = requesterId || userIdInput;
+    if (guardUserId) up = up.eq("user_id", guardUserId);
+    const { error: upErr } = await up;
+    if (upErr) {
+      return json(500, { error: "order_update_failed", detail: upErr.message ?? String(upErr) });
+    }
+
+    const currency = (order.currency ?? "INR").toString();
     return json(200, {
       ok: true,
       razorpay_order_id: razorpayOrderId,
+      amount: amountPaise,
       amount_paise: amountPaise,
+      currency,
+      key_id: RAZORPAY_KEY_ID,
     });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);

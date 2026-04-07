@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 
@@ -20,6 +21,19 @@ class SupabaseDeviceTokenService extends SupabaseServiceBase {
     if (uid.isEmpty || token.isEmpty) return;
 
     try {
+      // Keep a latest pointer on profiles for server-side per-user lookups.
+      // If this fails due to schema/policy mismatch, continue with user_devices.
+      try {
+        await client.from('profiles').update({
+          'fcm_token': token,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', uid);
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('FCM token sync (profiles) failed: $e');
+        }
+      }
+
       // `fcm_token` is globally unique. If the same token already exists for
       // another user/session, rebind it to the current user.
       final existing = await client

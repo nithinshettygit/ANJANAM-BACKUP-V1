@@ -37,7 +37,6 @@ foreach ($name in @("SUPABASE_URL", "SUPABASE_ANON_KEY")) {
 $supabaseUrl = [Environment]::GetEnvironmentVariable("SUPABASE_URL")
 $supabaseKey = [Environment]::GetEnvironmentVariable("SUPABASE_ANON_KEY")
 $functionsBase = [Environment]::GetEnvironmentVariable("SUPABASE_FUNCTIONS_BASE_URL")
-$rzpTest = [Environment]::GetEnvironmentVariable("RAZORPAY_TEST_KEY")
 $rzpKeyId = [Environment]::GetEnvironmentVariable("RAZORPAY_KEY_ID")
 
 $defines = @(
@@ -49,9 +48,6 @@ if (-not [string]::IsNullOrWhiteSpace($functionsBase)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($rzpKeyId)) {
   $defines += "--dart-define=RAZORPAY_KEY_ID=$rzpKeyId"
-}
-elseif (-not [string]::IsNullOrWhiteSpace($rzpTest)) {
-  $defines += "--dart-define=RAZORPAY_TEST_KEY=$rzpTest"
 }
 
 $apkArgs = @("build", "apk", "--release") + $defines

@@ -1,5 +1,6 @@
 import 'package:ecommerce_app/features/articles/pages/secure_article_reader_page.dart';
 import 'package:ecommerce_app/features/articles/providers/articles_providers.dart';
+import 'package:ecommerce_app/presentation/utils/universal_share.dart';
 import 'package:ecommerce_app/presentation/utils/user_facing_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +14,33 @@ class ArticleDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final articleAsync = ref.watch(articleByIdProvider(articleId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Article')),
+      appBar: AppBar(
+        title: const Text('Article'),
+        actions: [
+          articleAsync.maybeWhen(
+            data: (article) {
+              if (article == null) return const SizedBox.shrink();
+              return IconButton(
+                tooltip: 'Share',
+                icon: const Icon(Icons.share_outlined),
+                onPressed: () async {
+                  await showUniversalShareSheet(
+                    context,
+                    payload: UniversalSharePayload(
+                      contentType: ShareContentType.article,
+                      idOrSlug: article.id,
+                      title: article.title,
+                      description: article.description,
+                      imageUrl: article.coverImageUrl,
+                    ),
+                  );
+                },
+              );
+            },
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
+      ),
       body: articleAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),

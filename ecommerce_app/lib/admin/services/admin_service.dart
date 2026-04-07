@@ -95,6 +95,8 @@ class AdminProduct {
   final double weight;
   final String dimensions;
   final int inventoryCount;
+  final int reservedQuantity;
+  final int? availableStock;
   final List<String> imageUrls;
   final DateTime? createdAt;
   final bool isActive;
@@ -116,6 +118,8 @@ class AdminProduct {
     required this.weight,
     required this.dimensions,
     required this.inventoryCount,
+    this.reservedQuantity = 0,
+    this.availableStock,
     required this.imageUrls,
     required this.createdAt,
     required this.isActive,
@@ -124,6 +128,8 @@ class AdminProduct {
     this.isRecommended = false,
     this.isFestivalSpecial = false,
   });
+
+  int get sellableStock => availableStock ?? (inventoryCount - reservedQuantity).clamp(0, 1 << 30);
 
   factory AdminProduct.fromJson(Map<String, dynamic> json) {
     bool readBool(dynamic v) {
@@ -156,6 +162,8 @@ class AdminProduct {
       weight: (json['weight'] as num?)?.toDouble() ?? 0,
       dimensions: (json['dimensions'] ?? '').toString(),
       inventoryCount: (json['inventory_count'] as num?)?.toInt() ?? 0,
+      reservedQuantity: (json['reserved_quantity'] as num?)?.toInt() ?? 0,
+      availableStock: (json['available_stock'] as num?)?.toInt(),
       imageUrls: images is List ? images.map((e) => e.toString()).toList() : const [],
       createdAt: json['created_at'] == null
           ? null
@@ -273,6 +281,7 @@ class AdminOrderDetails {
   final String paymentStatus;
   final String? razorpayPaymentId;
   final String? razorpayOrderId;
+  final DateTime? paidAt;
   final List<AdminOrderTimelineEvent> timeline;
   final String? trackingNumber;
   final String? courierName;
@@ -293,6 +302,7 @@ class AdminOrderDetails {
     required this.paymentStatus,
     this.razorpayPaymentId,
     this.razorpayOrderId,
+    this.paidAt,
     required this.timeline,
     this.trackingNumber,
     this.courierName,
@@ -878,14 +888,14 @@ class AdminService {
       data = await client
           .from('products')
           .select(
-              'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special')
+              'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special')
           .eq('is_active', true)
           .order('created_at', ascending: false);
     } catch (_) {
       data = await client
           .from('products')
           .select(
-              'id, title, description, category, price, currency, inventory_count, image_urls, created_at, is_active, is_popular, is_recommended, is_festival_special')
+              'id, title, description, category, price, currency, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, is_popular, is_recommended, is_festival_special')
           .order('created_at', ascending: false);
     }
     return (data as List).cast<Map<String, dynamic>>().map((json) {
@@ -1346,7 +1356,7 @@ class AdminService {
             'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, '
             'tracking_number, courier_name, estimated_delivery_date, '
             'package_weight_kg, package_dimensions_cm, '
-            'payment_method, payment_status, razorpay_payment_id, razorpay_order_id',
+            'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at',
           )
           .eq('id', orderId)
           .single();
@@ -1357,7 +1367,7 @@ class AdminService {
             .select(
               'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
               'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, '
-              'payment_method, payment_status, razorpay_payment_id, razorpay_order_id',
+              'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at',
             )
             .eq('id', orderId)
             .single();
@@ -1368,7 +1378,7 @@ class AdminService {
               .select(
                 'id, user_id, status, currency, created_at, delivery_fee, '
                 'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, '
-                'payment_method, payment_status, razorpay_payment_id, razorpay_order_id',
+                'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at',
               )
               .eq('id', orderId)
               .single();
@@ -1517,6 +1527,9 @@ class AdminService {
       paymentStatus: psRaw,
       razorpayPaymentId: rzpId,
       razorpayOrderId: rzpOid,
+      paidAt: DateTime.tryParse(
+        orderMap['paid_at']?.toString() ?? orderMap['payment_verified_at']?.toString() ?? '',
+      ),
       timeline: timeline,
       trackingNumber: trackingNumber,
       courierName: courierName,

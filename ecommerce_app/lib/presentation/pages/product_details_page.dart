@@ -17,7 +17,7 @@ import 'package:ecommerce_app/presentation/utils/cart_feedback_snackbar.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
 import 'package:ecommerce_app/presentation/utils/storefront_product_navigation.dart';
-import 'package:ecommerce_app/presentation/utils/storefront_share.dart';
+import 'package:ecommerce_app/presentation/utils/universal_share.dart';
 import 'package:ecommerce_app/presentation/widgets/home_product_discovery_card.dart';
 import 'package:ecommerce_app/presentation/widgets/product_image_carousel.dart';
 import 'package:ecommerce_app/presentation/widgets/storefront_wishlist_chip.dart';
@@ -95,11 +95,15 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
       );
     }
     try {
-      await shareStorefrontProduct(
-        productTitle: product.title,
-        priceFormatted: formatRupee(pricing.salePrice),
-        productId: product.id,
-        firstImageUrl: product.imageUrls.isNotEmpty ? product.imageUrls.first : null,
+      await showUniversalShareSheet(
+        context,
+        payload: UniversalSharePayload(
+          contentType: ShareContentType.product,
+          idOrSlug: product.id,
+          title: product.title,
+          description: formatRupee(pricing.salePrice),
+          imageUrl: product.imageUrls.isNotEmpty ? product.imageUrls.first : null,
+        ),
         sharePositionOrigin: origin,
       );
     } catch (e) {

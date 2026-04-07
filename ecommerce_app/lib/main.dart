@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/config/app_env.dart';
+import 'core/config/web_hosted_app_config.dart';
 import 'core/notifications/local_notification_service.dart';
 import 'firebase_options.dart';
 import 'core/notifications/notification_message_router.dart';
@@ -54,7 +55,16 @@ Future<void> main() async {
 
 Future<void> _runWebApp() async {
   try {
-    final env = AppEnv.fromEnvironment();
+    late final AppEnv env;
+    try {
+      env = AppEnv.fromEnvironment();
+    } catch (e) {
+      debugPrint('Web: no compile-time Supabase defines, trying /app-config.json … ($e)');
+      final fromHost = await tryLoadWebHostedAppConfig();
+      if (fromHost == null) rethrow;
+      env = fromHost;
+    }
+    registerAppEnv(env);
     await Supabase.initialize(
       url: env.supabaseUrl,
       anonKey: env.supabaseAnonKey,
@@ -74,6 +84,7 @@ Future<void> _runWebApp() async {
 Future<void> _runMobileApp() async {
   try {
     final env = AppEnv.fromEnvironment();
+    registerAppEnv(env);
 
     await Supabase.initialize(
       url: env.supabaseUrl,
@@ -184,15 +195,17 @@ class _WebConfigErrorApp extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Common causes: (1) Web was built without SUPABASE_URL / SUPABASE_ANON_KEY '
-                    'at compile time — use tool/web_build.env and scripts\\build_admin_web.ps1. '
-                    '(2) Supabase failed to initialize. '
-                    '(3) After a fix, use a private window or clear site data if an old service worker cached a blank page.',
+                    'Fix options: (1) Build with Supabase baked in — copy tool/web_build.env.example '
+                    'to tool/web_build.env, add your keys, then run scripts\\build_admin_web.ps1. '
+                    '(2) Or deploy web/app-config.json at the site root (copy from web/app-config.json.example) '
+                    'so the app can load config at runtime (still need to redeploy hosting). '
+                    '(3) Supabase init failed — check URL/key. '
+                    '(4) Clear site data or a private window if a service worker cached a broken bundle.',
                     style: TextStyle(fontSize: 15, height: 1.4),
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'scripts\\build_admin_web.ps1',
+                    'scripts\\build_admin_web.ps1  ·  web/app-config.json',
                     style: TextStyle(
                       fontSize: 14,
                       fontFamily: 'monospace',

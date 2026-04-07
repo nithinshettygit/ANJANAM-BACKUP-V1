@@ -62,9 +62,9 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
           final matchesCategory = _category == 'All' || (p.category ?? '') == _category;
           final matchesStock = switch (_stockFilter) {
             _StockFilter.all => true,
-            _StockFilter.inStock => p.inventoryCount > 5,
-            _StockFilter.lowStock => p.inventoryCount > 0 && p.inventoryCount <= 5,
-            _StockFilter.outOfStock => p.inventoryCount <= 0,
+            _StockFilter.inStock => p.sellableStock > 5,
+            _StockFilter.lowStock => p.sellableStock > 0 && p.sellableStock <= 5,
+            _StockFilter.outOfStock => p.sellableStock <= 0,
           };
           return matchesSearch && matchesCategory && matchesStock;
         }).toList();
@@ -436,9 +436,14 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
                     ),
                   ),
                   AdminTableColumn<AdminProduct>(
-                    label: 'Stock',
-                    sortValue: (p) => p.inventoryCount,
-                    cellBuilder: (p) => Text(p.inventoryCount.toString()),
+                    label: 'Sellable',
+                    sortValue: (p) => p.sellableStock,
+                    cellBuilder: (p) => Text(p.sellableStock.toString()),
+                  ),
+                  AdminTableColumn<AdminProduct>(
+                    label: 'Reserved',
+                    sortValue: (p) => p.reservedQuantity,
+                    cellBuilder: (p) => Text(p.reservedQuantity.toString()),
                   ),
                   AdminTableColumn<AdminProduct>(
                     label: 'Status',
@@ -652,7 +657,10 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
               ),
               Text('Weight: ${product.weight <= 0 ? '-' : product.weight.toStringAsFixed(3)} kg'),
               Text('Dimensions: ${product.dimensions.isEmpty ? '-' : product.dimensions}'),
-              Text('Stock: ${product.inventoryCount}'),
+              Text(
+                'Stock: ${product.sellableStock} sellable '
+                '(reserved: ${product.reservedQuantity}, total: ${product.inventoryCount})',
+              ),
               Text(
                 product.displayDiscountPercent <= 0
                     ? 'Card promo: off'

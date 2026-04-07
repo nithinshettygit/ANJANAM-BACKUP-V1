@@ -10,7 +10,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/auth/auth_email_link_navigation.dart';
 import 'core/config/auth_redirect_config.dart';
 import 'core/config/storefront_app_link.dart';
+import 'features/articles/providers/articles_providers.dart';
 import 'features/product_details/state/product_details_providers.dart';
+import 'features/videos/providers/videos_providers.dart';
 import 'core/theme/app_theme.dart';
 import 'core/notifications/notification_message_router.dart';
 import 'core/notifications/notification_navigation.dart';
@@ -68,6 +70,26 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     });
   }
 
+  void _navigateToSharedVideo(String videoId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final nav = notificationNavigatorKey.currentState;
+      if (nav == null || !nav.mounted) return;
+      ref.invalidate(videoByIdProvider(videoId));
+      nav.pushNamed('/video/$videoId');
+    });
+  }
+
+  void _navigateToSharedArticle(String articleId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final nav = notificationNavigatorKey.currentState;
+      if (nav == null || !nav.mounted) return;
+      ref.invalidate(articleByIdProvider(articleId));
+      nav.pushNamed('/article/$articleId');
+    });
+  }
+
   void _listenAndroidAppLinks() {
     if (kIsWeb) return;
     final appLinks = AppLinks();
@@ -81,6 +103,16 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
       final productId = StorefrontAppLink.productIdIfValid(uri);
       if (productId != null) {
         _navigateToSharedProduct(productId);
+        return;
+      }
+      final videoId = StorefrontAppLink.videoIdIfValid(uri);
+      if (videoId != null) {
+        _navigateToSharedVideo(videoId);
+        return;
+      }
+      final articleId = StorefrontAppLink.articleIdIfValid(uri);
+      if (articleId != null) {
+        _navigateToSharedArticle(articleId);
       }
     }
 

@@ -46,6 +46,8 @@ class OrderPaymentStatusBadge extends StatelessWidget {
       case OrderPaymentStatus.failed:
         return (Theme.of(context).colorScheme.errorContainer,
             Theme.of(context).colorScheme.onErrorContainer);
+      case OrderPaymentStatus.refunded:
+        return (Colors.blue.shade100, Colors.blue.shade900);
     }
   }
 }

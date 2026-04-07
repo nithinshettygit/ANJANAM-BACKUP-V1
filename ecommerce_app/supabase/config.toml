@@ -3,3 +3,18 @@
 # function runs (execution_id null in logs). We authenticate inside the function.
 [functions.send-notification]
 verify_jwt = false
+
+[functions.create_payment_order]
+verify_jwt = false
+
+[functions.create-razorpay-order]
+verify_jwt = false
+
+[functions.verify_payment]
+verify_jwt = false
+
+[functions.verify-razorpay-payment]
+verify_jwt = false
+
+[functions.razorpay-webhook]
+verify_jwt = false

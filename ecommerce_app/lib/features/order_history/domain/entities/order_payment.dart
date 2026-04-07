@@ -9,6 +9,7 @@ enum OrderPaymentStatus {
   paid,
   pending,
   failed,
+  refunded,
 }
 
 OrderPaymentMethod orderPaymentMethodFromDb(String? raw) {
@@ -33,6 +34,8 @@ OrderPaymentStatus orderPaymentStatusFromDb(String? raw) {
       return OrderPaymentStatus.paid;
     case 'failed':
       return OrderPaymentStatus.failed;
+    case 'refunded':
+      return OrderPaymentStatus.refunded;
     default:
       return OrderPaymentStatus.pending;
   }
@@ -50,5 +53,6 @@ extension OrderPaymentStatusLabels on OrderPaymentStatus {
         OrderPaymentStatus.paid => 'Paid',
         OrderPaymentStatus.pending => 'Pending',
         OrderPaymentStatus.failed => 'Failed',
+        OrderPaymentStatus.refunded => 'Refunded',
       };
 }
