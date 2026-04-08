@@ -19,25 +19,31 @@ import '../../core/config/storefront_legal_urls.dart';
 class _ProfileSnapshot {
   final String fullName;
   final String phone;
-  const _ProfileSnapshot({required this.fullName, required this.phone});
+  final String address;
+  const _ProfileSnapshot({
+    required this.fullName,
+    required this.phone,
+    required this.address,
+  });
 }
 
 final _profileSnapshotProvider = FutureProvider.autoDispose<_ProfileSnapshot>((ref) async {
   final user = ref.watch(authSessionProvider).asData?.value;
-  if (user == null) return const _ProfileSnapshot(fullName: '', phone: '');
+  if (user == null) return const _ProfileSnapshot(fullName: '', phone: '', address: '');
   final client = ref.watch(supabaseClientProvider);
   try {
     final row = await client
         .from('profiles')
-        .select('full_name, phone')
+        .select('full_name, phone, address')
         .eq('id', user.id)
         .maybeSingle();
     return _ProfileSnapshot(
       fullName: (row?['full_name'] ?? user.fullName ?? '').toString(),
       phone: (row?['phone'] ?? '').toString(),
+      address: (row?['address'] ?? '').toString(),
     );
   } catch (_) {
-    return _ProfileSnapshot(fullName: user.fullName ?? '', phone: '');
+    return _ProfileSnapshot(fullName: user.fullName ?? '', phone: '', address: '');
   }
 });
 
@@ -145,6 +151,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               email: user.email,
                               initialName: displayName,
                               initialPhone: snapshot.phone,
+                              initialAddress: snapshot.address,
                             ),
                           ),
                         );
@@ -207,6 +214,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                     email: user.email,
                                     initialName: displayName,
                                     initialPhone: snapshot.phone,
+                                    initialAddress: snapshot.address,
                                   ),
                                 ),
                               );
@@ -492,12 +500,14 @@ class _EditProfilePage extends ConsumerStatefulWidget {
     required this.email,
     required this.initialName,
     required this.initialPhone,
+    required this.initialAddress,
   });
 
   final String userId;
   final String email;
   final String initialName;
   final String initialPhone;
+  final String initialAddress;
 
   @override
   ConsumerState<_EditProfilePage> createState() => _EditProfilePageState();
@@ -507,6 +517,7 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
+  late final TextEditingController _addressCtrl;
   bool _saving = false;
 
   @override
@@ -514,12 +525,14 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.initialName);
     _phoneCtrl = TextEditingController(text: widget.initialPhone);
+    _addressCtrl = TextEditingController(text: widget.initialAddress);
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
+    _addressCtrl.dispose();
     super.dispose();
   }
 
@@ -531,7 +544,11 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
       try {
         await client
             .from('profiles')
-            .update({'full_name': _nameCtrl.text.trim(), 'phone': _phoneCtrl.text.trim()})
+            .update({
+              'full_name': _nameCtrl.text.trim(),
+              'phone': _phoneCtrl.text.trim(),
+              'address': _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+            })
             .eq('id', widget.userId);
       } catch (_) {
         await client
@@ -592,6 +609,15 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
                       validator: (value) => ShippingDetails.isValidIndianPhone((value ?? '').trim())
                           ? null
                           : 'Enter valid 10-digit phone.',
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _addressCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Address (Optional)',
+                        hintText: 'House/Flat, Street/Area',
+                      ),
                     ),
                     const SizedBox(height: 14),
                     Row(
@@ -908,7 +934,12 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _line2Ctrl,
-                      decoration: const InputDecoration(labelText: 'Address Line 2 (Optional)'),
+                      decoration: const InputDecoration(
+                        labelText: 'Address Line 2 (Landmark / Store / Building)',
+                      ),
+                      validator: (value) => (value ?? '').trim().length < 3
+                          ? 'Address line 2 is required for delivery'
+                          : null,
                     ),
                     const SizedBox(height: 10),
                     TextFormField(

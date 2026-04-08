@@ -43,6 +43,20 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
   Widget build(BuildContext context) {
     final async = ref.watch(homeVideosPreviewProvider);
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final bool isWideWeb = screenWidth >= 1100;
+    final bool isTabletLike = screenWidth >= 700 && screenWidth < 1100;
+    final double swiperHeight = isWideWeb
+        ? 275
+        : isTabletLike
+            ? 258
+            : 238;
+    final double thumbHeight = isWideWeb
+        ? 170
+        : isTabletLike
+            ? 158
+            : 144;
+    final double cardGapRight = isWideWeb ? 14 : 10;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -73,7 +87,7 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
             }
             _syncAutoSwipe(videos.length);
             return SizedBox(
-              height: 240,
+              height: swiperHeight,
               child: PageView.builder(
                 controller: _controller,
                 itemCount: videos.length,
@@ -82,7 +96,7 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
                   final v = videos[i];
                   final thumb = v.effectiveThumbnailUrl;
                   return Padding(
-                    padding: const EdgeInsets.only(right: 10),
+                    padding: EdgeInsets.only(right: cardGapRight),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
                       onTap: () {
@@ -98,7 +112,7 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             SizedBox(
-                              height: 146,
+                              height: thumbHeight,
                               width: double.infinity,
                               child: Stack(
                                 fit: StackFit.expand,
@@ -148,6 +162,7 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
+                                  fontSize: isWideWeb ? 16 : null,
                                 ),
                               ),
                             ),

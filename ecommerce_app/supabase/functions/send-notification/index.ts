@@ -12,6 +12,14 @@ type FcmSendSummary = {
   failures: FcmFailure[];
 };
 
+type AdminNotificationRow = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  reference_id: string | null;
+};
+
 function getAuthHeader(req: Request): string | null {
   const h = req.headers.get("authorization") ?? req.headers.get("Authorization");
   if (!h) return null;
@@ -206,6 +214,8 @@ serve(async (req) => {
     if (!authHeader?.trim()) {
       return jsonRes(401, { error: "Missing Authorization header." });
     }
+    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const isServiceRoleRequest = bearer === SUPABASE_SERVICE_ROLE_KEY;
 
     // Anon client + forwarded Authorization header (Supabase Edge pattern).
     // service_role + auth.getUser(jwt) often returns 401 for user access tokens
@@ -218,24 +228,51 @@ serve(async (req) => {
         },
       },
     });
-    const { data: userData, error: authErr } = await supabaseAuth.auth.getUser();
-    if (authErr || !userData?.user) {
-      return jsonRes(401, {
-        error: "Unauthorized.",
-        detail: authErr?.message ?? "getUser_failed",
-      });
+    let requesterId = "";
+    if (!isServiceRoleRequest) {
+      const { data: userData, error: authErr } = await supabaseAuth.auth.getUser();
+      if (authErr || !userData?.user) {
+        return jsonRes(401, {
+          error: "Unauthorized.",
+          detail: authErr?.message ?? "getUser_failed",
+        });
+      }
+      requesterId = userData.user.id;
     }
-    const requesterId = userData.user.id;
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: { headers: { "Content-Type": "application/json" } },
     });
 
     const body: Json = await req.json();
-    const action = requireString(body["action"], "action").toLowerCase();
+    // Supports both direct app calls and Supabase DB webhook payloads.
+    // DB webhook payload shape includes: {type, table, schema, record, old_record}.
+    let action = typeof body["action"] === "string" ? body["action"].trim().toLowerCase() : "";
+    if (!action) {
+      const table = typeof body["table"] === "string" ? body["table"].trim().toLowerCase() : "";
+      const eventType = typeof body["type"] === "string" ? body["type"].trim().toUpperCase() : "";
+      if (table === "admin_notifications" && eventType === "INSERT") {
+        const record = (body["record"] ?? {}) as Record<string, unknown>;
+        const notificationId = typeof record["id"] === "string" ? record["id"].trim() : "";
+        if (!notificationId) {
+          return jsonRes(400, { error: "Missing record.id in webhook payload." });
+        }
+        body["action"] = "admin_notification";
+        body["notification_id"] = notificationId;
+        action = "admin_notification";
+      }
+    }
+    if (!action) {
+      return jsonRes(400, { error: "Missing/invalid 'action'." });
+    }
 
-    const { data: isAdminData, error: isAdminErr } = await supabaseAdmin.rpc("is_admin", { uid: requesterId });
-    const isAdmin = !isAdminErr && Boolean(isAdminData);
+    let isAdmin = false;
+    if (isServiceRoleRequest) {
+      isAdmin = true;
+    } else {
+      const { data: isAdminData, error: isAdminErr } = await supabaseAdmin.rpc("is_admin", { uid: requesterId });
+      isAdmin = !isAdminErr && Boolean(isAdminData);
+    }
 
     if (action === "user_notification") {
       if (!isAdmin) {
@@ -274,11 +311,14 @@ serve(async (req) => {
         // even when some/all users have no registered device token.
         const { data: profiles, error: profilesErr } = await supabaseAdmin
           .from("profiles")
-          .select("id");
+          .select("id,role");
         if (profilesErr) throw profilesErr;
 
         const allUserIds = new Set<string>();
         for (const p of profiles ?? []) {
+          const role = (p as any).role?.toString()?.toLowerCase()?.trim() ?? "customer";
+          // Keep user broadcasts customer-only; admins have a dedicated admin alert channel.
+          if (role === "admin" || role === "super_admin") continue;
           const uid = normUserId((p as any).id);
           if (uid) allUserIds.add(uid);
         }
@@ -447,6 +487,22 @@ serve(async (req) => {
         return jsonRes(403, { error: "Unauthorized for this user." });
       }
 
+      // Do not deliver customer order-status push to admin accounts.
+      const { data: targetProfile, error: targetProfileErr } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", userNorm)
+        .maybeSingle();
+      if (targetProfileErr) throw targetProfileErr;
+      const targetRole = targetProfile?.role?.toString().toLowerCase().trim() ?? "customer";
+      if (targetRole === "admin" || targetRole === "super_admin") {
+        return jsonRes(200, {
+          ok: true,
+          fcm: { attempted: 0, success: 0, failure: 0, failures: [] },
+          note: "Skipped customer order-status push for admin account.",
+        });
+      }
+
       const { data: tokensRows, error: tokErr } = await supabaseAdmin
         .from("user_devices")
         .select("fcm_token")
@@ -516,6 +572,84 @@ serve(async (req) => {
           })),
         });
       }
+
+      return jsonRes(200, { ok: true, fcm: summary });
+    }
+
+    if (action === "admin_notification") {
+      const notificationId = requireString(body["notification_id"], "notification_id");
+
+      if (!isAdmin) {
+        return jsonRes(403, { error: "Admin only." });
+      }
+
+      const { data: adminNotification, error: nErr } = await supabaseAdmin
+        .from("admin_notifications")
+        .select("id,type,title,message,reference_id")
+        .eq("id", notificationId)
+        .maybeSingle();
+      if (nErr) throw nErr;
+      if (!adminNotification) {
+        return jsonRes(404, { error: "Notification not found." });
+      }
+
+      const n = adminNotification as unknown as AdminNotificationRow;
+
+      const { data: adminProfiles, error: adminErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id,role")
+        .in("role", ["admin", "super_admin"]);
+      if (adminErr) throw adminErr;
+
+      const adminIds = (adminProfiles ?? [])
+        .map((r: any) => normUserId(r.id))
+        .filter((id: string) => !!id);
+
+      if (adminIds.length === 0) {
+        return jsonRes(200, {
+          ok: true,
+          fcm: { attempted: 0, success: 0, failure: 0, failures: [] },
+          note: "No admin users found.",
+        });
+      }
+
+      const { data: tokenRows, error: tokErr } = await supabaseAdmin
+        .from("user_devices")
+        .select("user_id,fcm_token")
+        .in("user_id", adminIds);
+      if (tokErr) throw tokErr;
+
+      const tokens = (tokenRows ?? [])
+        .map((r: any) => r.fcm_token?.toString()?.trim())
+        .filter((t: string | undefined) => !!t);
+
+      if (tokens.length === 0) {
+        return jsonRes(200, {
+          ok: true,
+          fcm: { attempted: 0, success: 0, failure: 0, failures: [] },
+          note: "No admin device tokens found.",
+        });
+      }
+
+      const summary = await sendFcm({
+        fcmAccessToken,
+        firebaseProjectId: serviceAccount.project_id,
+        registrationIds: tokens,
+        title: n.title,
+        message: n.message,
+        data: withFcmTextPayload(
+          {
+            kind: "admin_notification",
+            type: n.type,
+            reference_id: n.reference_id ?? "",
+            admin_notification_id: n.id,
+            redirect_type: "admin_notification",
+            redirect_value: n.reference_id ?? "",
+          },
+          n.title,
+          n.message,
+        ),
+      });
 
       return jsonRes(200, { ok: true, fcm: summary });
     }

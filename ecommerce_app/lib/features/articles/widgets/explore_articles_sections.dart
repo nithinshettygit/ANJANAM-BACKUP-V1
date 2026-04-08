@@ -30,6 +30,29 @@ class _Section extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final bool isWideWeb = screenWidth >= 1100;
+    final bool isTabletLike = screenWidth >= 700 && screenWidth < 1100;
+    final double cardWidth = isWideWeb
+        ? 300
+        : isTabletLike
+            ? 260
+            : 228;
+    final double cardHeight = isWideWeb
+        ? 338
+        : isTabletLike
+            ? 325
+            : 305;
+    final double coverHeight = isWideWeb
+        ? 150
+        : isTabletLike
+            ? 138
+            : 124;
+    final double readNowHeight = isWideWeb
+        ? 46
+        : isTabletLike
+            ? 44
+            : 40;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -53,7 +76,7 @@ class _Section extends ConsumerWidget {
           )
         else
           SizedBox(
-            height: 315,
+            height: cardHeight,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: items.length,
@@ -72,7 +95,7 @@ class _Section extends ConsumerWidget {
                     );
                   },
                   child: SizedBox(
-                    width: 240,
+                    width: cardWidth,
                     child: Card(
                       clipBehavior: Clip.antiAlias,
                       child: Padding(
@@ -81,7 +104,7 @@ class _Section extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             SizedBox(
-                              height: 128,
+                              height: coverHeight,
                               width: double.infinity,
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
@@ -138,6 +161,13 @@ class _Section extends ConsumerWidget {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  minimumSize: Size(double.infinity, readNowHeight),
+                                  textStyle: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: isWideWeb ? 14.5 : 13.5,
+                                  ),
+                                ),
                                 onPressed: () {
                                   Navigator.of(context).push<void>(
                                     MaterialPageRoute<void>(

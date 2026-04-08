@@ -889,7 +889,6 @@ class AdminService {
           .from('products')
           .select(
               'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special')
-          .eq('is_active', true)
           .order('created_at', ascending: false);
     } catch (_) {
       data = await client
@@ -959,6 +958,9 @@ class AdminService {
       'weight': input.weight,
       'dimensions': input.dimensions,
       'inventory_count': input.inventoryCount,
+      // Admin manual stock edits should reflect immediately in storefront stock.
+      // Reset reservation bucket to avoid stale pending holds distorting availability.
+      'reserved_quantity': 0,
       'image_urls': input.imageUrls,
       'display_discount_percent': input.displayDiscountPercent.clamp(0, 99),
       'is_popular': input.isPopular,
@@ -1100,9 +1102,21 @@ class AdminService {
       title = (row['title'] ?? productId).toString();
       oldCount = (row['inventory_count'] as num?)?.toInt();
     } catch (_) {}
-    await client
-        .from('products')
-        .update({'inventory_count': inventoryCount}).eq('id', productId);
+    try {
+      await client.from('products').update({
+        'inventory_count': inventoryCount,
+        // Keep storefront availability in sync with admin-entered stock.
+        'reserved_quantity': 0,
+      }).eq('id', productId);
+    } on PostgrestException catch (e) {
+      final m = e.message.toLowerCase();
+      final missingReserved = m.contains('reserved_quantity') &&
+          (m.contains('column') || m.contains('does not exist'));
+      if (!missingReserved) rethrow;
+      await client
+          .from('products')
+          .update({'inventory_count': inventoryCount}).eq('id', productId);
+    }
     await _logAdminAction(
       action: 'inventory_updated',
       entity: 'product',
@@ -1907,6 +1921,7 @@ class AdminService {
     String? reason,
   }) async {
     await _requireAdmin();
+    final isSuperAdmin = await isCurrentUserSuperAdmin();
     final targetUserId = userId.trim();
     if (targetUserId.isEmpty) {
       throw const ValidationException('User id is required.');
@@ -1915,6 +1930,19 @@ class AdminService {
     final me = client.auth.currentUser?.id;
     if (blocked && me != null && me == targetUserId) {
       throw const ValidationException('You cannot block your own admin account.');
+    }
+
+    final targetProfile = await client
+        .from('profiles')
+        .select('role')
+        .eq('id', targetUserId)
+        .maybeSingle();
+    final targetRole = targetProfile?['role']?.toString().trim().toLowerCase();
+    if (targetRole == 'super_admin') {
+      throw const ValidationException('Super admin accounts cannot be blocked.');
+    }
+    if (!isSuperAdmin && targetRole == 'admin') {
+      throw const AuthException('Super admin role required to manage admin accounts.');
     }
 
     final reasonClean = reason?.trim();

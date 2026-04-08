@@ -1,7 +1,7 @@
 name: ecommerce_app
 description: Android-first ecommerce app integrated with Supabase.
 publish_to: "none"
-version: 0.1.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -38,6 +38,7 @@ dependencies:
   webview_flutter: ^4.13.0
   webview_flutter_android: ^4.10.0
   webview_flutter_wkwebview: ^3.24.0
+  connectivity_plus: any
 
 dev_dependencies:
   flutter_test:

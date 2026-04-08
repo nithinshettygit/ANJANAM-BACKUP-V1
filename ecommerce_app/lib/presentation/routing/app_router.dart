@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -149,7 +150,14 @@ class AppRouter {
       case null:
         return _customerRoute(const MainShell());
       case '/debug/backend':
-        return MaterialPageRoute(builder: (_) => const BackendDebugPage());
+        if (kDebugMode) {
+          return MaterialPageRoute(builder: (_) => const BackendDebugPage());
+        }
+        return MaterialPageRoute(
+          builder: (_) => const _RouteErrorPage(
+            message: 'This route is unavailable in release builds.',
+          ),
+        );
       case '/login':
         return MaterialPageRoute(builder: (_) => const LoginPage());
       case '/signup':
@@ -360,12 +368,14 @@ class AppRouter {
       case '/admin/products':
       case '/admin/product-qa':
       case '/admin/product-questions':
+      case '/admin/product-reviews':
       case '/admin/orders':
       case '/admin/users':
       case '/admin/inventory':
       case '/admin/homepage':
       case '/admin/categories':
       case '/admin/notifications':
+      case '/admin/admin-notifications':
       case '/admin/returns':
       case '/admin/videos':
       case '/admin/articles':
@@ -375,11 +385,25 @@ class AppRouter {
           builder: (_) => AdminShellPage(currentRoute: settings.name ?? '/admin'),
         );
       case '/admin/orders/details':
-        final orderId = settings.arguments;
-        if (orderId is String && orderId.isNotEmpty) {
+        final args = settings.arguments;
+        String? orderId;
+        var focusShipmentDetails = false;
+        if (args is String && args.isNotEmpty) {
+          orderId = args;
+        } else if (args is Map) {
+          final id = args['orderId'];
+          if (id is String && id.isNotEmpty) {
+            orderId = id;
+          }
+          focusShipmentDetails = args['focusShipmentDetails'] == true;
+        }
+        if (orderId != null && orderId.isNotEmpty) {
           return _AdminMaterialPageRoute<void>(
             settings: settings,
-            builder: (_) => AdminOrderDetailsPage(orderId: orderId),
+            builder: (_) => AdminOrderDetailsPage(
+              orderId: orderId!,
+              focusShipmentDetails: focusShipmentDetails,
+            ),
           );
         }
         return _AdminMaterialPageRoute<void>(

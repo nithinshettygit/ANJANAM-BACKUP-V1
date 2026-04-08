@@ -16,8 +16,10 @@ Future<void> openInvoicePreview(Uint8List pdfBytes, {required String name}) asyn
     );
     return;
   } on MissingPluginException catch (e, st) {
-    debugPrint('Invoice: layoutPdf missing plugin ($e), trying sharePdf');
-    debugPrint('$st');
+    if (kDebugMode) {
+      debugPrint('Invoice: layoutPdf missing plugin ($e), trying sharePdf');
+      debugPrint('$st');
+    }
   }
 
   try {
@@ -27,8 +29,10 @@ Future<void> openInvoicePreview(Uint8List pdfBytes, {required String name}) asyn
     );
     return;
   } on MissingPluginException catch (e, st) {
-    debugPrint('Invoice: sharePdf missing plugin ($e), using share_plus');
-    debugPrint('$st');
+    if (kDebugMode) {
+      debugPrint('Invoice: sharePdf missing plugin ($e), using share_plus');
+      debugPrint('$st');
+    }
   }
 
   await _sharePdfWithSharePlus(pdfBytes, name);

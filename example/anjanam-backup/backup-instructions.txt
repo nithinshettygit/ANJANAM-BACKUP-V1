@@ -1,0 +1,200 @@
+ANJANAM Infrastructure Rebuild Guide (Beginner Friendly)
+=========================================================
+
+This document explains how to recreate the full ANJANAM production setup:
+- Flutter Android user app
+- Flutter web admin panel
+- Supabase database + Edge Functions
+- Firebase Cloud Messaging (FCM)
+- Razorpay payment integration
+
+Follow steps in order. Keep secrets private and never commit them to git.
+
+
+1) Prerequisites
+----------------
+Install:
+1. Git
+2. Flutter SDK (stable)
+3. Android Studio (SDK + cmdline-tools)
+4. Supabase CLI
+5. Node.js (for optional helper scripts)
+6. Firebase CLI (optional for hosting workflows)
+
+Verify:
+- flutter doctor
+- supabase --version
+- git --version
+
+
+2) Git Repository Setup
+-----------------------
+1. Create a private Git repository.
+2. Clone it:
+   git clone <your-repo-url>
+3. Copy project files into repo (or pull from existing ANJANAM origin).
+4. Ensure .gitignore contains:
+   - android/key.properties
+   - android/app/google-services.json
+   - tool/web_build.env
+   - .env / .env.*
+   - *.jks / *.keystore
+5. Commit only non-secret files.
+
+
+3) Supabase Project Setup
+-------------------------
+1. Create a new Supabase project in dashboard.
+2. Note values:
+   - Project URL (SUPABASE_URL)
+   - Anon/Publishable key (SUPABASE_ANON_KEY)
+   - Service role key (server only)
+3. In local project:
+   - Login: supabase login
+   - Link project: supabase link --project-ref <project-ref>
+4. Apply migrations:
+   supabase db push
+5. Confirm required tables exist:
+   profiles, products, cart_items, orders, order_items, reviews, returns, refunds,
+   user_devices, user_notifications, admin_notifications
+
+
+4) Supabase Security Configuration
+----------------------------------
+1. Ensure RLS is enabled on user/business tables.
+2. Confirm policies enforce:
+   - users can only access own rows (auth.uid() checks)
+   - orders/cart restricted to owner
+   - admin tables/actions restricted via is_admin()
+3. Verify admin roles:
+   - profiles.role includes customer/admin/super_admin
+4. Test with two different users to ensure data isolation.
+
+
+5) Supabase Edge Functions Deployment
+-------------------------------------
+Required production functions:
+- verify_payment
+- create_payment_order
+- send-notification
+
+Deploy:
+1. Set secrets in Supabase dashboard (or CLI):
+   - SUPABASE_URL
+   - SUPABASE_SERVICE_ROLE_KEY
+   - SUPABASE_ANON_KEY
+   - RAZORPAY_KEY_ID
+   - RAZORPAY_KEY_SECRET
+   - GOOGLE_SERVICE_ACCOUNT_JSON_BASE64
+2. Deploy functions:
+   supabase functions deploy verify_payment
+   supabase functions deploy create_payment_order
+   supabase functions deploy send-notification
+3. Verify responses do not leak secrets and return safe errors.
+
+
+6) Firebase Project + FCM Setup
+-------------------------------
+1. Create Firebase project.
+2. Add Android app with package id: com.anjanam.app
+3. Download google-services.json and place at:
+   ecommerce_app/android/app/google-services.json
+4. Enable Cloud Messaging API.
+5. Create Service Account key JSON (Firebase/GCP).
+6. Base64-encode JSON and set Supabase secret:
+   GOOGLE_SERVICE_ACCOUNT_JSON_BASE64
+7. Redeploy send-notification function after secret updates.
+
+
+7) Razorpay Setup
+-----------------
+1. Create Razorpay account and switch to Live mode.
+2. Get Live Key ID and Secret.
+3. Configure in Supabase Edge Function secrets:
+   - RAZORPAY_KEY_ID (rzp_live_...)
+   - RAZORPAY_KEY_SECRET
+4. Never put Razorpay secret in Flutter client.
+5. Validate payment flow:
+   - create order via create_payment_order
+   - checkout in app
+   - verify signature in verify_payment
+   - mark paid server-side only
+
+
+8) Android Signing Setup
+------------------------
+1. Create keystore (one time):
+   keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+2. Create file:
+   ecommerce_app/android/key.properties
+3. Fill:
+   storePassword=<strong-password>
+   keyPassword=<strong-password>
+   keyAlias=upload
+   storeFile=upload-keystore.jks
+4. Keep key.properties and keystore out of git.
+
+
+9) Environment Configuration (Client)
+-------------------------------------
+1. Copy:
+   tool/web_build.env.example -> tool/web_build.env
+2. Fill:
+   SUPABASE_URL=...
+   SUPABASE_ANON_KEY=...
+   SUPABASE_FUNCTIONS_BASE_URL=... (optional)
+   RAZORPAY_KEY_ID=rzp_live_...
+3. Do not place service-role or Razorpay secret in client env files.
+
+
+10) Admin Panel Setup (Flutter Web)
+-----------------------------------
+1. Build admin web:
+   scripts/build_admin_web.ps1
+2. Deploy web hosting (Firebase Hosting or equivalent).
+3. Ensure admin login users have profiles.role = admin/super_admin.
+4. Test admin access:
+   products, inventory, orders, users, returns/refunds, notifications.
+
+
+11) Production Validation Checklist
+-----------------------------------
+Run smoke tests:
+1. Register customer user
+2. Login
+3. Browse products
+4. Add to cart
+5. Checkout with Razorpay
+6. Verify order created and payment verified
+7. Confirm inventory updates correctly
+8. Confirm admin receives notification
+9. Update order status from admin
+10. Confirm customer receives status notification
+
+
+12) Android Release Build Preparation
+-------------------------------------
+1. Run:
+   flutter clean
+   flutter pub get
+2. Verify release prerequisites:
+   - android/key.properties present
+   - android/app/google-services.json present
+   - tool/web_build.env present
+3. Build release artifact:
+   scripts/build_android_release.ps1 -Bundle
+4. Output should be:
+   build/app/outputs/bundle/release/app-release.aab
+
+
+13) Ongoing Security Practices
+------------------------------
+1. Rotate secrets periodically.
+2. Never share key files in chat/email/screenshots.
+3. Restrict Supabase dashboard access to trusted admins.
+4. Audit RLS and Edge Functions after schema changes.
+5. Monitor payment failures and notification delivery logs.
+6. Keep Flutter, dependencies, and Gradle tooling updated.
+
+
+End of guide.

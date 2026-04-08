@@ -116,9 +116,54 @@ flutter run -d RZCX70FW7JB --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhi
 chrome:
 
 cd .\ecommerce_app\
+
+
 $env:SUPABASE_URL="https://kgrlvagayvrswzbdhibn.supabase.co"
 $env:SUPABASE_ANON_KEY="sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr"
-flutter run -d chrome --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr --dart-define=RAZORPAY_TEST_KEY=rzp_test_SYXPePOa5wmPPQ
+flutter run -
+d chrome --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr --dart-define=RAZORPAY_KEY_ID=rzp_live_SaY3QmPeB5ET3Q
+
+
+
+$env:SUPABASE_URL="https://kgrlvagayvrswzbdhibn.supabase.co"
+$env:SUPABASE_ANON_KEY="sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr"
+flutter run -
+d RZCX70FW7JB --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr
+
+
+
 
 
 flutter build web --release --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co  --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr
+
+
+
+flutter run -d chrome  `
+  --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co `
+  --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr `
+--dart-define=RAZORPAY_KEY_ID=rzp_live_SaY3QmPeB5ET3Q `
+
+  
+
+  
+flutter run -d RZCX70FW7JB  `
+  --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co `
+  --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr
+
+
+
+
+
+
+
+
+
+
+#If you want the latest code on the website (Firebase)
+#cd d:\ANJANAM-NEW\ecommerce_app
+#Confirm tool\web_build.env has real SUPABASE_URL and SUPABASE_ANON_KEY (you already have this).
+#Run: .\scripts\build_admin_web.ps1 -Deploy
+
+
+#  cd D:\ANJANAM-NEW\ecommerce_app
+# .\scripts\build_android_release.ps1

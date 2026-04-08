@@ -19,8 +19,10 @@ Future<AppEnv?> tryLoadWebHostedAppConfig() async {
     if (decoded is! Map<String, dynamic>) return null;
     return AppEnv.fromHostedConfigJson(decoded);
   } catch (e, st) {
-    debugPrint('app-config.json: $e');
-    debugPrint('$st');
+    if (kDebugMode) {
+      debugPrint('app-config.json: $e');
+      debugPrint('$st');
+    }
     return null;
   }
 }

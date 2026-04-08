@@ -1,7 +1,7 @@
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
 
 /// Above this count, stock is not shown as "low" on cards.
-const int kLowStockMaxExclusive = 5;
+const int kLowStockMaxExclusive = 10;
 
 /// [inventoryCount] null = not tracked in UI; treat as available.
 bool productIsOutOfStock(Product product) {

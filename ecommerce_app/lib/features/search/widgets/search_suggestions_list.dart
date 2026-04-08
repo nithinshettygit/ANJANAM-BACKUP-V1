@@ -12,6 +12,7 @@ class SearchSuggestionsList extends StatelessWidget {
     required this.suggestions,
     required this.loading,
     required this.onSuggestionTap,
+    this.onSuggestionTapDown,
     this.errorMessage,
     this.maxHeight = 280,
   });
@@ -21,6 +22,7 @@ class SearchSuggestionsList extends StatelessWidget {
   final bool loading;
   final String? errorMessage;
   final ValueChanged<ProductSuggestion> onSuggestionTap;
+  final ValueChanged<ProductSuggestion>? onSuggestionTapDown;
   final double maxHeight;
 
   @override
@@ -83,6 +85,9 @@ class SearchSuggestionsList extends StatelessWidget {
                           return SearchSuggestionItem(
                             suggestion: s,
                             highlightQuery: q,
+                            onTapDown: onSuggestionTapDown == null
+                                ? null
+                                : () => onSuggestionTapDown!(s),
                             onTap: () => onSuggestionTap(s),
                           );
                         },

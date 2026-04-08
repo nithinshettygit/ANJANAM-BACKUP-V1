@@ -25,6 +25,14 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
 
   Future<void> _toggleUserBlock(AdminUserRow user) async {
     if (_isUpdatingStatus) return;
+    final role = user.role.trim().toLowerCase();
+    if (role == 'super_admin') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Super admin accounts cannot be blocked.')),
+      );
+      return;
+    }
     final shouldBlock = user.status != 'blocked';
     String? reason;
     if (shouldBlock) {
@@ -229,20 +237,23 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
                                     visualDensity: VisualDensity.compact,
                                   ),
                                   const SizedBox(width: 8),
-                                  FilledButton.tonal(
-                                    onPressed: _isUpdatingStatus ? null : () => _toggleUserBlock(user),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: user.status == 'blocked'
-                                          ? Colors.green.withOpacity(0.18)
-                                          : Colors.red.withOpacity(0.18),
-                                      foregroundColor: AppColors.charcoalBlack,
+                                  if (user.role.trim().toLowerCase() == 'super_admin')
+                                    const Text('Protected')
+                                  else
+                                    FilledButton.tonal(
+                                      onPressed: _isUpdatingStatus ? null : () => _toggleUserBlock(user),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: user.status == 'blocked'
+                                            ? Colors.green.withOpacity(0.18)
+                                            : Colors.red.withOpacity(0.18),
+                                        foregroundColor: AppColors.charcoalBlack,
+                                      ),
+                                      child: Text(
+                                        _isUpdatingStatus
+                                            ? 'Updating...'
+                                            : (user.status == 'blocked' ? 'Unblock user' : 'Block user'),
+                                      ),
                                     ),
-                                    child: Text(
-                                      _isUpdatingStatus
-                                          ? 'Updating...'
-                                          : (user.status == 'blocked' ? 'Unblock user' : 'Block user'),
-                                    ),
-                                  ),
                                   const SizedBox(width: 8),
                                   if (canManageRoles)
                                     FilledButton.tonal(

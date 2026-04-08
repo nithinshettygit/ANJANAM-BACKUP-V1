@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +51,8 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
   String? _notificationsChannelUserId;
   StreamSubscription<AuthState>? _passwordRecoverySub;
   StreamSubscription<Uri?>? _appLinkSub;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  bool _isOffline = false;
 
   void _navigateToAuthEmailLink(AuthEmailLinkKind kind) {
     final route = materialRouteForAuthEmailLink(kind);
@@ -124,6 +127,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initConnectivityIndicator();
 
     _listenAndroidAppLinks();
 
@@ -179,6 +183,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
   @override
   void dispose() {
     _appLinkSub?.cancel();
+    _connectivitySub?.cancel();
     _passwordRecoverySub?.cancel();
     _stopNotificationsRealtime();
     NotificationMessageRouter.onNotificationsChanged = null;
@@ -251,7 +256,65 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
       navigatorKey: notificationNavigatorKey,
       onGenerateRoute: AppRouter.onGenerateRoute,
       onGenerateInitialRoutes: kIsWeb ? _webGenerateInitialRoutes : null,
+      builder: (context, child) {
+        final body = child ?? const SizedBox.shrink();
+        if (!_isOffline) return body;
+        final top = MediaQuery.paddingOf(context).top;
+        return Stack(
+          children: [
+            body,
+            Positioned(
+              left: 12,
+              right: 12,
+              top: top + 10,
+              child: Material(
+                elevation: 3,
+                borderRadius: BorderRadius.circular(10),
+                color: Colors.red.shade700,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.wifi_off_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You are offline. Please check your internet connection.',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  Future<void> _initConnectivityIndicator() async {
+    final connectivity = Connectivity();
+
+    Future<void> setFromResults(List<ConnectivityResult> results) async {
+      final offline = !results.any((r) => r != ConnectivityResult.none);
+      if (!mounted || offline == _isOffline) return;
+      setState(() => _isOffline = offline);
+    }
+
+    try {
+      final current = await connectivity.checkConnectivity();
+      await setFromResults(current);
+    } catch (_) {}
+
+    _connectivitySub = connectivity.onConnectivityChanged.listen((results) {
+      // ignore: discarded_futures
+      setFromResults(results);
+    });
   }
 
   Future<void> _bootstrapFcmAndToken() async {

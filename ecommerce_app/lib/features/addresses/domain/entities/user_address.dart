@@ -32,7 +32,10 @@ class UserAddress {
   ShippingDetails toShippingDetails() => ShippingDetails(
         fullName: fullName,
         phone: phone,
-        addressLine: addressLine,
+        addressLine: [
+          addressLine.trim(),
+          if ((addressLine2 ?? '').trim().isNotEmpty) addressLine2!.trim(),
+        ].join(', '),
         city: city,
         postalCode: postalCode,
       );

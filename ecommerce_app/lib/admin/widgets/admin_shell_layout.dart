@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import '../domain/admin_notification.dart';
+import '../services/admin_notification_service.dart';
 import 'admin_search_bar.dart';
 
 class AdminMenuItem {
@@ -41,11 +44,17 @@ class AdminShellLayout extends StatefulWidget {
     AdminMenuItem(label: 'Categories', icon: Icons.category_outlined, route: '/admin/categories'),
     AdminMenuItem(label: 'Products', icon: Icons.inventory_2_outlined, route: '/admin/products'),
     AdminMenuItem(label: 'Product Questions', icon: Icons.question_answer_outlined, route: '/admin/product-questions'),
+    AdminMenuItem(label: 'Product Reviews', icon: Icons.reviews_outlined, route: '/admin/product-reviews'),
     AdminMenuItem(label: 'Orders', icon: Icons.receipt_long_outlined, route: '/admin/orders'),
     AdminMenuItem(label: 'Returns', icon: Icons.assignment_return_outlined, route: '/admin/returns'),
     AdminMenuItem(label: 'Users', icon: Icons.groups_outlined, route: '/admin/users'),
     AdminMenuItem(label: 'Inventory', icon: Icons.warehouse_outlined, route: '/admin/inventory'),
     AdminMenuItem(label: 'Notifications', icon: Icons.notifications_outlined, route: '/admin/notifications'),
+    AdminMenuItem(
+      label: 'Admin Alerts',
+      icon: Icons.notification_important_outlined,
+      route: '/admin/admin-notifications',
+    ),
   ];
 
   @override
@@ -54,6 +63,13 @@ class AdminShellLayout extends StatefulWidget {
 
 class _AdminShellLayoutState extends State<AdminShellLayout> {
   bool _showDesktopSidebar = true;
+  late final AdminNotificationService _notificationService;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationService = AdminNotificationService(Supabase.instance.client);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +114,82 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
           ),
         ),
         actions: [
+          StreamBuilder<int>(
+            stream: _notificationService.watchUnreadCount(),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+              return PopupMenuButton<_NotificationMenuAction>(
+                tooltip: 'Notifications',
+                onSelected: (value) async {
+                  switch (value) {
+                    case _NotificationMenuAction.openAll:
+                      if (mounted) {
+                        Navigator.of(context).pushReplacementNamed('/admin/admin-notifications');
+                      }
+                      break;
+                    case _NotificationMenuAction.markAllRead:
+                      await _notificationService.markAllAsRead();
+                      break;
+                  }
+                },
+                itemBuilder: (context) {
+                  return [
+                    PopupMenuItem<_NotificationMenuAction>(
+                      enabled: false,
+                      child: SizedBox(
+                        width: 340,
+                        child: _NotificationPreviewList(service: _notificationService),
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem<_NotificationMenuAction>(
+                      value: _NotificationMenuAction.openAll,
+                      child: Text('Open notifications'),
+                    ),
+                    PopupMenuItem<_NotificationMenuAction>(
+                      value: _NotificationMenuAction.markAllRead,
+                      enabled: unreadCount > 0,
+                      child: Text(unreadCount > 0 ? 'Mark all as read' : 'All caught up'),
+                    ),
+                  ];
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.notifications_outlined, color: AppColors.charcoalBlack),
+                      ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            constraints: const BoxConstraints(minWidth: 18),
+                            child: Text(
+                              unreadCount > 99 ? '99+' : '$unreadCount',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: CircleAvatar(
@@ -188,6 +280,68 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+enum _NotificationMenuAction { openAll, markAllRead }
+
+class _NotificationPreviewList extends StatelessWidget {
+  const _NotificationPreviewList({required this.service});
+
+  final AdminNotificationService service;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<AdminNotificationRow>>(
+      stream: service.watchNotifications(limit: 5),
+      builder: (context, snapshot) {
+        final items = snapshot.data ?? const <AdminNotificationRow>[];
+        if (items.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('No recent notifications'),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Recent alerts',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            ...items.map((n) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.brightness_1,
+                      size: 8,
+                      color: n.isRead ? Colors.grey : Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        n.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: n.isRead ? FontWeight.w500 : FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         );
       },
     );

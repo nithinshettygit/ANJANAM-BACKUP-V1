@@ -23,14 +23,20 @@ import '../widgets/admin_state_view.dart';
 
 class AdminOrderDetailsPage extends ConsumerStatefulWidget {
   final String orderId;
+  final bool focusShipmentDetails;
 
-  const AdminOrderDetailsPage({super.key, required this.orderId});
+  const AdminOrderDetailsPage({
+    super.key,
+    required this.orderId,
+    this.focusShipmentDetails = false,
+  });
 
   @override
   ConsumerState<AdminOrderDetailsPage> createState() => _AdminOrderDetailsPageState();
 }
 
 class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
+  final GlobalKey _shipmentSectionKey = GlobalKey();
   final _trackCtrl = TextEditingController();
   final _courierCtrl = TextEditingController();
   final _pkgWeightCtrl = TextEditingController();
@@ -41,6 +47,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   String? _syncedShipmentSignature;
   bool _statusBusy = false;
   bool _shipmentSaving = false;
+  bool _didAutoFocusShipment = false;
 
   @override
   void dispose() {
@@ -115,6 +122,29 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             '${details.estimatedDeliveryDate!.month.toString().padLeft(2, '0')}-'
             '${details.estimatedDeliveryDate!.day.toString().padLeft(2, '0')}';
     return '$tracking|$courier|$weight|$dimensions|$date';
+  }
+
+  void _focusShipmentSectionIfRequested() {
+    if (!widget.focusShipmentDetails || _didAutoFocusShipment) return;
+    final ctx = _shipmentSectionKey.currentContext;
+    if (ctx == null) return;
+    _didAutoFocusShipment = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final target = _shipmentSectionKey.currentContext;
+      if (target == null) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+        alignment: 0.08,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill shipment details here before marking as shipped.'),
+        ),
+      );
+    });
   }
 
   String _statusDisplayLabel(String raw) {
@@ -437,6 +467,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             emptyMessage: 'No order details available',
             child: detailsAsync.when(
               data: (details) {
+                    _focusShipmentSectionIfRequested();
                     final order = details.order;
                     final shipmentEditable = _shipmentEditableForStatus(order.status);
                     final actions = adminOrderNextActions(
@@ -819,6 +850,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                         ),
                         const SizedBox(height: 12),
                         Card(
+                          key: _shipmentSectionKey,
                           child: Padding(
                             padding: const EdgeInsets.all(12),
                             child: Column(

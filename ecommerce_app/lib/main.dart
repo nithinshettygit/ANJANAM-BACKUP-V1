@@ -59,7 +59,9 @@ Future<void> _runWebApp() async {
     try {
       env = AppEnv.fromEnvironment();
     } catch (e) {
-      debugPrint('Web: no compile-time Supabase defines, trying /app-config.json … ($e)');
+      if (kDebugMode) {
+        debugPrint('Web: no compile-time Supabase defines, trying /app-config.json … ($e)');
+      }
       final fromHost = await tryLoadWebHostedAppConfig();
       if (fromHost == null) rethrow;
       env = fromHost;
@@ -75,8 +77,10 @@ Future<void> _runWebApp() async {
       ),
     );
   } catch (e, st) {
-    debugPrint('Web startup error: $e');
-    debugPrint('$st');
+    if (kDebugMode) {
+      debugPrint('Web startup error: $e');
+      debugPrint('$st');
+    }
     runApp(_WebConfigErrorApp(message: e.toString()));
   }
 }
@@ -115,8 +119,10 @@ Future<void> _runMobileApp() async {
       ),
     );
   } catch (e, st) {
-    debugPrint('Mobile startup error: $e');
-    debugPrint('$st');
+    if (kDebugMode) {
+      debugPrint('Mobile startup error: $e');
+      debugPrint('$st');
+    }
     runApp(_MobileStartupErrorApp(message: e.toString()));
   }
 }

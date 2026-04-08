@@ -9,11 +9,13 @@ class SearchSuggestionItem extends StatelessWidget {
     required this.suggestion,
     required this.highlightQuery,
     required this.onTap,
+    this.onTapDown,
   });
 
   final ProductSuggestion suggestion;
   final String highlightQuery;
   final VoidCallback onTap;
+  final VoidCallback? onTapDown;
 
   static IconData _iconFor(SuggestionMatchKind k) {
     switch (k) {
@@ -58,6 +60,7 @@ class SearchSuggestionItem extends StatelessWidget {
     final chipLabel = _matchChipLabel();
 
     return InkWell(
+      onTapDown: (_) => onTapDown?.call(),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

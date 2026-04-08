@@ -134,6 +134,11 @@ class AppEnv {
         '--dart-define=SUPABASE_ANON_KEY=...).',
       );
     }
+    if (kReleaseMode && razorpayKeyId.isNotEmpty && !razorpayKeyId.startsWith('rzp_live_')) {
+      throw FlutterError(
+        'Invalid Razorpay key for release. Use a live key id (rzp_live_...).',
+      );
+    }
 
     return AppEnv(
       supabaseUrl: url,
@@ -166,6 +171,11 @@ class AppEnv {
     if (url.isEmpty || anonKey.isEmpty) {
       throw FlutterError(
         'app-config.json must include non-empty supabase_url and supabase_anon_key.',
+      );
+    }
+    if (kReleaseMode && razorpayKeyId.isNotEmpty && !razorpayKeyId.startsWith('rzp_live_')) {
+      throw FlutterError(
+        'Invalid Razorpay key for release. Use a live key id (rzp_live_...).',
       );
     }
 

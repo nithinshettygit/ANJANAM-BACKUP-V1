@@ -26,6 +26,14 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
 
   Future<void> _toggleBlock(AdminUserRow user) async {
     if (_pendingUserIds.contains(user.id)) return;
+    final role = user.role.trim().toLowerCase();
+    if (role == 'super_admin') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Super admin accounts cannot be blocked.')),
+      );
+      return;
+    }
     final shouldBlock = user.status != 'blocked';
     String? reason;
     if (shouldBlock) {
@@ -342,6 +350,10 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                     cellBuilder: (u) {
                       final pending = _pendingUserIds.contains(u.id);
                       final isBlocked = u.status == 'blocked';
+                      final role = u.role.trim().toLowerCase();
+                      if (role == 'super_admin') {
+                        return const Text('Protected');
+                      }
                       return FilledButton.tonal(
                         onPressed: pending ? null : () => _toggleBlock(u),
                         style: FilledButton.styleFrom(

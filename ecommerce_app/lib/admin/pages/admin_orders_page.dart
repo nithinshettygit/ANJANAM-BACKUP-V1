@@ -525,6 +525,25 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       );
     } catch (e) {
       if (!mounted) return;
+      final rawError = e.toString().toLowerCase();
+      final triedShipped = action.targetStatusTitleCase.trim().toLowerCase() == 'shipped';
+      final missingShipmentDetails = rawError.contains('order_checklist_missing_tracking') ||
+          rawError.contains('order_checklist_missing_courier') ||
+          rawError.contains('order_checklist_missing_package_weight') ||
+          rawError.contains('order_checklist_missing_package_dimensions') ||
+          rawError.contains('tracking') && rawError.contains('missing') ||
+          rawError.contains('courier') && rawError.contains('missing') ||
+          rawError.contains('null');
+      if (triedShipped && missingShipmentDetails) {
+        Navigator.of(context).pushNamed(
+          '/admin/orders/details',
+          arguments: <String, dynamic>{
+            'orderId': orderId,
+            'focusShipmentDetails': true,
+          },
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to update status: $e')),
       );

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import '../providers/admin_notification_providers.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_orders_chart.dart';
 import '../widgets/admin_revenue_chart.dart';
@@ -45,28 +46,59 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Dashboard',
-                            style: TextStyle(
-                              fontSize: wide ? 26 : 22,
-                              fontWeight: FontWeight.w700,
+                      if (wide)
+                        Row(
+                          children: [
+                            Text(
+                              'Dashboard',
+                              style: TextStyle(
+                                fontSize: wide ? 26 : 22,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                          const Spacer(),
-                          FilledButton.tonalIcon(
-                            onPressed: () {
-                              ref.invalidate(adminDashboardProvider);
-                              ref.invalidate(
-                                adminDashboardAnalyticsProvider(_selectedDays),
-                              );
-                            },
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Refresh'),
-                          ),
-                        ],
-                      ),
+                            const Spacer(),
+                            FilledButton.tonalIcon(
+                              onPressed: () {
+                                ref.invalidate(adminDashboardProvider);
+                                ref.invalidate(
+                                  adminDashboardAnalyticsProvider(_selectedDays),
+                                );
+                                ref.invalidate(adminNotificationsProvider);
+                                ref.invalidate(adminUnreadNotificationsCountProvider);
+                                ref.invalidate(adminRecentNotificationsProvider);
+                              },
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Refresh (incl. notifications)'),
+                            ),
+                          ],
+                        )
+                      else
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Dashboard',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            FilledButton.tonalIcon(
+                              onPressed: () {
+                                ref.invalidate(adminDashboardProvider);
+                                ref.invalidate(
+                                  adminDashboardAnalyticsProvider(_selectedDays),
+                                );
+                                ref.invalidate(adminNotificationsProvider);
+                                ref.invalidate(adminUnreadNotificationsCountProvider);
+                                ref.invalidate(adminRecentNotificationsProvider);
+                              },
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Refresh Notifications'),
+                            ),
+                          ],
+                        ),
                       SizedBox(height: sectionGap),
                       Wrap(
                         spacing: 12,
@@ -143,19 +175,20 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                         ],
                       ),
                       SizedBox(height: statGap),
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           const Text(
                             'Window:',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(width: 8),
                           ChoiceChip(
                             label: const Text('Last 7 days'),
                             selected: _selectedDays == 7,
                             onSelected: (_) => setState(() => _selectedDays = 7),
                           ),
-                          const SizedBox(width: 8),
                           ChoiceChip(
                             label: const Text('Last 30 days'),
                             selected: _selectedDays == 30,

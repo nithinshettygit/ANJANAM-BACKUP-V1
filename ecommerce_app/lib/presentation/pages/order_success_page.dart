@@ -93,7 +93,9 @@ class _OrderSuccessPageState extends ConsumerState<OrderSuccessPage> {
         widget.razorpayPaymentId!.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Order confirmed')),
+      appBar: AppBar(
+        title: Text(showPaymentLine ? 'Order confirmed' : 'Order placed'),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

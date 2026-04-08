@@ -83,10 +83,26 @@ class OrderModel {
   Order toEntity({
     required List<OrderItemModel> items,
   }) {
+    final paymentMethod = orderPaymentMethodFromDb(paymentMethodRaw);
+    final paymentStatus = orderPaymentStatusFromDb(paymentStatusRaw);
+    var effectiveStatus = OrderStatusX.fromDbValue(status);
+
+    // Guard against legacy/misaligned states: online unpaid orders must not
+    // appear as confirmed/processing to customers.
+    if (paymentMethod == OrderPaymentMethod.razorpay) {
+      if (paymentStatus == OrderPaymentStatus.pending &&
+          effectiveStatus == OrderStatus.processing) {
+        effectiveStatus = OrderStatus.pendingPayment;
+      } else if (paymentStatus == OrderPaymentStatus.failed &&
+          effectiveStatus == OrderStatus.processing) {
+        effectiveStatus = OrderStatus.paymentFailed;
+      }
+    }
+
     return Order(
       id: id,
       userId: userId,
-      status: OrderStatusX.fromDbValue(status),
+      status: effectiveStatus,
       items: items.map((e) => e.toEntity()).toList(),
       currency: currency,
       createdAt: createdAt,
@@ -94,8 +110,8 @@ class OrderModel {
       trackingNumber: trackingNumber,
       courierName: courierName,
       estimatedDeliveryDate: estimatedDeliveryDate,
-      paymentMethod: orderPaymentMethodFromDb(paymentMethodRaw),
-      paymentStatus: orderPaymentStatusFromDb(paymentStatusRaw),
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
       razorpayPaymentId: razorpayPaymentId,
       deliveredAt: deliveredAt,
       returnDeadline: returnDeadline,

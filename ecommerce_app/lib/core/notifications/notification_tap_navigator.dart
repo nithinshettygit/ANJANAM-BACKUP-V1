@@ -49,17 +49,26 @@ class NotificationTapNavigator {
     final redirectValue = data['redirect_value']?.toString().trim();
     final orderId = data['order_id']?.toString().trim();
     final kind = data['kind']?.toString().trim().toLowerCase();
+    final type = data['type']?.toString().trim().toLowerCase();
+    final referenceId = data['reference_id']?.toString().trim();
+    final adminNotificationId = data['admin_notification_id']?.toString().trim();
     final notificationId = data['notification_id']?.toString().trim() ?? '';
+    final resolvedRedirect = (redirectType == null || redirectType.isEmpty)
+        ? (orderId != null && orderId.isNotEmpty ? 'order' : 'none')
+        : redirectType;
+    if ((kind == 'admin_notification' || resolvedRedirect == 'admin_notification') &&
+        adminNotificationId != null &&
+        adminNotificationId.isNotEmpty) {
+      _openAdminTarget(nav, type: type, referenceId: referenceId);
+      return;
+    }
+
     final title = (data['title']?.toString().trim().isNotEmpty == true)
         ? data['title'].toString()
         : (titleFallback ?? 'Notification');
     final message = (data['message']?.toString().trim().isNotEmpty == true)
         ? data['message'].toString()
         : (bodyFallback ?? '');
-
-    final resolvedRedirect = (redirectType == null || redirectType.isEmpty)
-        ? (orderId != null && orderId.isNotEmpty ? 'order' : 'none')
-        : redirectType;
 
     if (resolvedRedirect == 'order' && orderId != null && orderId.isNotEmpty) {
       nav.pushNamed('/order-details', arguments: orderId);
@@ -128,6 +137,46 @@ class NotificationTapNavigator {
       );
     } else {
       nav.pushNamed('/notifications');
+    }
+  }
+
+  static void _openAdminTarget(
+    NavigatorState nav, {
+    required String? type,
+    required String? referenceId,
+  }) {
+    switch (type) {
+      case 'order_created':
+        if (referenceId != null && referenceId.isNotEmpty) {
+          nav.pushNamed('/admin/orders/details', arguments: referenceId);
+        } else {
+          nav.pushNamed('/admin/orders');
+        }
+        return;
+      case 'new_user':
+        if (referenceId != null && referenceId.isNotEmpty) {
+          nav.pushNamed('/admin/users/details', arguments: referenceId);
+        } else {
+          nav.pushNamed('/admin/users');
+        }
+        return;
+      case 'product_review':
+        nav.pushNamed('/admin/product-reviews');
+        return;
+      case 'product_question':
+        nav.pushNamed('/admin/product-questions');
+        return;
+      case 'return_request':
+      case 'refund_request':
+        nav.pushNamed('/admin/returns');
+        return;
+      case 'low_stock':
+      case 'out_of_stock':
+        nav.pushNamed('/admin/inventory');
+        return;
+      default:
+        nav.pushNamed('/admin/admin-notifications');
+        return;
     }
   }
 

@@ -39,6 +39,7 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
   late final FocusNode _focusNode;
   Timer? _suggestionDebounce;
   String _submittedQuery = '';
+  bool _webSuggestionTapInProgress = false;
 
   @override
   void initState() {
@@ -51,6 +52,9 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
   }
 
   void _onFocusChanged() {
+    if (_focusNode.hasFocus && _webSuggestionTapInProgress) {
+      _webSuggestionTapInProgress = false;
+    }
     if (_focusNode.hasFocus && _controller.text.trim().length >= 2) {
       _scheduleSuggestionFetch(_controller.text);
     }
@@ -93,6 +97,7 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
     _suggestionDebounce?.cancel();
     _controller.clear();
     _submittedQuery = '';
+    _webSuggestionTapInProgress = false;
     ref.read(searchSuggestionsProvider.notifier).clear();
     setState(() {});
   }
@@ -100,20 +105,30 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
   void _onSubmitted(String raw) {
     _suggestionDebounce?.cancel();
     final next = raw.trim();
-    setState(() => _submittedQuery = next);
+    setState(() {
+      _submittedQuery = next;
+      _webSuggestionTapInProgress = false;
+    });
     FocusScope.of(context).unfocus();
   }
 
   Future<void> _onSuggestionTap(ProductSuggestion s) async {
     _suggestionDebounce?.cancel();
+    _webSuggestionTapInProgress = false;
     FocusScope.of(context).unfocus();
     ref.read(searchSuggestionsProvider.notifier).clear();
     if (!context.mounted) return;
     await navigateToStorefrontProductDetails(context, ref, s.id);
   }
 
+  void _onSuggestionTapDown(ProductSuggestion _) {
+    if (!kIsWeb) return;
+    if (_webSuggestionTapInProgress) return;
+    setState(() => _webSuggestionTapInProgress = true);
+  }
+
   bool get _showSuggestions {
-    if (!_focusNode.hasFocus) return false;
+    if (!_focusNode.hasFocus && !_webSuggestionTapInProgress) return false;
     return _controller.text.trim().length >= 2;
   }
 
@@ -171,7 +186,11 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
             hintText: kStorefrontSearchHint,
             filledCapsule: true,
             onChanged: (v) {
-              setState(() {});
+              if (_webSuggestionTapInProgress) {
+                setState(() => _webSuggestionTapInProgress = false);
+              } else {
+                setState(() {});
+              }
               if (v.trim().isEmpty) {
                 _suggestionDebounce?.cancel();
                 ref.read(searchSuggestionsProvider.notifier).clear();
@@ -199,6 +218,7 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
                   suggestions: suggestionState.suggestions,
                   loading: suggestionState.loading || waitingDebounced,
                   errorMessage: suggestionState.errorMessage,
+                  onSuggestionTapDown: _onSuggestionTapDown,
                   onSuggestionTap: _onSuggestionTap,
                 ),
               ),

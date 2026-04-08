@@ -1,5 +1,6 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
+import 'package:ecommerce_app/features/reviews/domain/entities/admin_product_review_row.dart';
 import 'package:ecommerce_app/features/reviews/domain/entities/product_review.dart';
 import 'package:ecommerce_app/features/reviews/domain/entities/review_eligibility.dart';
 import 'package:ecommerce_app/features/reviews/domain/review_sort.dart';
@@ -123,6 +124,117 @@ class SupabaseReviewsService extends SupabaseServiceBase {
         throw const ValidationException('This product is not available.');
       }
       throw RepositoryException(e.message);
+    }
+  }
+
+  Future<({List<AdminProductReviewRow> items, bool hasMore})> fetchAdminProductReviewsPage({
+    required int offset,
+    int limit = pageSize,
+  }) async {
+    final take = limit.clamp(1, 50) + 1;
+    final end = offset + take - 1;
+    final rows = await guard(
+      () => client
+          .from('reviews')
+          .select(
+            'id, product_id, user_id, rating, review_text, is_verified_purchase, '
+            'is_visible, created_at, updated_at',
+          )
+          .order('created_at', ascending: false)
+          .range(offset, end),
+    ) as List<dynamic>;
+
+    final cast = rows.cast<Map<String, dynamic>>();
+    final hasMore = cast.length > limit;
+    final slice = hasMore ? cast.sublist(0, limit) : cast;
+
+    DateTime parseTs(dynamic v) {
+      if (v == null) return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      if (v is DateTime) return v.toUtc();
+      return DateTime.tryParse(v.toString())?.toUtc() ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    }
+
+    final productIds = <String>{};
+    final userIds = <String>{};
+    for (final row in slice) {
+      final pid = row['product_id']?.toString().trim();
+      if (pid != null && pid.isNotEmpty) productIds.add(pid);
+      final uid = row['user_id']?.toString().trim();
+      if (uid != null && uid.isNotEmpty) userIds.add(uid);
+    }
+
+    final productTitleById = <String, String>{};
+    if (productIds.isNotEmpty) {
+      final productRows = await guard(
+        () => client.from('products').select('id,title').inFilter('id', productIds.toList()),
+      ) as List<dynamic>;
+      for (final raw in productRows) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        final id = m['id']?.toString();
+        final title = m['title']?.toString().trim();
+        if (id != null && id.isNotEmpty && title != null && title.isNotEmpty) {
+          productTitleById[id] = title;
+        }
+      }
+    }
+
+    final reviewerNameById = <String, String>{};
+    if (userIds.isNotEmpty) {
+      final profileRows = await guard(
+        () => client.from('profiles').select('id,full_name').inFilter('id', userIds.toList()),
+      ) as List<dynamic>;
+      for (final raw in profileRows) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        final id = m['id']?.toString();
+        final fullName = m['full_name']?.toString().trim();
+        if (id != null && id.isNotEmpty && fullName != null && fullName.isNotEmpty) {
+          reviewerNameById[id] = fullName;
+        }
+      }
+    }
+
+    final items = slice.map((row) {
+      final text = row['review_text']?.toString();
+      final pid = row['product_id']?.toString() ?? '';
+      final uid = row['user_id']?.toString() ?? '';
+      return AdminProductReviewRow(
+        id: row['id'].toString(),
+        productId: pid,
+        productTitle: productTitleById[pid] ?? 'Product',
+        userId: uid,
+        reviewerName: reviewerNameById[uid] ?? 'Customer',
+        rating: ((row['rating'] as num?)?.round() ?? 0).clamp(1, 5),
+        reviewText: text == null || text.trim().isEmpty ? null : text.trim(),
+        isVerifiedPurchase: row['is_verified_purchase'] == true,
+        isVisible: row['is_visible'] == true,
+        createdAt: parseTs(row['created_at']),
+        updatedAt: parseTs(row['updated_at']),
+      );
+    }).toList();
+
+    return (items: items, hasMore: hasMore);
+  }
+
+  Future<void> setReviewVisible({
+    required String reviewId,
+    required bool visible,
+  }) async {
+    final id = reviewId.trim();
+    if (id.isEmpty) {
+      throw const ValidationException('Review id is required.');
+    }
+    try {
+      await client.from('reviews').update({'is_visible': visible}).eq('id', id);
+    } on PostgrestException catch (e) {
+      final code = e.code;
+      final msg = e.message.toLowerCase();
+      if (code == '42501' || msg.contains('permission') || msg.contains('policy')) {
+        throw const AuthException('You do not have permission for this action.');
+      }
+      throw RepositoryException(
+        e.message.isNotEmpty ? e.message : 'Could not update review visibility.',
+      );
     }
   }
 }

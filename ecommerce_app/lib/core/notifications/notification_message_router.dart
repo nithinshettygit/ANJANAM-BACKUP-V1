@@ -86,10 +86,19 @@ class NotificationMessageRouter {
 
       final data = message.data;
       final notificationId = data['notification_id']?.toString().trim();
+      final adminNotificationId = data['admin_notification_id']?.toString().trim();
       final orderId = data['order_id']?.toString().trim();
       final kind = data['kind']?.toString().trim();
 
       final now = DateTime.now().toUtc().toIso8601String();
+
+      if (adminNotificationId != null && adminNotificationId.isNotEmpty) {
+        await client
+            .from('admin_notifications')
+            .update({'is_read': true})
+            .eq('id', adminNotificationId);
+        return;
+      }
 
       if (notificationId != null && notificationId.isNotEmpty) {
         await client

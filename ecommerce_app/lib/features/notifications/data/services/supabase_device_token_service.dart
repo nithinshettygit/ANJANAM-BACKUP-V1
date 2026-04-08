@@ -21,6 +21,18 @@ class SupabaseDeviceTokenService extends SupabaseServiceBase {
     if (uid.isEmpty || token.isEmpty) return;
 
     try {
+      // Preferred path: SECURITY DEFINER RPC that rebinds token ownership to
+      // current authenticated user (fixes stale cross-account token delivery).
+      try {
+        await client.rpc('register_my_device_token', params: {
+          'p_fcm_token': token,
+          'p_device_type': deviceType,
+        });
+        return;
+      } catch (_) {
+        // Fallback to legacy flow when RPC migration is not applied yet.
+      }
+
       // Keep a latest pointer on profiles for server-side per-user lookups.
       // If this fails due to schema/policy mismatch, continue with user_devices.
       try {

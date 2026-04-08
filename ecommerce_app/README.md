@@ -1,5 +1,10 @@
 # E-Commerce App: Design and Workflow Documentation
 
+## Production release setup
+
+- Android release checklist: `tool/android_release_checklist.md`
+- Build script for Android release artifacts: `scripts/build_android_release.ps1`
+
 ## 1) UI Design and Components
 
 The app follows a clean, modern layout with clear visual hierarchy and consistent spacing.

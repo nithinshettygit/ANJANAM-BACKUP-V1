@@ -52,10 +52,15 @@ class CheckoutPage extends ConsumerStatefulWidget {
 }
 
 class _CheckoutPageState extends ConsumerState<CheckoutPage> {
+  static const String _onlinePaymentSafetyMessage =
+      'Important: Do not close, refresh, or go back until your order confirmation appears. '
+      'Leaving this screen early can cause payment verification issues.';
+
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
+  final _address2Ctrl = TextEditingController();
   final _cityCtrl = TextEditingController();
   final _postalCtrl = TextEditingController();
 
@@ -77,6 +82,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _addressCtrl.dispose();
+    _address2Ctrl.dispose();
     _cityCtrl.dispose();
     _postalCtrl.dispose();
     super.dispose();
@@ -86,6 +92,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _nameCtrl.text = a.fullName;
     _phoneCtrl.text = a.phone;
     _addressCtrl.text = a.addressLine;
+    _address2Ctrl.text = a.addressLine2 ?? '';
     _cityCtrl.text = a.city;
     _postalCtrl.text = a.postalCode;
   }
@@ -94,6 +101,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _nameCtrl.clear();
     _phoneCtrl.clear();
     _addressCtrl.clear();
+    _address2Ctrl.clear();
     _cityCtrl.clear();
     _postalCtrl.clear();
   }
@@ -101,14 +109,18 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   ShippingDetails? _shippingFromSelection(List<UserAddress> saved) {
     if (_selectedAddressId != null && !_showNewAddressForm) {
       for (final a in saved) {
-        if (a.id == _selectedAddressId) return a.toShippingDetails();
+        if (a.id == _selectedAddressId) {
+          if ((a.addressLine2 ?? '').trim().length < 3) return null;
+          return a.toShippingDetails();
+        }
       }
     }
     if (_showNewAddressForm || saved.isEmpty) {
       final s = ShippingDetails(
         fullName: _nameCtrl.text,
         phone: _phoneCtrl.text,
-        addressLine: _addressCtrl.text,
+        addressLine:
+            '${_addressCtrl.text.trim()}, ${_address2Ctrl.text.trim()}',
         city: _cityCtrl.text,
         postalCode: _postalCtrl.text,
       );
@@ -216,7 +228,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     if (ship == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select or enter a valid delivery address.'),
+          content: Text(
+            'Please provide a complete delivery address with Address Line 1 and Address Line 2.',
+          ),
           behavior: SnackBarBehavior.fixed,
         ),
       );
@@ -247,6 +261,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 fullName: ship.fullName,
                 phone: ship.phone,
                 addressLine: ship.addressLine,
+                addressLine2: _address2Ctrl.text.trim(),
                 city: ship.city,
                 postalCode: ship.postalCode,
                 isDefault: saved.isEmpty,
@@ -343,7 +358,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             ),
           ),
         );
-        _navigateOrderSuccess(order);
+        Navigator.of(context).pushReplacementNamed('/orders');
       } else {
         _releaseCheckoutLock();
       }
@@ -358,6 +373,13 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     final completer = Completer<void>();
 
     setState(() => _checkoutPhase = _CheckoutPhase.openingPayment);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.fixed,
+        content: Text(_onlinePaymentSafetyMessage),
+        duration: Duration(seconds: 5),
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 140));
     if (!mounted) {
       _releaseCheckoutLock();
@@ -497,6 +519,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         p == _CheckoutPhase.confirmingPayment;
 
     String title;
+    String? subtitle;
     switch (p) {
       case _CheckoutPhase.idle:
         title = '';
@@ -504,8 +527,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         title = 'Processing order…';
       case _CheckoutPhase.openingPayment:
         title = 'Opening payment…';
+        subtitle = _onlinePaymentSafetyMessage;
       case _CheckoutPhase.confirmingPayment:
         title = 'Confirming payment…';
+        subtitle = _onlinePaymentSafetyMessage;
       case _CheckoutPhase.showingPaymentSuccess:
         title = _successOverlayIsCod ? 'Order placed!' : 'Payment successful!';
       case _CheckoutPhase.showingPaymentFailed:
@@ -556,6 +581,16 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                               fontWeight: FontWeight.w700,
                             ),
                       ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          subtitle,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
                       if (p == _CheckoutPhase.showingPaymentFailed &&
                           _paymentFailureOverlayDetail != null &&
                           _paymentFailureOverlayDetail!.trim().isNotEmpty) ...[
@@ -597,16 +632,18 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         initialName: a.fullName,
         initialPhone: a.phone,
         initialAddress: a.addressLine,
+        initialAddressLine2: a.addressLine2 ?? '',
         initialCity: a.city,
         initialPostal: a.postalCode,
         showDefaultToggle: true,
         initialDefault: a.isDefault,
-        onSave: (name, phone, addr, city, pin, isDefault) async {
+        onSave: (name, phone, addr, addr2, city, pin, isDefault) async {
           await repo.updateAddress(
             id: a.id,
             fullName: name,
             phone: phone,
             addressLine: addr,
+            addressLine2: addr2,
             city: city,
             postalCode: pin,
             isDefault: isDefault,
@@ -728,7 +765,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text('${a.phone} · PIN ${a.postalCode}'),
-                                Text('${a.addressLine}, ${a.city}'),
+                                Text(
+                                  '${a.addressLine}'
+                                  '${(a.addressLine2 ?? '').trim().isEmpty ? '' : ', ${a.addressLine2!.trim()}'}, '
+                                  '${a.city}',
+                                ),
                               ],
                             ),
                           ),
@@ -803,12 +844,27 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     TextFormField(
                       controller: _addressCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'House / Street / Area',
+                        labelText: 'Address Line 1 (House / Street / Area)',
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 2,
                       validator: (v) {
                         if (v == null || v.trim().length < 3) return 'Required';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _address2Ctrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Address Line 2 (Landmark / Store / Building)',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                      validator: (v) {
+                        if (v == null || v.trim().length < 3) {
+                          return 'Required for complete delivery address';
+                        }
                         return null;
                       },
                     ),
@@ -992,7 +1048,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             RadioListTile<_CheckoutPaymentMethod>(
               contentPadding: EdgeInsets.zero,
               title: const Text('Razorpay'),
-              subtitle: const Text('Card, UPI, net banking, wallets'),
+              subtitle: const Text(
+                'Card, UPI, net banking, wallets\n'
+                'Do not close/refresh until order confirmation is shown.',
+              ),
               value: _CheckoutPaymentMethod.razorpay,
               groupValue: _paymentMethod,
               onChanged: paymentLocked
@@ -1238,6 +1297,7 @@ class _AddressEditorDialog extends StatefulWidget {
   final String initialName;
   final String initialPhone;
   final String initialAddress;
+  final String initialAddressLine2;
   final String initialCity;
   final String initialPostal;
   final bool showDefaultToggle;
@@ -1246,6 +1306,7 @@ class _AddressEditorDialog extends StatefulWidget {
     String name,
     String phone,
     String addr,
+    String addr2,
     String city,
     String pin,
     bool isDefault,
@@ -1256,6 +1317,7 @@ class _AddressEditorDialog extends StatefulWidget {
     required this.initialName,
     required this.initialPhone,
     required this.initialAddress,
+    required this.initialAddressLine2,
     required this.initialCity,
     required this.initialPostal,
     required this.showDefaultToggle,
@@ -1272,6 +1334,7 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
   late final TextEditingController _name;
   late final TextEditingController _phone;
   late final TextEditingController _addr;
+  late final TextEditingController _addr2;
   late final TextEditingController _city;
   late final TextEditingController _postal;
   late bool _isDefault;
@@ -1283,6 +1346,7 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
     _name = TextEditingController(text: widget.initialName);
     _phone = TextEditingController(text: widget.initialPhone);
     _addr = TextEditingController(text: widget.initialAddress);
+    _addr2 = TextEditingController(text: widget.initialAddressLine2);
     _city = TextEditingController(text: widget.initialCity);
     _postal = TextEditingController(text: widget.initialPostal);
     _isDefault = widget.initialDefault;
@@ -1293,6 +1357,7 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
     _name.dispose();
     _phone.dispose();
     _addr.dispose();
+    _addr2.dispose();
     _city.dispose();
     _postal.dispose();
     super.dispose();
@@ -1335,12 +1400,25 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
               TextFormField(
                 controller: _addr,
                 decoration: const InputDecoration(
-                  labelText: 'Address',
+                  labelText: 'Address Line 1',
                   border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
                 maxLines: 2,
                 validator: (v) => (v == null || v.trim().length < 3) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _addr2,
+                decoration: const InputDecoration(
+                  labelText: 'Address Line 2 (Landmark / Store / Building)',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                maxLines: 2,
+                validator: (v) => (v == null || v.trim().length < 3)
+                    ? 'Required for complete delivery address'
+                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -1389,6 +1467,7 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
                       _name.text,
                       _phone.text,
                       _addr.text,
+                      _addr2.text,
                       _city.text,
                       _postal.text,
                       _isDefault,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecommerce_app/features/auth/data/auth_error_mapper.dart';
 import 'package:ecommerce_app/features/auth/state/auth_actions_controller.dart';
 import 'package:ecommerce_app/features/product_questions/pages/admin_product_qa_page.dart';
+import 'package:ecommerce_app/features/reviews/pages/admin_product_reviews_page.dart';
 import 'package:ecommerce_app/presentation/utils/auth_issue_presenter.dart';
 import '../widgets/admin_guard.dart';
 import '../widgets/admin_shell_layout.dart';
@@ -13,6 +14,7 @@ import 'admin_homepage_page.dart';
 import 'admin_inventory_page.dart';
 import 'admin_orders_page.dart';
 import 'admin_notifications_page.dart';
+import 'admin_alerts_page.dart';
 import 'admin_returns_page.dart';
 import 'admin_products_page.dart';
 import 'admin_users_page.dart';
@@ -63,6 +65,8 @@ class AdminShellPage extends ConsumerWidget {
       case '/admin/product-qa':
       case '/admin/product-questions':
         return const AdminProductQaPage();
+      case '/admin/product-reviews':
+        return const AdminProductReviewsPage();
       case '/admin/orders':
         return const AdminOrdersPage();
       case '/admin/users':
@@ -81,6 +85,8 @@ class AdminShellPage extends ConsumerWidget {
         return const AdminCategoriesPage();
       case '/admin/notifications':
         return const AdminNotificationsPage();
+      case '/admin/admin-notifications':
+        return const AdminAlertsPage();
       case '/admin/returns':
         return const AdminReturnsPage();
       case '/admin':
