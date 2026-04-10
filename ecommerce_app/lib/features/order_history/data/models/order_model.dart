@@ -20,6 +20,16 @@ class OrderModel {
   final String? razorpayPaymentId;
   final DateTime? deliveredAt;
   final DateTime? returnDeadline;
+  final String? deliveryMethod;
+  final String? deliveryStatus;
+  final String? deliveryPartnerName;
+  final String? deliveryPartnerPhone;
+  final String? shippingProvider;
+  final String? shipmentId;
+  final String? awbCode;
+  final String? shipmentStatus;
+  final String? trackingUrl;
+  final DateTime? shippedAt;
 
   const OrderModel({
     required this.id,
@@ -36,6 +46,16 @@ class OrderModel {
     this.razorpayPaymentId,
     this.deliveredAt,
     this.returnDeadline,
+    this.deliveryMethod,
+    this.deliveryStatus,
+    this.deliveryPartnerName,
+    this.deliveryPartnerPhone,
+    this.shippingProvider,
+    this.shipmentId,
+    this.awbCode,
+    this.shipmentStatus,
+    this.trackingUrl,
+    this.shippedAt,
   });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
@@ -69,6 +89,43 @@ class OrderModel {
       returnDeadline: DateTime.tryParse(
         json['return_deadline']?.toString() ?? '',
       ),
+      deliveryMethod: () {
+        final t = json['delivery_method']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      deliveryStatus: () {
+        final t = json['delivery_status']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      deliveryPartnerName: () {
+        final t = json['delivery_partner_name']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      deliveryPartnerPhone: () {
+        final t = json['delivery_partner_phone']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      shippingProvider: () {
+        final t = json['shipping_provider']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      shipmentId: () {
+        final t = json['shipment_id']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      awbCode: () {
+        final t = json['awb_code']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      shipmentStatus: () {
+        final t = json['shipment_status']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      trackingUrl: () {
+        final t = json['tracking_url']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      shippedAt: DateTime.tryParse(json['shipped_at']?.toString() ?? ''),
     );
   }
 
@@ -115,6 +172,16 @@ class OrderModel {
       razorpayPaymentId: razorpayPaymentId,
       deliveredAt: deliveredAt,
       returnDeadline: returnDeadline,
+      deliveryMethod: deliveryMethod,
+      deliveryStatus: deliveryStatus,
+      deliveryPartnerName: deliveryPartnerName,
+      deliveryPartnerPhone: deliveryPartnerPhone,
+      shippingProvider: shippingProvider,
+      shipmentId: shipmentId,
+      awbCode: awbCode,
+      shipmentStatus: shipmentStatus,
+      trackingUrl: trackingUrl,
+      shippedAt: shippedAt,
     );
   }
 }

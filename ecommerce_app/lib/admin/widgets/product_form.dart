@@ -226,14 +226,35 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}$')),
                       ],
-                      decoration: const InputDecoration(labelText: 'Weight (kg)'),
+                      decoration: const InputDecoration(
+                        labelText: 'Weight (kg)',
+                        helperText: 'Required for courier shipping',
+                      ),
+                      validator: (v) {
+                        final value = double.tryParse((v ?? '').trim());
+                        if (value == null || value <= 0) {
+                          return 'Enter weight > 0';
+                        }
+                        return null;
+                      },
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextFormField(
                       controller: _dimensionsCtrl,
-                      decoration: const InputDecoration(labelText: 'Dimensions (LxWxH)'),
+                      decoration: const InputDecoration(
+                        labelText: 'Dimensions (LxWxH cm)',
+                        helperText: 'Required, e.g. 20x15x10',
+                      ),
+                      validator: (v) {
+                        final t = (v ?? '').trim();
+                        if (t.isEmpty) return 'Enter dimensions';
+                        final hasShape = RegExp(r'^\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?$')
+                            .hasMatch(t);
+                        if (!hasShape) return 'Use format LxWxH (e.g. 20x15x10)';
+                        return null;
+                      },
                     ),
                   ),
                 ],

@@ -30,6 +30,7 @@ import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class OrderDetailsPage extends ConsumerWidget {
   final String orderId;
@@ -118,10 +119,35 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
   bool get _retryRazorpayConfigured =>
       ref.read(appEnvProvider).razorpayKeyId.isNotEmpty;
 
-  bool get _hasShipmentInfo =>
-      order.courierName != null ||
-      order.trackingNumber != null ||
-      order.estimatedDeliveryDate != null;
+  bool get _legacyShipmentVisible =>
+      (order.deliveryMethod == null || order.deliveryMethod!.trim().isEmpty) &&
+      (order.courierName != null ||
+          order.trackingNumber != null ||
+          order.estimatedDeliveryDate != null);
+
+  bool get _showDualDeliverySection {
+    final m = order.deliveryMethod?.toLowerCase().trim() ?? '';
+    return m == 'manual_delivery' || m == 'shiprocket_delivery';
+  }
+
+  String _humanDeliveryStatusLabel(String? raw) {
+    switch ((raw ?? '').toLowerCase().trim()) {
+      case 'pending':
+        return 'Pending';
+      case 'assigned':
+        return 'Assigned';
+      case 'packed':
+        return 'Packed';
+      case 'out_for_delivery':
+        return 'Out for delivery';
+      case 'delivered':
+        return 'Delivered';
+      case 'failed':
+        return 'Failed';
+      default:
+        return (raw == null || raw.trim().isEmpty) ? '—' : raw.trim();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +161,11 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     final canCancel = canInstantCancel || canRequestCancel;
     final showTrack = order.status == OrderStatus.shipped ||
         order.status == OrderStatus.outForDelivery;
+    final dm = order.deliveryMethod?.toLowerCase().trim() ?? '';
+    final showShiprocketTrack = dm == 'shiprocket_delivery' &&
+        order.trackingUrl != null &&
+        order.trackingUrl!.trim().isNotEmpty;
+    final hasShipmentSection = _showDualDeliverySection || _legacyShipmentVisible;
     final showReorderReview = order.status == OrderStatus.delivered;
     final first = _firstLine;
 
@@ -272,7 +303,61 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                   ...widget.bundle.statusHistory.map(
                     (e) => _TimelineEntry(entry: e),
                   ),
-                if (_hasShipmentInfo) ...[
+                if (_showDualDeliverySection) ...[
+                  const SizedBox(height: 16),
+                  Card(
+                    key: _shipmentSectionKey,
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.local_shipping_outlined,
+                                  size: 20, color: scheme.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                dm == 'manual_delivery' ? 'Delivery' : 'Shipment',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          if (dm == 'manual_delivery') ...[
+                            if (order.deliveryPartnerName != null)
+                              _DetailRow(
+                                label: 'Delivery partner',
+                                value: order.deliveryPartnerName!,
+                              ),
+                            if (order.deliveryPartnerPhone != null)
+                              _DetailRow(
+                                label: 'Partner phone',
+                                value: order.deliveryPartnerPhone!,
+                              ),
+                            _DetailRow(
+                              label: 'Delivery status',
+                              value: _humanDeliveryStatusLabel(order.deliveryStatus),
+                            ),
+                          ] else if (dm == 'shiprocket_delivery') ...[
+                            if (order.courierName != null)
+                              _DetailRow(label: 'Courier', value: order.courierName!),
+                            _DetailRow(
+                              label: 'Tracking number',
+                              value: (order.awbCode != null && order.awbCode!.isNotEmpty)
+                                  ? order.awbCode!
+                                  : (order.trackingNumber ?? '—'),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ] else if (_legacyShipmentVisible) ...[
                   const SizedBox(height: 16),
                   Card(
                     key: _shipmentSectionKey,
@@ -394,7 +479,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                         ),
                   ),
                 ],
-                if (showReorderReview || showTrack || canCancel) ...[
+                if (showReorderReview || showTrack || showShiprocketTrack || canCancel) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -423,10 +508,21 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                           icon: const Icon(Icons.rate_review_outlined, size: 20),
                           label: const Text('Write review'),
                         ),
+                      if (showShiprocketTrack)
+                        FilledButton.icon(
+                          onPressed: () async {
+                            final u = Uri.tryParse(order.trackingUrl!.trim());
+                            if (u != null && await canLaunchUrl(u)) {
+                              await launchUrl(u, mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_new, size: 20),
+                          label: const Text('Track shipment'),
+                        ),
                       if (showTrack)
                         FilledButton.tonalIcon(
                           onPressed: () {
-                            final target = _hasShipmentInfo
+                            final target = hasShipmentSection
                                 ? _shipmentSectionKey.currentContext
                                 : _progressSectionKey.currentContext;
                             if (target != null) {
@@ -1248,8 +1344,9 @@ class _ProgressStepDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final success = scheme.tertiary;
-    final onSuccess = scheme.onTertiary;
+    final completedFill = Colors.green.shade700;
+    final currentFill = scheme.primary;
+    final onDark = Colors.white;
     final muted = scheme.surfaceContainerHighest;
     final trackBorder = scheme.outlineVariant;
 
@@ -1265,14 +1362,14 @@ class _ProgressStepDot extends StatelessWidget {
 
     switch (kind) {
       case _ProgressStepKind.completed:
-        fill = success;
-        borderColor = Color.lerp(success, scheme.shadow, 0.25)!;
+        fill = completedFill;
+        borderColor = Colors.green.shade900;
         borderWidth = 2;
-        textColor = success;
-        labelWeight = FontWeight.w600;
+        textColor = Colors.green.shade800;
+        labelWeight = FontWeight.w700;
       case _ProgressStepKind.active:
-        fill = success;
-        borderColor = scheme.primary;
+        fill = currentFill;
+        borderColor = Color.lerp(currentFill, Colors.black, 0.2)!;
         borderWidth = 2.5;
         textColor = scheme.primary;
         labelWeight = FontWeight.w800;
@@ -1302,7 +1399,7 @@ class _ProgressStepDot extends StatelessWidget {
             : showCheck && !isActive
                 ? [
                     BoxShadow(
-                      color: success.withValues(alpha: 0.2),
+                      color: completedFill.withValues(alpha: 0.22),
                       blurRadius: 4,
                       offset: const Offset(0, 1),
                     ),
@@ -1310,7 +1407,11 @@ class _ProgressStepDot extends StatelessWidget {
                 : null,
       ),
       child: showCheck
-          ? Icon(Icons.check_rounded, size: 20, color: onSuccess)
+          ? Icon(
+              isActive ? Icons.local_shipping_rounded : Icons.check_rounded,
+              size: 20,
+              color: onDark,
+            )
           : null,
     );
 

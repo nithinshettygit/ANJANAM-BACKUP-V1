@@ -18,3 +18,12 @@ verify_jwt = false
 
 [functions.razorpay-webhook]
 verify_jwt = false
+
+[functions.create_shiprocket_shipment]
+verify_jwt = false
+
+[functions.sync_shiprocket_shipment_status]
+verify_jwt = false
+
+[functions.refund-payment]
+verify_jwt = false

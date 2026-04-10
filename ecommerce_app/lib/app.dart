@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/auth/auth_email_link_navigation.dart';
@@ -321,6 +322,13 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     if (_fcmBootstrapped) return;
     _fcmBootstrapped = true;
     if (kIsWeb) return;
+    try {
+      Firebase.app();
+    } catch (_) {
+      // In tests or misconfigured environments, Firebase may be unavailable.
+      // Skip FCM bootstrap instead of crashing app startup.
+      return;
+    }
 
     try {
       final settings = await FirebaseMessaging.instance.getNotificationSettings();
@@ -351,17 +359,21 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     }
 
     // Token refresh: keep DB updated.
-    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-      _fcmToken = newToken;
-      final user = ref.read(authSessionProvider).asData?.value;
-      if (user == null) return;
-      unawaited(
-        _saveDeviceTokenToSupabase(
-          userId: user.idForSupabase,
-          token: newToken,
-        ),
-      );
-    });
+    try {
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+        _fcmToken = newToken;
+        final user = ref.read(authSessionProvider).asData?.value;
+        if (user == null) return;
+        unawaited(
+          _saveDeviceTokenToSupabase(
+            userId: user.idForSupabase,
+            token: newToken,
+          ),
+        );
+      });
+    } catch (_) {
+      // Best-effort only.
+    }
 
     // If user is already logged in, persist immediately.
     try {

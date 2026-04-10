@@ -3,8 +3,8 @@
 # Create the keystore once (example — adjust paths and validity):
 #   keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 #
-storePassword=Shettyn@517mannevu.store.password
-keyPassword=Shettyn@517mannevu.key.password
+storePassword=776015
+keyPassword=776015
 keyAlias=upload
 storeFile=upload-keystore.jks
 

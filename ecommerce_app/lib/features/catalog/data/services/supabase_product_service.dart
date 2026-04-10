@@ -173,16 +173,16 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
     // Search still filters on description server-side when [nameSearch] is set.
     try {
       return await fetchColumns(
-        'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
+        'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions',
       );
     } catch (_) {
       try {
         return await fetchColumns(
-          'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent',
+          'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, weight, dimensions',
         );
       } catch (_) {
         return await fetchColumns(
-          'id, title, price, currency, image_urls, category, tags, inventory_count, created_at',
+          'id, title, price, currency, image_urls, category, tags, inventory_count, created_at, weight, dimensions',
           useAvailableStock: false,
         );
       }
@@ -226,7 +226,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
         dynamic q = client
             .from('products')
             .select(
-              'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
+              'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions',
             )
             .eq('is_active', true)
             .neq('id', currentProductId);
@@ -350,18 +350,18 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
       try {
         return await runBatch(
           batch,
-          'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
+          'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions',
         );
       } catch (_) {
         try {
           return await runBatch(
             batch,
-            'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent',
+            'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, weight, dimensions',
           );
         } catch (_) {
           return await runBatch(
             batch,
-            'id, title, price, currency, image_urls, category, tags, inventory_count, created_at',
+            'id, title, price, currency, image_urls, category, tags, inventory_count, created_at, weight, dimensions',
           );
         }
       }
@@ -384,7 +384,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
         () => client
             .from('products')
             .select(
-              'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews',
+              'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions',
             )
             .eq('id', productId)
             .eq('is_active', true)
@@ -397,7 +397,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
           () => client
               .from('products')
               .select(
-                'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent',
+                'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, weight, dimensions',
               )
               .eq('id', productId)
               .eq('is_active', true)
@@ -409,7 +409,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
           () => client
               .from('products')
               .select(
-                'id, title, description, price, currency, image_urls, category, tags, inventory_count, created_at',
+                'id, title, description, price, currency, image_urls, category, tags, inventory_count, created_at, weight, dimensions',
               )
               .eq('id', productId)
               .eq('is_active', true)

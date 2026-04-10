@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/formatting/estimated_delivery_format.dart';
 import 'package:ecommerce_app/core/invoice/invoice_generator.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
@@ -48,6 +49,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   bool _statusBusy = false;
   bool _shipmentSaving = false;
   bool _didAutoFocusShipment = false;
+  bool _manualDeliveryBusy = false;
+  bool _shiprocketBusy = false;
+  bool _refundBusy = false;
 
   @override
   void dispose() {
@@ -147,6 +151,351 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     });
   }
 
+  String _humanManualDeliveryStatus(String? raw) {
+    switch ((raw ?? '').toLowerCase().trim()) {
+      case 'pending':
+        return 'Pending';
+      case 'assigned':
+        return 'Assigned';
+      case 'packed':
+        return 'Packed';
+      case 'out_for_delivery':
+        return 'Out for delivery';
+      case 'delivered':
+        return 'Delivered';
+      case 'failed':
+        return 'Failed';
+      default:
+        return (raw == null || raw.trim().isEmpty) ? '—' : raw.trim();
+    }
+  }
+
+  bool _manualTransitionAllowed(String currentStatus, String target) {
+    final c = canonicalAdminOrderStatus(currentStatus);
+    switch (target) {
+      case 'packed':
+        return c == 'processing' || c == 'packed';
+      case 'shipped':
+        return c == 'packed' || c == 'shipped';
+      case 'out_for_delivery':
+        return c == 'packed' || c == 'shipped' || c == 'out_for_delivery';
+      case 'delivered':
+        return c == 'out_for_delivery' || c == 'delivered';
+      default:
+        return false;
+    }
+  }
+
+  int _manualStageIndex(String statusRaw) {
+    switch (canonicalAdminOrderStatus(statusRaw)) {
+      case 'packed':
+        return 1;
+      case 'shipped':
+        return 2;
+      case 'out_for_delivery':
+        return 3;
+      case 'delivered':
+        return 4;
+      default:
+        return 0;
+    }
+  }
+
+  bool _shipmentCoreReady(AdminOrderDetails details) {
+    final tracking = (details.trackingNumber ?? '').trim();
+    final courier = (details.courierName ?? '').trim();
+    final weightOk = (details.packageWeightKg ?? 0) > 0;
+    final dims = (details.packageDimensionsCm ?? '').trim();
+    return tracking.isNotEmpty && courier.isNotEmpty && weightOk && dims.isNotEmpty;
+  }
+
+  Color _stageButtonColor(
+    BuildContext context, {
+    required int stageIndex,
+    required int currentIndex,
+  }) {
+    if (currentIndex > stageIndex) return Colors.yellow.shade700; // completed
+    if (currentIndex == stageIndex) return Colors.orange.shade800; // current
+    return Colors.yellow.shade600; // pending
+  }
+
+  bool _hasShiprocketShipment(AdminOrderDetails d) {
+    final sid = (d.shipmentId ?? '').trim();
+    return sid.isNotEmpty;
+  }
+
+  Future<void> _openManualDeliveryDialog(
+    BuildContext context,
+    String orderId,
+    AdminOrderDetails details,
+  ) async {
+    final nameCtrl = TextEditingController(text: details.deliveryPartnerName ?? '');
+    final phoneCtrl = TextEditingController(text: details.deliveryPartnerPhone ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Manual delivery'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Delivery partner name',
+                  border: OutlineInputBorder(),
+                ),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Partner phone (10 digits)',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    final partnerName = nameCtrl.text;
+    final partnerPhone = phoneCtrl.text;
+    nameCtrl.dispose();
+    phoneCtrl.dispose();
+    if (ok != true || !context.mounted) return;
+    setState(() => _manualDeliveryBusy = true);
+    try {
+      await ref.read(adminServiceProvider).setManualDelivery(
+            orderId: orderId,
+            partnerName: partnerName,
+            partnerPhone: partnerPhone,
+          );
+      if (!context.mounted) return;
+      ref.invalidate(adminOrderDetailsProvider(orderId));
+      ref.invalidate(adminOrdersProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Manual delivery saved')),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _manualDeliveryBusy = false);
+    }
+  }
+
+  Future<void> _setManualDeliveryStatus(
+    BuildContext context,
+    String orderId,
+    String status,
+    AdminOrderDetails details,
+  ) async {
+    if (status == 'out_for_delivery') {
+      final hasShipmentFields = (_trackCtrl.text.trim().isNotEmpty) &&
+          (_courierCtrl.text.trim().isNotEmpty) &&
+          (_pkgWeightCtrl.text.trim().isNotEmpty) &&
+          (_pkgDimCtrl.text.trim().isNotEmpty);
+      if (!hasShipmentFields) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Set Shipment (customer-visible) fields first: tracking, courier, weight, dimensions.'),
+          ),
+        );
+        return;
+      }
+      try {
+        await ref.read(adminServiceProvider).updateOrderShipmentInfo(
+              orderId: orderId,
+              trackingNumber: _trackCtrl.text,
+              courierName: _courierCtrl.text,
+              estimatedDeliveryDate: _estDelivery,
+              packageWeightKg: double.tryParse(_pkgWeightCtrl.text.trim()),
+              packageDimensionsCm: _pkgDimCtrl.text.trim(),
+            );
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Shipment save failed: $e')),
+          );
+        }
+        return;
+      }
+    }
+    setState(() => _manualDeliveryBusy = true);
+    try {
+      await ref.read(adminServiceProvider).updateManualDeliveryStatus(
+            orderId: orderId,
+            deliveryStatus: status,
+          );
+      await trySendOrderStatusFcmForTarget(
+        ref.read(fcmNotificationSenderProvider),
+        userId: details.order.userId,
+        orderId: orderId,
+        targetStatusTitleCase: _statusDisplayLabel(status),
+      );
+      if (!context.mounted) return;
+      ref.invalidate(adminOrderDetailsProvider(orderId));
+      ref.invalidate(adminOrdersProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delivery status: ${_humanManualDeliveryStatus(status)}')),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _manualDeliveryBusy = false);
+    }
+  }
+
+  Future<void> _openShiprocketDialog(
+    BuildContext context,
+    String orderId,
+    AdminOrderDetails details,
+  ) async {
+    final pickupCtrl = TextEditingController(text: 'Primary');
+    final stateCtrl = TextEditingController(text: details.shippingState ?? '');
+    final weightCtrl = TextEditingController(
+      text: details.packageWeightKg == null ? '0.5' : details.packageWeightKg!.toString(),
+    );
+    final dimCtrl = TextEditingController(
+      text: (details.packageDimensionsCm ?? '').trim().isEmpty
+          ? '20x15x10'
+          : details.packageDimensionsCm!.trim(),
+    );
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Shiprocket shipment'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Pickup location must match a warehouse name in your Shiprocket account.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pickupCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Pickup location name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: weightCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Package weight (kg)',
+                  hintText: 'e.g. 0.5',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: dimCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Package dimensions (cm)',
+                  hintText: 'e.g. 20x15x10',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: stateCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Shipping state (optional)',
+                  hintText: 'e.g. Kerala',
+                  border: OutlineInputBorder(),
+                ),
+                textCapitalization: TextCapitalization.words,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create shipment')),
+        ],
+      ),
+    );
+    final pickup = pickupCtrl.text.trim();
+    final weightRaw = weightCtrl.text.trim();
+    final dims = dimCtrl.text.trim();
+    final stateOverride = stateCtrl.text.trim();
+    pickupCtrl.dispose();
+    weightCtrl.dispose();
+    dimCtrl.dispose();
+    stateCtrl.dispose();
+    if (ok != true || !context.mounted) return;
+    if (pickup.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pickup location is required.')),
+      );
+      return;
+    }
+    final weight = double.tryParse(weightRaw);
+    if (weight == null || weight <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid package weight greater than 0.')),
+      );
+      return;
+    }
+    setState(() => _shiprocketBusy = true);
+    try {
+      // Keep shipment metadata synced before creating courier shipment.
+      await ref.read(adminServiceProvider).updateOrderShipmentInfo(
+            orderId: orderId,
+            trackingNumber: details.trackingNumber ?? '',
+            courierName: details.courierName ?? '',
+            estimatedDeliveryDate: details.estimatedDeliveryDate,
+            packageWeightKg: weight,
+            packageDimensionsCm: dims,
+          );
+      await ref.read(adminServiceProvider).createShiprocketShipment(
+            orderId: orderId,
+            pickupLocation: pickup,
+            shippingState: stateOverride.length >= 2 ? stateOverride : null,
+          );
+      if (!context.mounted) return;
+      ref.invalidate(adminOrderDetailsProvider(orderId));
+      ref.invalidate(adminOrdersProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shiprocket shipment created')),
+      );
+    } on RepositoryException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Shiprocket failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _shiprocketBusy = false);
+    }
+  }
+
   String _statusDisplayLabel(String raw) {
     final c = canonicalAdminOrderStatus(raw);
     switch (c) {
@@ -173,48 +522,93 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     }
   }
 
-  Future<void> _runStatusAction(
-    BuildContext context,
-    String orderId,
-    String userId,
-    AdminOrderNextAction action,
-  ) async {
-    final noteOutcome = await showAdminOrderStatusConfirmDialog(
-      context,
-      action: action,
+  String _refundStatusLabel(String raw) {
+    switch (raw.toLowerCase().trim()) {
+      case 'none':
+        return 'None';
+      case 'requested':
+        return 'Requested';
+      case 'approved':
+        return 'Approved';
+      case 'processing':
+        return 'Processing';
+      case 'refunded':
+        return 'Refunded';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return raw;
+    }
+  }
+
+  Future<void> _runApproveRefund(
+    BuildContext context, {
+    required AdminOrderDetails details,
+  }) async {
+    final refundPaise =
+        details.refundAmountPaise ?? (details.order.totalAmount * 100).round();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Refund Confirmation'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Order ID: ${details.order.id}'),
+              Text('Customer Name: ${details.order.customerName}'),
+              Text('Payment Method: ${details.paymentMethod.toUpperCase()}'),
+              Text('Total Paid Amount: ${formatInrAmount(details.order.totalAmount)}'),
+              Text('Refund Amount: ${formatInrAmount(refundPaise / 100)}'),
+              const SizedBox(height: 10),
+              const Text(
+                'This action will send money back to the customer. Refunds cannot be undone.',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (refundPaise > 500000) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '\u26A0 High value refund. Please verify before confirming.',
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Confirm Refund'),
+          ),
+        ],
+      ),
     );
-    if (!context.mounted || noteOutcome == null) return;
+    if (confirmed != true || !mounted) return;
 
-    setState(() => _statusBusy = true);
+    setState(() => _refundBusy = true);
     try {
-      await ref.read(adminServiceProvider).updateOrderStatus(
-            orderId: orderId,
-            status: action.targetStatusTitleCase,
-            notes: noteOutcome.isEmpty ? null : noteOutcome,
-          );
-
-      await trySendOrderStatusFcmForTarget(
-        ref.read(fcmNotificationSenderProvider),
-        userId: userId,
-        orderId: orderId,
-        targetStatusTitleCase: action.targetStatusTitleCase,
-      );
-
+      await ref.read(adminServiceProvider).approveRefundForOrder(orderId: details.order.id);
       if (!context.mounted) return;
-      ref.invalidate(adminOrderDetailsProvider(orderId));
+      ref.invalidate(adminOrderDetailsProvider(details.order.id));
       ref.invalidate(adminOrdersProvider);
-      ref.invalidate(adminDashboardProvider);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(adminOrderActionSuccessMessage(action))),
+        const SnackBar(content: Text('Refund approved and submitted to Razorpay.')),
       );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Update failed: $e')),
-        );
-      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Refund failed: $e')),
+      );
     } finally {
-      if (mounted) setState(() => _statusBusy = false);
+      if (mounted) setState(() => _refundBusy = false);
     }
   }
 
@@ -470,10 +864,6 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                     _focusShipmentSectionIfRequested();
                     final order = details.order;
                     final shipmentEditable = _shipmentEditableForStatus(order.status);
-                    final actions = adminOrderNextActions(
-                      order.status,
-                      paymentMethodRaw: order.paymentMethod,
-                    );
                     final orderReturns = returnsAsync.asData?.value
                             .where((r) => r.orderId == order.id)
                             .toList() ??
@@ -503,116 +893,13 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Return Actions',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 8),
-                                if (orderReturns.isEmpty)
-                                  const Text('No return requests for this order.')
-                                else
-                                  ...orderReturns.map((r) {
-                                    final st = r.returnStatus.trim().toLowerCase();
-                                    return ListTile(
-                                      dense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                      title: Text('${r.lineTitle}  (${r.returnReason})'),
-                                      subtitle: Text('Status: ${r.returnStatus}'),
-                                      trailing: Wrap(
-                                        spacing: 6,
-                                        children: [
-                                          if (st == 'requested') ...[
-                                            OutlinedButton(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'approved',
-                                                        successMessage: 'Return approved.',
-                                                      ),
-                                              child: const Text('Approve'),
-                                            ),
-                                            OutlinedButton(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'rejected',
-                                                        successMessage: 'Return rejected.',
-                                                      ),
-                                              child: const Text('Reject'),
-                                            ),
-                                          ],
-                                          if (st == 'approved')
-                                            OutlinedButton(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'picked_up',
-                                                        successMessage: 'Pickup marked completed.',
-                                                      ),
-                                              child: const Text('Mark Pickup Done'),
-                                            ),
-                                          if (st == 'picked_up')
-                                            OutlinedButton(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'returned',
-                                                        successMessage: 'Marked as returned.',
-                                                      ),
-                                              child: const Text('Mark Returned'),
-                                            ),
-                                          if (st == 'returned')
-                                            FilledButton.tonal(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'refund_completed',
-                                                        successMessage: 'Refund completed.',
-                                                      ),
-                                              child: const Text('Process Refund'),
-                                            ),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
                                   'Payment Details',
                                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                                 ),
                                 const SizedBox(height: 12),
                                 _AdminPaymentDetailLine(
                                   label: 'Payment Method',
-                                  value: details.paymentMethod,
+                                  value: _adminPaymentMethodLabel(details.paymentMethod),
                                 ),
                                 _AdminPaymentDetailLine(
                                   label: 'Payment Status',
@@ -633,19 +920,78 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                 ),
                                 _AdminPaymentDetailLine(
                                   label: 'Transaction Date',
-                                  value: details.paidAt == null
-                                      ? '—'
-                                      : formatOrderDetailsDateTime(details.paidAt!.toLocal()),
+                                  value: () {
+                                    final txAt = details.paidAt ?? details.paymentVerifiedAt;
+                                    if (txAt == null) return '—';
+                                    return formatOrderDetailsDateTime(txAt.toLocal());
+                                  }(),
                                 ),
                                 _AdminPaymentDetailLine(
                                   label: 'Refund Status',
-                                  value: _dashIfEmpty(
-                                    orderReturns.isEmpty
-                                        ? null
-                                        : orderReturns
-                                            .map((r) => r.refundStatus?.trim() ?? '')
-                                            .firstWhere((s) => s.isNotEmpty, orElse: () => ''),
-                                  ),
+                                  value: _refundStatusLabel(details.refundStatus),
+                                ),
+                                _AdminPaymentDetailLine(
+                                  label: 'Refund Amount',
+                                  value: details.refundAmountPaise == null
+                                      ? '—'
+                                      : formatInrAmount(details.refundAmountPaise! / 100.0),
+                                ),
+                                _AdminPaymentDetailLine(
+                                  label: 'Refund ID',
+                                  value: _dashIfEmpty(details.refundId),
+                                ),
+                                _AdminPaymentDetailLine(
+                                  label: 'Refund Requested At',
+                                  value: details.refundRequestedAt == null
+                                      ? '—'
+                                      : formatOrderDetailsDateTime(
+                                          details.refundRequestedAt!.toLocal(),
+                                        ),
+                                ),
+                                _AdminPaymentDetailLine(
+                                  label: 'Refund Processed At',
+                                  value: details.refundProcessedAt == null
+                                      ? '—'
+                                      : formatOrderDetailsDateTime(
+                                          details.refundProcessedAt!.toLocal(),
+                                        ),
+                                ),
+                                _AdminPaymentDetailLine(
+                                  label: 'Refund Initiated By',
+                                  value: _dashIfEmpty(details.refundInitiatedBy),
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: details.paymentMethod.toLowerCase().trim() == 'cod'
+                                      ? const SizedBox(
+                                          width: 240,
+                                          child: Text(
+                                            'No refund required (Cash on Delivery)',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(color: Colors.black54),
+                                          ),
+                                        )
+                                      : FilledButton(
+                                          onPressed: _refundBusy ||
+                                                  details.paymentMethod.toLowerCase().trim() !=
+                                                      'razorpay' ||
+                                                  details.paymentStatus.toLowerCase().trim() !=
+                                                      'paid' ||
+                                                  details.razorpayPaymentId == null ||
+                                                  details.razorpayPaymentId!.trim().isEmpty ||
+                                                  details.refundStatus == 'processing' ||
+                                                  details.refundStatus == 'refunded'
+                                              ? null
+                                              : () => _runApproveRefund(
+                                                    context,
+                                                    details: details,
+                                                  ),
+                                          child: Text(
+                                            _refundBusy ? 'Processing Refund...' : 'Initiate Refund',
+                                          ),
+                                        ),
                                 ),
                                 _AdminPaymentDetailLine(
                                   label: 'Created At',
@@ -700,66 +1046,6 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Order Actions',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Current status: ${_statusDisplayLabel(order.status)}',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                                const SizedBox(height: 12),
-                                if (_statusBusy)
-                                  const Padding(
-                                    padding: EdgeInsets.only(bottom: 12),
-                                    child: LinearProgressIndicator(minHeight: 3),
-                                  ),
-                                if (actions.isEmpty)
-                                  Text(
-                                    canonicalAdminOrderStatus(order.status) == 'delivered'
-                                        ? 'Delivered — no further status changes are allowed.'
-                                        : canonicalAdminOrderStatus(order.status) == 'cancelled'
-                                            ? 'This order is cancelled. No status updates are available.'
-                                            : canonicalAdminOrderStatus(order.status) ==
-                                                    'cancel_requested'
-                                                ? 'Customer requested cancellation — use Cancellation review below.'
-                                                : 'No status changes are available for this order.',
-                                    style: Theme.of(context).textTheme.bodyMedium,
-                                  )
-                                else
-                                  Wrap(
-                                    spacing: 10,
-                                    runSpacing: 10,
-                                    children: [
-                                      for (final a in actions)
-                                        FilledButton.tonal(
-                                          onPressed: _statusBusy
-                                              ? null
-                                              : () =>
-                                                  _runStatusAction(context, order.id, order.userId, a),
-                                          style: a.destructive
-                                              ? FilledButton.styleFrom(
-                                                  foregroundColor: Theme.of(context).colorScheme.error,
-                                                )
-                                              : null,
-                                          child: Text(a.buttonLabel),
-                                        ),
-                                    ],
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
                         if (canonicalAdminOrderStatus(order.status) == 'cancel_requested') ...[
                           const SizedBox(height: 12),
                           Card(
@@ -797,7 +1083,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                           backgroundColor: Theme.of(context).colorScheme.error,
                                           foregroundColor: Theme.of(context).colorScheme.onError,
                                         ),
-                                        child: const Text('Approve cancellation'),
+                                        child: const Text('Approve Cancel Request'),
                                       ),
                                       OutlinedButton(
                                         onPressed: _statusBusy
@@ -807,7 +1093,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                                   order.id,
                                                   order.userId,
                                                 ),
-                                        child: const Text('Reject cancellation'),
+                                        child: const Text('Reject Cancel Request'),
                                       ),
                                     ],
                                   ),
@@ -844,6 +1130,203 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                     subtitle: Text(sub.toString()),
                                   );
                                 }),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Delivery management',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Choose manual fulfilment or Shiprocket. Courier APIs run only on the server.',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                                const SizedBox(height: 12),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Current method',
+                                  value: () {
+                                    final m = (details.deliveryMethod ?? '').toLowerCase().trim();
+                                    if (m == 'manual_delivery') return 'Manual delivery';
+                                    if (m == 'shiprocket_delivery') return 'Shiprocket';
+                                    return 'Not set';
+                                  }(),
+                                ),
+                                if ((details.deliveryMethod ?? '').toLowerCase() ==
+                                    'manual_delivery') ...[
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Delivery partner',
+                                    value: details.deliveryPartnerName,
+                                  ),
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Partner phone',
+                                    value: details.deliveryPartnerPhone,
+                                  ),
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Delivery status',
+                                    value: _humanManualDeliveryStatus(details.deliveryStatus),
+                                  ),
+                                ],
+                                if ((details.deliveryMethod ?? '').toLowerCase() ==
+                                    'shiprocket_delivery') ...[
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Shipping provider',
+                                    value: details.shippingProvider ?? 'Shiprocket',
+                                  ),
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Shipment ID',
+                                    value: details.shipmentId,
+                                  ),
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'AWB',
+                                    value: details.awbCode,
+                                  ),
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Courier',
+                                    value: details.courierName,
+                                  ),
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Shipment status',
+                                    value: details.shipmentStatus,
+                                  ),
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Tracking URL',
+                                    value: details.trackingUrl,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _shiprocketBusy
+                                          ? null
+                                          : () async {
+                                              setState(() => _shiprocketBusy = true);
+                                              try {
+                                                final out = await ref
+                                                    .read(adminServiceProvider)
+                                                    .syncShiprocketShipmentStatus(orderId: order.id);
+                                                if (!context.mounted) return;
+                                                ref.invalidate(adminOrderDetailsProvider(orderId));
+                                                ref.invalidate(adminOrdersProvider);
+                                                final synced = out['synced'] == true;
+                                                final detail = out['detail']?.toString();
+                                                if (synced) {
+                                                  final deliveryStatus =
+                                                      out['delivery_status']?.toString().trim();
+                                                  final shipmentStatus =
+                                                      out['shipment_status']?.toString().trim();
+                                                  String? targetStatusTitleCase;
+                                                  if (deliveryStatus == 'delivered') {
+                                                    targetStatusTitleCase = 'Delivered';
+                                                  } else if (deliveryStatus ==
+                                                      'out_for_delivery') {
+                                                    targetStatusTitleCase = 'Out for delivery';
+                                                  } else if (shipmentStatus == 'in_transit') {
+                                                    targetStatusTitleCase = 'Shipped';
+                                                  }
+                                                  if (targetStatusTitleCase != null) {
+                                                    await trySendOrderStatusFcmForTarget(
+                                                      ref.read(fcmNotificationSenderProvider),
+                                                      userId: order.userId,
+                                                      orderId: order.id,
+                                                      targetStatusTitleCase:
+                                                          targetStatusTitleCase,
+                                                    );
+                                                  }
+                                                }
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      synced
+                                                          ? 'Shiprocket status synced'
+                                                          : (detail != null && detail.isNotEmpty
+                                                              ? detail
+                                                              : 'No new status yet'),
+                                                    ),
+                                                  ),
+                                                );
+                                              } catch (e) {
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(content: Text('Sync failed: $e')),
+                                                  );
+                                                }
+                                              } finally {
+                                                if (mounted) setState(() => _shiprocketBusy = false);
+                                              }
+                                            },
+                                      icon: const Icon(Icons.sync, size: 18),
+                                      label: const Text('Sync Shiprocket status'),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Current order status: ${_statusDisplayLabel(order.status)}',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  children: [
+                                    FilledButton.tonal(
+                                      onPressed: (!shipmentEditable ||
+                                              _manualDeliveryBusy ||
+                                              _shiprocketBusy ||
+                                              (details.deliveryMethod ?? '').toLowerCase() ==
+                                                  'shiprocket_delivery' ||
+                                              canonicalAdminOrderStatus(order.status) ==
+                                                  'pending_payment' ||
+                                              canonicalAdminOrderStatus(order.status) ==
+                                                  'payment_failed')
+                                          ? null
+                                          : () => _openManualDeliveryDialog(
+                                                context,
+                                                order.id,
+                                                details,
+                                              ),
+                                      child: const Text('Manual delivery'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: (!shipmentEditable ||
+                                              _manualDeliveryBusy ||
+                                              _shiprocketBusy ||
+                                              _hasShiprocketShipment(details) ||
+                                              canonicalAdminOrderStatus(order.status) ==
+                                                  'payment_failed')
+                                          ? null
+                                          : () => _openShiprocketDialog(
+                                                context,
+                                                order.id,
+                                                details,
+                                              ),
+                                      child: const Text('Shiprocket shipment'),
+                                    ),
+                                  ],
+                                ),
+                                if ((details.deliveryMethod ?? '').toLowerCase() ==
+                                    'shiprocket_delivery') ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Manual status buttons are hidden while Shiprocket delivery is selected.',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -913,7 +1396,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                       labelText: 'Courier name',
                                       border: OutlineInputBorder(),
                                     ),
-                                    onChanged: (_) => setState(() => _shipmentDirty = true                                    ),
+                                    onChanged: (_) => setState(() => _shipmentDirty = true),
                                   ),
                                   const SizedBox(height: 10),
                                   TextField(
@@ -1043,6 +1526,248 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                             ),
                           ),
                         ),
+                        if ((details.deliveryMethod ?? '').toLowerCase() == 'manual_delivery') ...[
+                          const SizedBox(height: 12),
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Manual fulfilment sequence',
+                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Follow in order: Packed -> Save shipment -> Mark as shipped -> Out for delivery -> Delivered',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Builder(
+                                    builder: (ctx) {
+                                      final current = _manualStageIndex(order.status);
+                                      final canPacked = _manualTransitionAllowed(order.status, 'packed');
+                                      final canShipped = _manualTransitionAllowed(order.status, 'shipped');
+                                      final canOut = _manualTransitionAllowed(order.status, 'out_for_delivery');
+                                      final canDelivered =
+                                          _manualTransitionAllowed(order.status, 'delivered');
+                                      final shipmentSaved = _shipmentCoreReady(details) &&
+                                          !_shipmentFormDiffersFrom(details);
+
+                                      return Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _stageButtonColor(
+                                                ctx,
+                                                stageIndex: 1,
+                                                currentIndex: current,
+                                              ),
+                                              foregroundColor: Colors.black87,
+                                            ),
+                                            onPressed: (_manualDeliveryBusy || !canPacked)
+                                                ? null
+                                                : () => _setManualDeliveryStatus(
+                                                      context,
+                                                      order.id,
+                                                      'packed',
+                                                      details,
+                                                    ),
+                                            child: const Text('Packed'),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _stageButtonColor(
+                                                ctx,
+                                                stageIndex: 2,
+                                                currentIndex: current,
+                                              ),
+                                              foregroundColor: Colors.black87,
+                                            ),
+                                            onPressed: (_manualDeliveryBusy || !canShipped)
+                                                ? null
+                                                : () async {
+                                                    if (!shipmentSaved) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                              'Save shipment details first (tracking, courier, weight, dimensions).'),
+                                                        ),
+                                                      );
+                                                      return;
+                                                    }
+                                                    await _setManualDeliveryStatus(
+                                                      context,
+                                                      order.id,
+                                                      'shipped',
+                                                      details,
+                                                    );
+                                                  },
+                                            child: const Text('Mark as shipped'),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _stageButtonColor(
+                                                ctx,
+                                                stageIndex: 3,
+                                                currentIndex: current,
+                                              ),
+                                              foregroundColor: Colors.black87,
+                                            ),
+                                            onPressed: (_manualDeliveryBusy || !canOut)
+                                                ? null
+                                                : () => _setManualDeliveryStatus(
+                                                      context,
+                                                      order.id,
+                                                      'out_for_delivery',
+                                                      details,
+                                                    ),
+                                            child: const Text('Out for delivery'),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _stageButtonColor(
+                                                ctx,
+                                                stageIndex: 4,
+                                                currentIndex: current,
+                                              ),
+                                              foregroundColor: Colors.black87,
+                                            ),
+                                            onPressed: (_manualDeliveryBusy || !canDelivered)
+                                                ? null
+                                                : () => _setManualDeliveryStatus(
+                                                      context,
+                                                      order.id,
+                                                      'delivered',
+                                                      details,
+                                                    ),
+                                            child: const Text('Delivered'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Return Actions',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 8),
+                                if (canonicalAdminOrderStatus(order.status) != 'delivered' &&
+                                    orderReturns.isEmpty)
+                                  Text(
+                                    'Return workflow unlocks after delivery.',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                  )
+                                else if (orderReturns.isEmpty)
+                                  const Text('No return requests for this order.')
+                                else
+                                  ...orderReturns.map((r) {
+                                    final st = r.returnStatus.trim().toLowerCase();
+                                    return ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text('${r.lineTitle}  (${r.returnReason})'),
+                                      subtitle: Text('Status: ${r.returnStatus}'),
+                                      trailing: Wrap(
+                                        spacing: 6,
+                                        children: [
+                                          if (st == 'requested') ...[
+                                            OutlinedButton(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'approved',
+                                                        successMessage: 'Return approved.',
+                                                      ),
+                                              child: const Text('Approve'),
+                                            ),
+                                            OutlinedButton(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'rejected',
+                                                        successMessage: 'Return rejected.',
+                                                      ),
+                                              child: const Text('Reject'),
+                                            ),
+                                          ],
+                                          if (st == 'approved')
+                                            OutlinedButton(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'picked_up',
+                                                        successMessage: 'Pickup marked completed.',
+                                                      ),
+                                              child: const Text('Mark Pickup Done'),
+                                            ),
+                                          if (st == 'picked_up')
+                                            OutlinedButton(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'returned',
+                                                        successMessage: 'Marked as returned.',
+                                                      ),
+                                              child: const Text('Mark Returned'),
+                                            ),
+                                          if (st == 'returned')
+                                            FilledButton.tonal(
+                                              onPressed: _statusBusy
+                                                  ? null
+                                                  : () => _runReturnStatusAction(
+                                                        context,
+                                                        orderId: order.id,
+                                                        userId: r.userId,
+                                                        returnId: r.id,
+                                                        newStatus: 'refund_completed',
+                                                        successMessage: 'Refund completed.',
+                                                      ),
+                                              child: const Text('Process Refund'),
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                              ],
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 12),
                         Card(
                           child: Padding(
@@ -1149,13 +1874,23 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
-              fontSize: emphasize ? 16 : 14,
-              color: isFree ? null : AppColors.priceText,
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
+                fontSize: emphasize ? 16 : 14,
+                color: isFree ? null : AppColors.priceText,
+              ),
             ),
           ),
         ],
@@ -1167,14 +1902,28 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
 String _adminPaymentStatusLabel(String raw) {
   switch (raw.toLowerCase().trim()) {
     case 'paid':
+    case 'captured':
+    case 'success':
+    case 'completed':
       return 'Paid';
+    case 'authorized':
+    case 'created':
+      return 'Pending';
     case 'failed':
+    case 'error':
       return 'Failed';
     case 'refunded':
       return 'Refunded';
     default:
       return 'Pending';
   }
+}
+
+String _adminPaymentMethodLabel(String raw) {
+  final v = raw.toLowerCase().trim();
+  if (v == 'razorpay' || v == 'online') return 'Razorpay (Online)';
+  if (v == 'cod') return 'Cash on Delivery';
+  return raw.trim().isEmpty ? '—' : raw;
 }
 
 String _dashIfEmpty(String? v) {

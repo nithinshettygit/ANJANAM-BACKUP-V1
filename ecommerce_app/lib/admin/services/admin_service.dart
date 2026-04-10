@@ -1,10 +1,14 @@
 import 'dart:typed_data';
+import 'dart:convert';
 
+import 'package:ecommerce_app/core/config/app_env.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/search/order_search_utils.dart';
 import 'package:ecommerce_app/core/formatting/estimated_delivery_format.dart';
 import '../utils/admin_order_status_workflow.dart';
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart'
     show FileOptions, PostgrestException, SupabaseClient;
 
@@ -216,6 +220,9 @@ class AdminOrderRow {
   final String paymentStatus;
 
   final String? razorpayPaymentId;
+  final String refundStatus;
+  final int? refundAmountPaise;
+  final String? refundId;
 
   const AdminOrderRow({
     required this.id,
@@ -231,6 +238,9 @@ class AdminOrderRow {
     this.paymentMethod = 'razorpay',
     this.paymentStatus = 'pending',
     this.razorpayPaymentId,
+    this.refundStatus = 'none',
+    this.refundAmountPaise,
+    this.refundId,
   });
 }
 
@@ -282,12 +292,32 @@ class AdminOrderDetails {
   final String? razorpayPaymentId;
   final String? razorpayOrderId;
   final DateTime? paidAt;
+  final DateTime? paymentVerifiedAt;
   final List<AdminOrderTimelineEvent> timeline;
   final String? trackingNumber;
   final String? courierName;
   final DateTime? estimatedDeliveryDate;
   final double? packageWeightKg;
   final String? packageDimensionsCm;
+  final String? deliveryMethod;
+  final String? deliveryStatus;
+  final String? deliveryPartnerName;
+  final String? deliveryPartnerPhone;
+  final String? shippingProvider;
+  final String? shipmentId;
+  final String? awbCode;
+  final String? shipmentStatus;
+  final String? trackingUrl;
+  final DateTime? shippedAt;
+  final String? shippingState;
+  final String refundStatus;
+  final int? refundAmountPaise;
+  final String? refundId;
+  final DateTime? refundRequestedAt;
+  final DateTime? refundProcessedAt;
+  final String? refundInitiatedBy;
+  final DateTime? refundInitiatedAt;
+  final String? refundReason;
 
   const AdminOrderDetails({
     required this.order,
@@ -303,12 +333,32 @@ class AdminOrderDetails {
     this.razorpayPaymentId,
     this.razorpayOrderId,
     this.paidAt,
+    this.paymentVerifiedAt,
     required this.timeline,
     this.trackingNumber,
     this.courierName,
     this.estimatedDeliveryDate,
     this.packageWeightKg,
     this.packageDimensionsCm,
+    this.deliveryMethod,
+    this.deliveryStatus,
+    this.deliveryPartnerName,
+    this.deliveryPartnerPhone,
+    this.shippingProvider,
+    this.shipmentId,
+    this.awbCode,
+    this.shipmentStatus,
+    this.trackingUrl,
+    this.shippedAt,
+    this.shippingState,
+    this.refundStatus = 'none',
+    this.refundAmountPaise,
+    this.refundId,
+    this.refundRequestedAt,
+    this.refundProcessedAt,
+    this.refundInitiatedBy,
+    this.refundInitiatedAt,
+    this.refundReason,
   });
 }
 
@@ -342,6 +392,10 @@ class AdminReturnRow {
   final String? inspectionNotes;
   final String? razorpayRefundId;
   final String? gatewayRefundStatus;
+  final String paymentMethod;
+  final String paymentStatus;
+  final String orderRefundStatus;
+  final int? orderRefundAmountPaise;
 
   const AdminReturnRow({
     required this.id,
@@ -373,6 +427,10 @@ class AdminReturnRow {
     this.inspectionNotes,
     this.razorpayRefundId,
     this.gatewayRefundStatus,
+    this.paymentMethod = 'razorpay',
+    this.paymentStatus = 'pending',
+    this.orderRefundStatus = 'none',
+    this.orderRefundAmountPaise,
   });
 }
 
@@ -1134,7 +1192,8 @@ class AdminService {
           .from('orders')
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
-            'payment_method, payment_status, razorpay_payment_id',
+            'payment_method, payment_status, razorpay_payment_id, '
+            'refund_status, refund_amount, refund_id',
           )
           .order('created_at', ascending: false);
       if (limit != null) {
@@ -1146,7 +1205,8 @@ class AdminService {
           .from('orders')
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, '
-            'payment_method, payment_status, razorpay_payment_id',
+            'payment_method, payment_status, razorpay_payment_id, '
+            'refund_status, refund_amount, refund_id',
           )
           .order('created_at', ascending: false);
       if (limit != null) {
@@ -1219,6 +1279,14 @@ class AdminService {
         paymentMethod: pm,
         paymentStatus: _orderPaymentStatusRaw(row),
         razorpayPaymentId: _razorpayPaymentIdFromRow(row),
+        refundStatus: (row['refund_status']?.toString().trim().isNotEmpty ?? false)
+            ? row['refund_status'].toString().trim().toLowerCase()
+            : 'none',
+        refundAmountPaise: (row['refund_amount'] as num?)?.toInt(),
+        refundId: () {
+          final t = row['refund_id']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
       );
     }).toList();
 
@@ -1294,7 +1362,8 @@ class AdminService {
           .from('orders')
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
-            'payment_method, payment_status, razorpay_payment_id',
+            'payment_method, payment_status, razorpay_payment_id, '
+            'refund_status, refund_amount, refund_id',
           )
           .eq('user_id', userId)
           .order('created_at', ascending: false);
@@ -1304,7 +1373,8 @@ class AdminService {
           .from('orders')
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, '
-            'payment_method, payment_status, razorpay_payment_id',
+            'payment_method, payment_status, razorpay_payment_id, '
+            'refund_status, refund_amount, refund_id',
           )
           .eq('user_id', userId)
           .order('created_at', ascending: false);
@@ -1355,6 +1425,14 @@ class AdminService {
         paymentMethod: pm,
         paymentStatus: _orderPaymentStatusRaw(row),
         razorpayPaymentId: _razorpayPaymentIdFromRow(row),
+        refundStatus: (row['refund_status']?.toString().trim().isNotEmpty ?? false)
+            ? row['refund_status'].toString().trim().toLowerCase()
+            : 'none',
+        refundAmountPaise: (row['refund_amount'] as num?)?.toInt(),
+        refundId: () {
+          final t = row['refund_id']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
       );
     }).toList();
   }
@@ -1367,10 +1445,14 @@ class AdminService {
           .from('orders')
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
-            'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, '
+            'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, shipping_state, '
             'tracking_number, courier_name, estimated_delivery_date, '
             'package_weight_kg, package_dimensions_cm, '
-            'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at',
+            'delivery_method, delivery_status, delivery_partner_name, delivery_partner_phone, shipping_provider, '
+            'shipment_id, awb_code, shipment_status, tracking_url, shipped_at, '
+            'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at, '
+            'refund_status, refund_amount, refund_id, refund_requested_at, refund_processed_at, '
+            'refund_initiated_by, refund_initiated_at, refund_reason',
           )
           .eq('id', orderId)
           .single();
@@ -1381,7 +1463,9 @@ class AdminService {
             .select(
               'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
               'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, '
-              'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at',
+              'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at, '
+              'refund_status, refund_amount, refund_id, refund_requested_at, refund_processed_at, '
+              'refund_initiated_by, refund_initiated_at, refund_reason',
             )
             .eq('id', orderId)
             .single();
@@ -1392,7 +1476,9 @@ class AdminService {
               .select(
                 'id, user_id, status, currency, created_at, delivery_fee, '
                 'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, '
-                'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at',
+                'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at, '
+                'refund_status, refund_amount, refund_id, refund_requested_at, refund_processed_at, '
+                'refund_initiated_by, refund_initiated_at, refund_reason',
               )
               .eq('id', orderId)
               .single();
@@ -1475,6 +1561,14 @@ class AdminService {
       paymentMethod: pmRaw,
       paymentStatus: psRaw,
       razorpayPaymentId: rzpId,
+      refundStatus: (orderMap['refund_status']?.toString().trim().isNotEmpty ?? false)
+          ? orderMap['refund_status'].toString().trim().toLowerCase()
+          : 'none',
+      refundAmountPaise: (orderMap['refund_amount'] as num?)?.toInt(),
+      refundId: () {
+        final t = orderMap['refund_id']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
     );
 
     final shipName = orderMap['shipping_full_name']?.toString().trim();
@@ -1502,6 +1596,15 @@ class AdminService {
     final dimRaw = orderMap['package_dimensions_cm']?.toString().trim();
     final packageDimensionsCm =
         dimRaw != null && dimRaw.isNotEmpty ? dimRaw : null;
+
+    String? orderColStr(String key) {
+      final t = orderMap[key]?.toString().trim();
+      return t != null && t.isNotEmpty ? t : null;
+    }
+
+    final shipStateRaw = orderMap['shipping_state']?.toString().trim();
+    final shippingStateParsed =
+        shipStateRaw != null && shipStateRaw.isNotEmpty ? shipStateRaw : null;
 
     List<AdminOrderTimelineEvent> timeline;
     try {
@@ -1544,12 +1647,34 @@ class AdminService {
       paidAt: DateTime.tryParse(
         orderMap['paid_at']?.toString() ?? orderMap['payment_verified_at']?.toString() ?? '',
       ),
+      paymentVerifiedAt: DateTime.tryParse(orderMap['payment_verified_at']?.toString() ?? ''),
       timeline: timeline,
       trackingNumber: trackingNumber,
       courierName: courierName,
       estimatedDeliveryDate: estimatedDeliveryDate,
       packageWeightKg: packageWeightKg,
       packageDimensionsCm: packageDimensionsCm,
+      deliveryMethod: orderColStr('delivery_method'),
+      deliveryStatus: orderColStr('delivery_status'),
+      deliveryPartnerName: orderColStr('delivery_partner_name'),
+      deliveryPartnerPhone: orderColStr('delivery_partner_phone'),
+      shippingProvider: orderColStr('shipping_provider'),
+      shipmentId: orderColStr('shipment_id'),
+      awbCode: orderColStr('awb_code'),
+      shipmentStatus: orderColStr('shipment_status'),
+      trackingUrl: orderColStr('tracking_url'),
+      shippedAt: DateTime.tryParse(orderMap['shipped_at']?.toString() ?? ''),
+      shippingState: shippingStateParsed,
+      refundStatus: (orderMap['refund_status']?.toString().trim().isNotEmpty ?? false)
+          ? orderMap['refund_status'].toString().trim().toLowerCase()
+          : 'none',
+      refundAmountPaise: (orderMap['refund_amount'] as num?)?.toInt(),
+      refundId: orderColStr('refund_id'),
+      refundRequestedAt: DateTime.tryParse(orderMap['refund_requested_at']?.toString() ?? ''),
+      refundProcessedAt: DateTime.tryParse(orderMap['refund_processed_at']?.toString() ?? ''),
+      refundInitiatedBy: orderColStr('refund_initiated_by'),
+      refundInitiatedAt: DateTime.tryParse(orderMap['refund_initiated_at']?.toString() ?? ''),
+      refundReason: orderColStr('refund_reason'),
     );
   }
 
@@ -1675,6 +1800,270 @@ class AdminService {
       entityId: orderId,
       message: 'Admin updated shipment details for order $orderId',
     );
+  }
+
+  Future<void> setManualDelivery({
+    required String orderId,
+    required String partnerName,
+    required String partnerPhone,
+  }) async {
+    await _requireAdmin();
+    final name = partnerName.trim();
+    final digits = partnerPhone.replaceAll(RegExp(r'\D'), '');
+    if (name.length < 2) {
+      throw const RepositoryException('Enter a delivery partner name.');
+    }
+    if (digits.length != 10) {
+      throw const RepositoryException('Enter a valid 10-digit phone number.');
+    }
+    String? statusRaw;
+    String? paymentMethodRaw;
+    try {
+      final row = await client
+          .from('orders')
+          .select('status, payment_method')
+          .eq('id', orderId)
+          .single();
+      statusRaw = row['status']?.toString();
+      paymentMethodRaw = row['payment_method']?.toString();
+    } catch (_) {}
+    final terminal = canonicalAdminOrderStatus(statusRaw ?? '');
+    if (terminal == 'delivered' || terminal == 'cancelled') {
+      throw RepositoryException(
+        'Manual delivery cannot be set when the order is ${terminal == 'delivered' ? 'delivered' : 'cancelled'}.',
+      );
+    }
+    final isCod = (paymentMethodRaw ?? '').trim().toLowerCase() == 'cod';
+    final shouldMoveToProcessing =
+        terminal == 'pending_payment' && isCod;
+    await client.from('orders').update({
+      'delivery_method': 'manual_delivery',
+      'delivery_status': 'assigned',
+      'delivery_partner_name': name,
+      'delivery_partner_phone': digits,
+      if (shouldMoveToProcessing) 'status': 'processing',
+      'shipping_provider': null,
+      'shipment_id': null,
+      'awb_code': null,
+      'tracking_url': null,
+      'shipment_status': null,
+      'tracking_number': null,
+      'courier_name': null,
+    }).eq('id', orderId);
+    await _logAdminAction(
+      action: 'manual_delivery_assigned',
+      entity: 'order',
+      entityId: orderId,
+      message: 'Admin set manual delivery for order $orderId',
+    );
+  }
+
+  Future<void> updateManualDeliveryStatus({
+    required String orderId,
+    required String deliveryStatus,
+  }) async {
+    await _requireAdmin();
+    const allowed = {'packed', 'shipped', 'out_for_delivery', 'delivered'};
+    final norm = deliveryStatus.trim().toLowerCase();
+    if (!allowed.contains(norm)) {
+      throw const RepositoryException('Invalid delivery status.');
+    }
+    final statusMap = <String, String>{
+      'packed': 'packed',
+      'shipped': 'shipped',
+      'out_for_delivery': 'out_for_delivery',
+      'delivered': 'delivered',
+    };
+    final payload = <String, dynamic>{
+      'status': statusMap[norm],
+      if (norm != 'shipped') 'delivery_status': norm,
+    };
+    await client.from('orders').update(payload).eq('id', orderId);
+    await _logAdminAction(
+      action: 'manual_delivery_status_updated',
+      entity: 'order',
+      entityId: orderId,
+      message: 'Admin set manual delivery_status=$norm and order status=${statusMap[norm]} for order $orderId',
+    );
+  }
+
+  Future<Map<String, dynamic>> createShiprocketShipment({
+    required String orderId,
+    required String pickupLocation,
+    String? shippingState,
+  }) async {
+    await _requireAdmin();
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw const RepositoryException('Session expired. Sign in again.');
+    }
+    try {
+      final row = await client
+          .from('orders')
+          .select('status, payment_method')
+          .eq('id', orderId)
+          .single();
+      final st = canonicalAdminOrderStatus(row['status']?.toString() ?? '');
+      final pm = (row['payment_method'] ?? '').toString().trim().toLowerCase();
+      if (st == 'pending_payment' && pm == 'cod') {
+        await client.from('orders').update({'status': 'processing'}).eq('id', orderId);
+      }
+    } catch (_) {}
+
+    final body = <String, dynamic>{
+      'order_id': orderId,
+      'pickup_location': pickupLocation.trim(),
+      if (shippingState != null && shippingState.trim().length >= 2)
+        'shipping_state': shippingState.trim(),
+    };
+    late final int status;
+    late final dynamic data;
+    if (kIsWeb) {
+      final base = AppEnv.resolve().supabaseFunctionsBaseUrl.trim();
+      if (base.isEmpty) {
+        throw const RepositoryException('Missing Supabase functions base URL.');
+      }
+      // Keep request CORS-safelisted to bypass broken OPTIONS preflight.
+      final payload = <String, dynamic>{
+        ...body,
+        'access_token': token,
+      };
+      final res = await http.post(
+        Uri.parse('$base/create_shiprocket_shipment'),
+        headers: const <String, String>{'Content-Type': 'text/plain'},
+        body: jsonEncode(payload),
+      );
+      status = res.statusCode;
+      try {
+        data = jsonDecode(res.body);
+      } catch (_) {
+        data = <String, dynamic>{'raw': res.body};
+      }
+    } else {
+      final res = await client.functions.invoke(
+        'create_shiprocket_shipment',
+        body: body,
+      );
+      status = res.status;
+      data = res.data;
+    }
+    if (status < 200 || status >= 300) {
+      final err = data is Map ? data['error']?.toString() : null;
+      final detail = data is Map ? data['detail']?.toString() : null;
+      final msg = err == null || err.isEmpty
+          ? 'Shiprocket request failed ($status).'
+          : (detail != null && detail.isNotEmpty ? '$err ($detail)' : err);
+      throw RepositoryException(msg);
+    }
+    final raw = data;
+    if (raw is Map) {
+      return Map<String, dynamic>.from(raw);
+    }
+    return <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> syncShiprocketShipmentStatus({
+    required String orderId,
+  }) async {
+    await _requireAdmin();
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw const RepositoryException('Session expired. Sign in again.');
+    }
+    final body = <String, dynamic>{'order_id': orderId};
+    late final int status;
+    late final dynamic data;
+    if (kIsWeb) {
+      final base = AppEnv.resolve().supabaseFunctionsBaseUrl.trim();
+      if (base.isEmpty) {
+        throw const RepositoryException('Missing Supabase functions base URL.');
+      }
+      final payload = <String, dynamic>{...body, 'access_token': token};
+      final res = await http.post(
+        Uri.parse('$base/sync_shiprocket_shipment_status'),
+        headers: const <String, String>{'Content-Type': 'text/plain'},
+        body: jsonEncode(payload),
+      );
+      status = res.statusCode;
+      try {
+        data = jsonDecode(res.body);
+      } catch (_) {
+        data = <String, dynamic>{'raw': res.body};
+      }
+    } else {
+      final res = await client.functions.invoke(
+        'sync_shiprocket_shipment_status',
+        body: body,
+      );
+      status = res.status;
+      data = res.data;
+    }
+    if (status < 200 || status >= 300) {
+      final err = data is Map ? data['error']?.toString() : null;
+      final detail = data is Map ? data['detail']?.toString() : null;
+      final msg = err == null || err.isEmpty
+          ? 'Shiprocket sync failed ($status).'
+          : (detail != null && detail.isNotEmpty ? '$err ($detail)' : err);
+      throw RepositoryException(msg);
+    }
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> approveRefundForOrder({
+    required String orderId,
+    int? refundAmountPaise,
+    String? refundReason,
+  }) async {
+    await _requireAdmin();
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw const RepositoryException('Session expired. Sign in again.');
+    }
+    final body = <String, dynamic>{
+      'order_id': orderId,
+      if (refundAmountPaise != null && refundAmountPaise > 0) 'refund_amount': refundAmountPaise,
+      if (refundReason != null && refundReason.trim().isNotEmpty) 'refund_reason': refundReason.trim(),
+    };
+
+    late final int status;
+    late final dynamic data;
+    if (kIsWeb) {
+      final base = AppEnv.resolve().supabaseFunctionsBaseUrl.trim();
+      if (base.isEmpty) {
+        throw const RepositoryException('Missing Supabase functions base URL.');
+      }
+      final payload = <String, dynamic>{...body, 'access_token': token};
+      final res = await http.post(
+        Uri.parse('$base/refund-payment'),
+        headers: const <String, String>{'Content-Type': 'text/plain'},
+        body: jsonEncode(payload),
+      );
+      status = res.statusCode;
+      try {
+        data = jsonDecode(res.body);
+      } catch (_) {
+        data = <String, dynamic>{'raw': res.body};
+      }
+    } else {
+      final res = await client.functions.invoke(
+        'refund-payment',
+        body: body,
+      );
+      status = res.status;
+      data = res.data;
+    }
+
+    if (status < 200 || status >= 300) {
+      final err = data is Map ? data['error']?.toString() : null;
+      final detail = data is Map ? data['detail']?.toString() : null;
+      final msg = err == null || err.isEmpty
+          ? 'Refund request failed ($status).'
+          : (detail != null && detail.isNotEmpty ? '$err ($detail)' : err);
+      throw RepositoryException(msg);
+    }
+    if (data is! Map) return <String, dynamic>{'success': true};
+    return Map<String, dynamic>.from(data);
   }
 
   String _resolveUserEmail(String? profileEmail, String? authEmail) {
@@ -2631,7 +3020,18 @@ class AdminService {
 
   static String _orderPaymentStatusRaw(Map<String, dynamic> row) {
     final s = row['payment_status']?.toString().toLowerCase().trim() ?? '';
-    if (s == 'paid' || s == 'failed') return s;
+    if (s == 'paid' || s == 'captured' || s == 'success' || s == 'completed') {
+      return 'paid';
+    }
+    if (s == 'failed' || s == 'error') return 'failed';
+
+    // Production fallback: some historical rows remain "pending" even after payment
+    // while payment identifiers/timestamps are already persisted.
+    final hasPaymentId = (row['razorpay_payment_id']?.toString().trim().isNotEmpty ?? false);
+    final hasPaidAt = (row['paid_at']?.toString().trim().isNotEmpty ?? false);
+    final hasVerifiedAt = (row['payment_verified_at']?.toString().trim().isNotEmpty ?? false);
+    if (hasPaymentId || hasPaidAt || hasVerifiedAt) return 'paid';
+
     return 'pending';
   }
 
@@ -2790,6 +3190,10 @@ class AdminService {
         return 'Delivered';
       case 'cancel_requested':
         return 'Cancel requested';
+      case 'refund_initiated':
+        return 'Refund Initiated - by admin';
+      case 'refund_completed':
+        return 'Refund Completed - Razorpay';
       case 'cancelled':
       case 'canceled':
         return 'Cancelled';
@@ -2872,7 +3276,7 @@ class AdminService {
           'return_images, return_type, return_status, pickup_scheduled_at, pickup_notes, '
           'pickup_courier_partner, warehouse_receipt_at, inspection_notes, '
           'rejection_reason, replacement_order_id, created_at, updated_at, '
-          'orders!returns_order_id_fkey(razorpay_payment_id), '
+          'orders!returns_order_id_fkey(razorpay_payment_id, payment_method, payment_status, refund_status, refund_amount), '
           'refunds(id, refund_amount, refund_method, refund_status, payment_transaction_id, '
           'razorpay_refund_id, gateway_refund_status)',
         );
@@ -3006,6 +3410,37 @@ class AdminService {
         replacementOrderId: () {
           final t = e['replacement_order_id']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
+        }(),
+        paymentMethod: () {
+          final orderRaw = e['orders'];
+          final orderMap = orderRaw is Map<String, dynamic>
+              ? orderRaw
+              : (orderRaw is Map ? Map<String, dynamic>.from(orderRaw) : null);
+          final t = orderMap?['payment_method']?.toString().trim().toLowerCase();
+          return (t != null && t.isNotEmpty) ? t : 'razorpay';
+        }(),
+        paymentStatus: () {
+          final orderRaw = e['orders'];
+          final orderMap = orderRaw is Map<String, dynamic>
+              ? orderRaw
+              : (orderRaw is Map ? Map<String, dynamic>.from(orderRaw) : null);
+          final t = orderMap?['payment_status']?.toString().trim().toLowerCase();
+          return (t != null && t.isNotEmpty) ? t : 'pending';
+        }(),
+        orderRefundStatus: () {
+          final orderRaw = e['orders'];
+          final orderMap = orderRaw is Map<String, dynamic>
+              ? orderRaw
+              : (orderRaw is Map ? Map<String, dynamic>.from(orderRaw) : null);
+          final t = orderMap?['refund_status']?.toString().trim().toLowerCase();
+          return (t != null && t.isNotEmpty) ? t : 'none';
+        }(),
+        orderRefundAmountPaise: () {
+          final orderRaw = e['orders'];
+          final orderMap = orderRaw is Map<String, dynamic>
+              ? orderRaw
+              : (orderRaw is Map ? Map<String, dynamic>.from(orderRaw) : null);
+          return (orderMap?['refund_amount'] as num?)?.toInt();
         }(),
       );
     }).toList();

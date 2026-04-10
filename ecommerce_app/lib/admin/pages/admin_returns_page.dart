@@ -1,4 +1,3 @@
-import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
@@ -22,11 +21,14 @@ class AdminReturnsPage extends ConsumerStatefulWidget {
 
 class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
   String _statusFilter = 'all';
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  AdminReturnRow? _selectedReturn;
 
   static const _filters = <String, String>{
     'all': 'All',
     'requested': 'Requested',
     'approved': 'Approved',
+    'pickup_scheduled': 'Pickup Scheduled',
     'rejected': 'Rejected',
     'picked_up': 'Picked up',
     'returned': 'Returned',
@@ -49,7 +51,15 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
   }
 
   String _statusLabel(String db) {
-    return _filters[db] ?? db;
+    final s = _norm(db);
+    switch (s) {
+      case 'pickup_scheduled':
+        return 'Pickup Scheduled';
+      case 'refund_completed':
+        return 'Completed';
+      default:
+        return _filters[s] ?? db;
+    }
   }
 
   String _norm(String? value) => (value ?? '').trim().toLowerCase();
@@ -172,21 +182,31 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
   }
 
   Future<void> _processRefund(AdminReturnRow r) async {
+    if (!_canInitiateReturnRefund(r)) {
+      final cod = _norm(r.paymentMethod) == 'cod';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(cod
+                ? 'No refund required (COD).'
+                : 'Refund can only be initiated for Razorpay returns in returned status.'),
+          ),
+        );
+      }
+      return;
+    }
     try {
-      await ref.read(adminServiceProvider).updateReturnStatus(
-            returnId: r.id,
-            newStatus: 'refund_completed',
-          );
+      await ref.read(adminServiceProvider).approveRefundForOrder(orderId: r.orderId);
       await trySendReplacementStatusFcm(
         ref.read(fcmNotificationSenderProvider),
         userId: r.userId,
         orderId: r.orderId,
-        status: 'refund_completed',
+        status: 'refunded',
       );
       await _reload();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Refund completed.')),
+        const SnackBar(content: Text('Refund initiated.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -194,10 +214,11 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     }
   }
 
-  Future<void> _markRefundCompleted(AdminReturnRow r) async => _processRefund(r);
-
   Future<void> _handleAction(AdminReturnRow r, _ReturnAdminAction action) async {
     switch (action) {
+      case _ReturnAdminAction.viewOrder:
+        Navigator.of(context).pushNamed('/admin/orders/details', arguments: r.orderId);
+        return;
       case _ReturnAdminAction.viewImages:
         _viewImages(r);
         return;
@@ -216,14 +237,16 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
       case _ReturnAdminAction.processRefund:
         await _processRefund(r);
         return;
-      case _ReturnAdminAction.markRefundCompleted:
-        await _markRefundCompleted(r);
-        return;
     }
   }
 
   List<_ActionMenuItem> _menuItemsFor(AdminReturnRow r) {
     final items = <_ActionMenuItem>[];
+    items.add(const _ActionMenuItem(
+      action: _ReturnAdminAction.viewOrder,
+      label: 'View order',
+      icon: Icons.receipt_long_outlined,
+    ));
     if (r.returnImages.isNotEmpty) {
       items.add(const _ActionMenuItem(
         action: _ReturnAdminAction.viewImages,
@@ -260,13 +283,29 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
       ));
     }
     if (status == 'returned') {
-      items.add(const _ActionMenuItem(
-        action: _ReturnAdminAction.processRefund,
-        label: 'Mark refund completed',
-        icon: Icons.payments_outlined,
-      ));
+      if (_canInitiateReturnRefund(r)) {
+        items.add(const _ActionMenuItem(
+          action: _ReturnAdminAction.processRefund,
+          label: 'Initiate refund',
+          icon: Icons.payments_outlined,
+        ));
+      }
     }
     return items;
+  }
+
+  bool _canInitiateReturnRefund(AdminReturnRow r) {
+    final paymentMethod = _norm(r.paymentMethod);
+    final returnStatus = _norm(r.returnStatus);
+    final orderRefundStatus = _norm(r.orderRefundStatus);
+    final hasRefund = orderRefundStatus != 'none' || (r.orderRefundAmountPaise ?? 0) > 0;
+    final eligibleReturnState =
+        returnStatus == 'returned' ||
+        returnStatus == 'completed' ||
+        returnStatus == 'refund_completed';
+    return paymentMethod == 'razorpay' &&
+        eligibleReturnState &&
+        !hasRefund;
   }
 
   void _viewImages(AdminReturnRow r) {
@@ -308,12 +347,21 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
   Widget build(BuildContext context) {
     final async = ref.watch(adminReturnsProvider(_statusFilter));
 
-    return AdminStateView(
-      isLoading: async.isLoading,
-      error: async.asError?.error,
-      isEmpty: false,
-      emptyMessage: 'No returns',
-      child: async.when(
+    return Scaffold(
+      key: _scaffoldKey,
+      endDrawer: _selectedReturn == null
+          ? null
+          : Drawer(
+              child: SafeArea(
+                child: _buildManageDrawer(_selectedReturn!),
+              ),
+            ),
+      body: AdminStateView(
+        isLoading: async.isLoading,
+        error: async.asError?.error,
+        isEmpty: false,
+        emptyMessage: 'No returns',
+        child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
         data: (rows) {
@@ -384,7 +432,7 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
                       cellBuilder: (r) => Text(r.customerName),
                     ),
                     AdminTableColumn<AdminReturnRow>(
-                      label: 'Item',
+                      label: 'Product',
                       sortValue: (r) => r.lineTitle,
                       cellBuilder: (r) => Text(
                         r.lineTitle,
@@ -405,75 +453,37 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
                     AdminTableColumn<AdminReturnRow>(
                       label: 'Status',
                       sortValue: (r) => r.returnStatus,
-                      cellBuilder: (r) => Text(_statusLabel(r.returnStatus)),
+                      cellBuilder: (r) => _returnStatusBadge(_statusOf(r)),
                     ),
                     AdminTableColumn<AdminReturnRow>(
-                      label: 'Created',
+                      label: 'Payment Method',
+                      sortValue: (r) => r.paymentMethod,
+                      cellBuilder: (r) => _paymentMethodBadge(r.paymentMethod),
+                    ),
+                    AdminTableColumn<AdminReturnRow>(
+                      label: 'Refund Status',
+                      sortValue: (r) => r.orderRefundStatus,
+                      cellBuilder: (r) => _refundStatusBadge(
+                        r.orderRefundStatus,
+                        amountPaise: r.orderRefundAmountPaise,
+                      ),
+                    ),
+                    AdminTableColumn<AdminReturnRow>(
+                      label: 'Created At',
                       sortValue: (r) => r.createdAt.millisecondsSinceEpoch,
                       cellBuilder: (r) => Text(formatOrderDetailsDateTime(r.createdAt)),
-                    ),
-                    AdminTableColumn<AdminReturnRow>(
-                      label: 'Refund',
-                      sortValue: (r) => r.refundStatus ?? '',
-                      cellBuilder: (r) {
-                        if (r.refundStatus == null) return const Text('—');
-                        return Text.rich(
-                          TextSpan(
-                            style: DefaultTextStyle.of(context).style,
-                            children: [
-                              TextSpan(text: '${r.refundStatus} ('),
-                              TextSpan(
-                                text: formatRupee(r.refundAmount ?? 0),
-                                style: const TextStyle(
-                                  color: AppColors.priceText,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const TextSpan(text: ')'),
-                            ],
-                          ),
-                        );
-                      },
                     ),
                     AdminTableColumn<AdminReturnRow>(
                       label: 'Actions',
                       sortValue: (_) => '',
                       cellBuilder: (r) {
-                        final items = _menuItemsFor(r);
-                        if (items.isEmpty) {
-                          return const Text('No actions');
-                        }
-                        return PopupMenuButton<_ReturnAdminAction>(
-                          tooltip: 'Manage return',
-                          onSelected: (a) => _handleAction(r, a),
-                          itemBuilder: (_) => [
-                            for (final item in items)
-                              PopupMenuItem<_ReturnAdminAction>(
-                                value: item.action,
-                                child: Row(
-                                  children: [
-                                    Icon(item.icon, size: 18),
-                                    const SizedBox(width: 10),
-                                    Expanded(child: Text(item.label)),
-                                  ],
-                                ),
-                              ),
-                          ],
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.black26),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.settings_outlined, size: 18),
-                                SizedBox(width: 6),
-                                Text('Manage'),
-                              ],
-                            ),
-                          ),
+                        return OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() => _selectedReturn = r);
+                            _scaffoldKey.currentState?.openEndDrawer();
+                          },
+                          icon: const Icon(Icons.settings_outlined, size: 18),
+                          label: const Text('Manage'),
                         );
                       },
                     ),
@@ -484,18 +494,213 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
           );
         },
       ),
+      ),
+    );
+  }
+
+  Widget _buildManageDrawer(AdminReturnRow r) {
+    final actions = _menuItemsFor(r);
+    final timeline = _buildReturnTimeline(r);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Manage Return',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SelectableText('Return ID: ${r.id}'),
+        SelectableText('Order ID: ${r.orderId}'),
+        const SizedBox(height: 12),
+        const Text('Product details', style: TextStyle(fontWeight: FontWeight.w700)),
+        Text(
+          r.lineTitle,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text('Amount: ${formatRupee(r.lineAmount)}'),
+        const SizedBox(height: 12),
+        const Text('Customer info', style: TextStyle(fontWeight: FontWeight.w700)),
+        Text(
+          r.customerName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        SelectableText('User: ${r.userId}'),
+        const SizedBox(height: 12),
+        const Text('Return reason', style: TextStyle(fontWeight: FontWeight.w700)),
+        Text(_reasonLabel(r.returnReason)),
+        if ((r.returnNote ?? '').trim().isNotEmpty) Text('Note: ${r.returnNote}'),
+        const SizedBox(height: 12),
+        const Text('Uploaded images', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        if (r.returnImages.isEmpty)
+          const Text('No images')
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final img in r.returnImages)
+                GestureDetector(
+                  onTap: () => _viewImages(r),
+                  child: AppNetworkImage(
+                    imageUrl: img,
+                    width: 90,
+                    height: 90,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+            ],
+          ),
+        const SizedBox(height: 12),
+        const Text('Return timeline', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        ...timeline.map((t) => ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.timeline, size: 18),
+              title: Text(t),
+            )),
+        const SizedBox(height: 12),
+        const Text('Actions', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        if (_norm(r.paymentMethod) == 'cod')
+          const Text(
+            'No refund required (COD)',
+            style: TextStyle(color: Colors.black54),
+          ),
+        for (final a in actions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FilledButton.tonalIcon(
+              onPressed: () => _handleAction(r, a.action),
+              icon: Icon(a.icon, size: 18),
+              label: Text(a.label),
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<String> _buildReturnTimeline(AdminReturnRow r) {
+    final out = <String>['Return Requested'];
+    final s = _statusOf(r);
+    if (s == 'approved' || s == 'picked_up' || s == 'returned' || s == 'refund_completed') {
+      out.add('Approved');
+    }
+    if (s == 'pickup_scheduled') out.add('Pickup Scheduled');
+    if (s == 'picked_up' || s == 'returned' || s == 'refund_completed') {
+      out.add('Pickup Completed');
+    }
+    if (s == 'returned' || s == 'refund_completed') {
+      out.add('Product Received');
+      out.add('Refund Initiated');
+    }
+    if (_norm(r.orderRefundStatus) == 'refunded' || s == 'refund_completed') {
+      out.add('Refund Completed');
+    }
+    if (s == 'rejected') out.add('Rejected');
+    return out;
+  }
+
+  Widget _returnStatusBadge(String status) {
+    Color color;
+    switch (status) {
+      case 'requested':
+        color = Colors.amber.shade800;
+        break;
+      case 'approved':
+        color = Colors.blue.shade700;
+        break;
+      case 'pickup_scheduled':
+        color = Colors.purple.shade600;
+        break;
+      case 'returned':
+      case 'refund_completed':
+        color = Colors.green.shade700;
+        break;
+      case 'rejected':
+        color = Colors.red.shade700;
+        break;
+      default:
+        color = Colors.blueGrey;
+    }
+    return Chip(
+      label: Text(_statusLabel(status)),
+      backgroundColor: color.withOpacity(0.12),
+      side: BorderSide(color: color.withOpacity(0.35)),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600),
+    );
+  }
+
+  Widget _paymentMethodBadge(String raw) {
+    final v = _norm(raw);
+    final isCod = v == 'cod';
+    final color = isCod ? Colors.amber.shade800 : Colors.green.shade700;
+    return Chip(
+      label: Text(isCod ? 'COD' : 'ONLINE'),
+      backgroundColor: color.withOpacity(0.12),
+      side: BorderSide(color: color.withOpacity(0.35)),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+    );
+  }
+
+  Widget _refundStatusBadge(String raw, {int? amountPaise}) {
+    final s = _norm(raw);
+    if (s == 'none' || s.isEmpty) return const Text('—');
+    Color color;
+    String label;
+    switch (s) {
+      case 'requested':
+      case 'pending':
+        color = Colors.amber.shade800;
+        label = 'Pending';
+        break;
+      case 'processing':
+        color = Colors.purple.shade700;
+        label = 'Processing';
+        break;
+      case 'refunded':
+        color = Colors.green.shade900;
+        final amt = amountPaise == null ? '' : ' ${formatRupee(amountPaise / 100)}';
+        label = 'Refunded$amt';
+        break;
+      case 'rejected':
+        color = Colors.red.shade700;
+        label = 'Rejected';
+        break;
+      default:
+        color = Colors.blueGrey;
+        label = raw;
+    }
+    return Chip(
+      label: Text(label),
+      backgroundColor: color.withOpacity(0.12),
+      side: BorderSide(color: color.withOpacity(0.35)),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600),
     );
   }
 }
 
 enum _ReturnAdminAction {
+  viewOrder,
   viewImages,
   approve,
   reject,
   markPickedUp,
   markReturned,
   processRefund,
-  markRefundCompleted,
 }
 
 class _ActionMenuItem {

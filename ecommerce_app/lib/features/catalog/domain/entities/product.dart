@@ -17,6 +17,10 @@ class Product {
   final double? averageRating;
   final int totalReviews;
   final int totalWrittenReviews;
+  /// Default shipping weight in kg set by admin on product.
+  final double? shippingWeightKg;
+  /// Default package dimensions in cm (LxWxH), e.g. `20x15x10`.
+  final String? shippingDimensionsCm;
 
   const Product({
     required this.id,
@@ -34,6 +38,8 @@ class Product {
     this.averageRating,
     this.totalReviews = 0,
     this.totalWrittenReviews = 0,
+    this.shippingWeightKg,
+    this.shippingDimensionsCm,
   });
 
   int? get sellableStock => availableStock ?? inventoryCount;

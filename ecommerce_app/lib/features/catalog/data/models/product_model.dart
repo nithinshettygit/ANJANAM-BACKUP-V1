@@ -22,6 +22,8 @@ class ProductModel {
   final double? averageRating;
   final int totalReviews;
   final int totalWrittenReviews;
+  final double? shippingWeightKg;
+  final String? shippingDimensionsCm;
 
   const ProductModel({
     required this.id,
@@ -39,6 +41,8 @@ class ProductModel {
     this.averageRating,
     this.totalReviews = 0,
     this.totalWrittenReviews = 0,
+    this.shippingWeightKg,
+    this.shippingDimensionsCm,
   });
 
   /// PostgREST / JSON may send counts as int, double, or (rarely) string.
@@ -105,6 +109,11 @@ class ProductModel {
       averageRating: averageRatingFromJson(json['average_rating']),
       totalReviews: totalReviewsFromJson(json['total_reviews']),
       totalWrittenReviews: totalReviewsFromJson(json['total_written_reviews']),
+      shippingWeightKg: (json['weight'] as num?)?.toDouble(),
+      shippingDimensionsCm: () {
+        final t = json['dimensions']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
     );
   }
 
@@ -125,6 +134,8 @@ class ProductModel {
       'average_rating': averageRating,
       'total_reviews': totalReviews,
       'total_written_reviews': totalWrittenReviews,
+      'weight': shippingWeightKg,
+      'dimensions': shippingDimensionsCm,
     };
   }
 
@@ -145,6 +156,8 @@ class ProductModel {
       averageRating: averageRating,
       totalReviews: totalReviews,
       totalWrittenReviews: totalWrittenReviews,
+      shippingWeightKg: shippingWeightKg,
+      shippingDimensionsCm: shippingDimensionsCm,
     );
   }
 }

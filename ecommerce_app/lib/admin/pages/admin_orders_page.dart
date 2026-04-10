@@ -35,12 +35,14 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     ('out_for_delivery', 'Out for delivery'),
     ('delivered', 'Delivered'),
     ('cancel_requested', 'Cancel requested'),
+    ('cancel_rejected', 'Cancel rejected'),
     ('cancelled', 'Cancelled'),
   ];
 
   String _statusFilter = 'all';
   DateTimeRange? _dateRange;
   final Set<String> _updatingOrderIds = {};
+  final Set<String> _refundingOrderIds = {};
   final _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
 
@@ -266,31 +268,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                     cellBuilder: (o) => Text(o.customerName),
                   ),
                   AdminTableColumn<AdminOrderRow>(
-                    label: 'Items',
-                    sortValue: (o) => o.itemsSubtotal,
-                    cellBuilder: (o) => Text(
-                      formatInrAmount(o.itemsSubtotal),
-                      style: const TextStyle(
-                        color: AppColors.priceText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Delivery',
-                    sortValue: (o) => o.deliveryFee,
-                    cellBuilder: (o) => Text(
-                      o.deliveryFee <= 0 ? 'FREE' : formatInrAmount(o.deliveryFee),
-                      style: o.deliveryFee <= 0
-                          ? null
-                          : const TextStyle(
-                              color: AppColors.priceText,
-                              fontWeight: FontWeight.w600,
-                            ),
-                    ),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Order total',
+                    label: 'Total Amount',
                     sortValue: (o) => o.totalAmount,
                     cellBuilder: (o) => Text(
                       formatInrAmount(o.totalAmount),
@@ -301,17 +279,27 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                     ),
                   ),
                   AdminTableColumn<AdminOrderRow>(
+                    label: 'Payment Method',
+                    sortValue: (o) => o.paymentMethod,
+                    cellBuilder: (o) => _paymentMethodBadge(o.paymentMethod),
+                  ),
+                  AdminTableColumn<AdminOrderRow>(
+                    label: 'Payment Status',
+                    sortValue: (o) => o.paymentStatus,
+                    cellBuilder: (o) => _paymentStatusBadge(o.paymentStatus),
+                  ),
+                  AdminTableColumn<AdminOrderRow>(
                     label: 'Order Status',
                     sortValue: (o) => o.status,
                     cellBuilder: (o) => _statusBadge(o.status),
                   ),
                   AdminTableColumn<AdminOrderRow>(
-                    label: 'Payment',
-                    sortValue: (o) => o.paymentStatus,
-                    cellBuilder: (o) => _paymentStatusBadge(o.paymentStatus),
+                    label: 'Refund Status',
+                    sortValue: (o) => o.refundStatus,
+                    cellBuilder: (o) => _refundStatusBadge(o),
                   ),
                   AdminTableColumn<AdminOrderRow>(
-                    label: 'Date',
+                    label: 'Created At',
                     sortValue: (o) => o.createdAt,
                     cellBuilder: (o) => Text(
                       formatOrderDetailsDateTime(o.createdAt.toLocal()),
@@ -354,23 +342,45 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       order.status,
       paymentMethodRaw: order.paymentMethod,
     );
-    return PopupMenuButton<AdminOrderNextAction>(
-      tooltip: 'Update order status',
-      enabled: !isUpdating && actions.isNotEmpty,
-      onSelected: (a) => _applyOrderAction(order, a),
+    final isRefunding = _refundingOrderIds.contains(order.id);
+    final canRefund = _canInitiateRefund(order);
+    final refundStatus = order.refundStatus.toLowerCase().trim();
+    final refundLabel = refundStatus == 'processing'
+        ? 'Refund Processing'
+        : refundStatus == 'refunded'
+            ? 'Refund Completed'
+            : 'Initiate Refund';
+    final isCod = order.paymentMethod.toLowerCase().trim() == 'cod';
+    return PopupMenuButton<String>(
+      tooltip: 'Order actions',
+      enabled: !(isUpdating || isRefunding),
+      onSelected: (value) async {
+        if (value.startsWith('status:')) {
+          final idx = int.tryParse(value.substring('status:'.length));
+          if (idx == null || idx < 0 || idx >= actions.length) return;
+          await _applyOrderAction(order, actions[idx]);
+          return;
+        }
+        if (value == 'refund:initiate' && canRefund) {
+          await _initiateRefund(order);
+        }
+      },
       itemBuilder: (_) {
+        final items = <PopupMenuEntry<String>>[];
         if (actions.isEmpty) {
-          return [
-            const PopupMenuItem<AdminOrderNextAction>(
+          items.add(
+            const PopupMenuItem<String>(
               enabled: false,
+              value: 'status:none',
               child: Text('No status changes allowed'),
             ),
-          ];
-        }
-        return actions
-            .map(
-              (a) => PopupMenuItem<AdminOrderNextAction>(
-                value: a,
+          );
+        } else {
+          for (var i = 0; i < actions.length; i++) {
+            final a = actions[i];
+            items.add(
+              PopupMenuItem<String>(
+                value: 'status:$i',
                 child: Text(
                   a.buttonLabel,
                   style: TextStyle(
@@ -379,8 +389,28 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                   ),
                 ),
               ),
-            )
-            .toList();
+            );
+          }
+        }
+        items.add(const PopupMenuDivider());
+        if (isCod) {
+          items.add(
+            const PopupMenuItem<String>(
+              enabled: false,
+              value: 'refund:cod',
+              child: Text('No refund required (COD)'),
+            ),
+          );
+        } else {
+          items.add(
+            PopupMenuItem<String>(
+              enabled: canRefund,
+              value: 'refund:initiate',
+              child: Text(canRefund ? 'Initiate Refund' : refundLabel),
+            ),
+          );
+        }
+        return items;
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -390,14 +420,25 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
           border: Border.all(color: Colors.blueGrey.withOpacity(0.25)),
         ),
         child: Text(
-          isUpdating ? 'Updating...' : 'Actions',
+          (isUpdating || isRefunding) ? 'Updating...' : 'Actions',
           style: TextStyle(
-            color: isUpdating ? Colors.grey : Colors.blueGrey.shade700,
+            color: (isUpdating || isRefunding) ? Colors.grey : Colors.blueGrey.shade700,
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
     );
+  }
+
+  bool _canInitiateRefund(AdminOrderRow o) {
+    final pm = o.paymentMethod.toLowerCase().trim();
+    final ps = o.paymentStatus.toLowerCase().trim();
+    final rs = o.refundStatus.toLowerCase().trim();
+    final os = canonicalAdminOrderStatus(o.status);
+    return pm == 'razorpay' &&
+        ps == 'paid' &&
+        rs == 'none' &&
+        os != 'cancelled_without_payment';
   }
 
   Widget _statusBadge(String status) {
@@ -431,6 +472,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       case 'cancelled':
         color = Colors.red;
         break;
+      case 'cancel_rejected':
+        color = Colors.deepOrange;
+        break;
       default:
         color = Colors.blueGrey;
     }
@@ -462,6 +506,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
         return 'Cancel requested';
       case 'cancelled':
         return 'Cancelled';
+      case 'cancel_rejected':
+        return 'Cancel rejected';
       default:
         return canonical;
     }
@@ -489,6 +535,126 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       backgroundColor: color.withOpacity(0.12),
       side: BorderSide(color: color.withOpacity(0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+    );
+  }
+
+  Widget _paymentMethodBadge(String raw) {
+    final v = raw.toLowerCase().trim();
+    final isCod = v == 'cod';
+    final color = isCod ? Colors.amber.shade800 : Colors.green.shade700;
+    final label = isCod ? 'COD' : 'ONLINE';
+    return Chip(
+      label: Text(label),
+      backgroundColor: color.withOpacity(0.12),
+      side: BorderSide(color: color.withOpacity(0.35)),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+    );
+  }
+
+  Widget _refundStatusBadge(AdminOrderRow o) {
+    final s = o.refundStatus.toLowerCase().trim();
+    if (s == 'none' || s.isEmpty) return const Text('—');
+    Color color;
+    String label;
+    switch (s) {
+      case 'requested':
+        color = Colors.amber.shade800;
+        label = 'Requested';
+        break;
+      case 'processing':
+        color = Colors.deepPurple;
+        label = 'Processing';
+        break;
+      case 'refunded':
+        color = Colors.green.shade800;
+        final amt = o.refundAmountPaise == null ? '' : ' ${formatInrAmount(o.refundAmountPaise! / 100)}';
+        label = 'Refunded$amt';
+        break;
+      case 'rejected':
+        color = Colors.red.shade700;
+        label = 'Rejected';
+        break;
+      default:
+        color = Colors.blueGrey;
+        label = s;
+    }
+    return Chip(
+      label: Text(label),
+      backgroundColor: color.withOpacity(0.12),
+      side: BorderSide(color: color.withOpacity(0.35)),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+    );
+  }
+
+  Future<void> _initiateRefund(AdminOrderRow order) async {
+    final confirmed = await _showRefundConfirmDialogForOrder(order);
+    if (confirmed != true || !mounted) return;
+    final orderId = order.id;
+    setState(() => _refundingOrderIds.add(orderId));
+    try {
+      await ref.read(adminServiceProvider).approveRefundForOrder(orderId: orderId);
+      ref.invalidate(adminOrdersProvider);
+      ref.invalidate(adminOrderDetailsProvider(orderId));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Refund initiated successfully.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Refund failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _refundingOrderIds.remove(orderId));
+    }
+  }
+
+  Future<bool?> _showRefundConfirmDialogForOrder(AdminOrderRow order) {
+    final refundPaise = order.refundAmountPaise ?? (order.totalAmount * 100).round();
+    final highValue = refundPaise > 500000;
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Refund Confirmation'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Order ID: ${order.id}'),
+              Text('Customer Name: ${order.customerName}'),
+              Text('Payment Method: ${order.paymentMethod.toUpperCase()}'),
+              Text('Total Paid Amount: ${formatInrAmount(order.totalAmount)}'),
+              Text('Refund Amount: ${formatInrAmount(refundPaise / 100)}'),
+              const SizedBox(height: 10),
+              const Text(
+                'This action will send money back to the customer. Refunds cannot be undone.',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (highValue) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '\u26A0 High value refund. Please verify before confirming.',
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Confirm Refund'),
+          ),
+        ],
+      ),
     );
   }
 

@@ -25,6 +25,19 @@ class Order {
   /// Last instant a return may be filed; set server-side when delivered.
   final DateTime? returnDeadline;
 
+  /// `manual_delivery` | `shiprocket_delivery` | null when unset.
+  final String? deliveryMethod;
+  /// Manual partner fulfilment: pending | assigned | packed | out_for_delivery | delivered | failed.
+  final String? deliveryStatus;
+  final String? deliveryPartnerName;
+  final String? deliveryPartnerPhone;
+  final String? shippingProvider;
+  final String? shipmentId;
+  final String? awbCode;
+  final String? shipmentStatus;
+  final String? trackingUrl;
+  final DateTime? shippedAt;
+
   const Order({
     required this.id,
     required this.userId,
@@ -41,6 +54,16 @@ class Order {
     this.razorpayPaymentId,
     this.deliveredAt,
     this.returnDeadline,
+    this.deliveryMethod,
+    this.deliveryStatus,
+    this.deliveryPartnerName,
+    this.deliveryPartnerPhone,
+    this.shippingProvider,
+    this.shipmentId,
+    this.awbCode,
+    this.shipmentStatus,
+    this.trackingUrl,
+    this.shippedAt,
   });
 
   double get subtotal => items.fold(0.0, (sum, item) => sum + item.lineTotal);

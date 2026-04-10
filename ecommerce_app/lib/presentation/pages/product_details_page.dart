@@ -462,6 +462,31 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                     product.description,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
+                  const SizedBox(height: 14),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Shipping details',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Weight: ${product.shippingWeightKg != null && product.shippingWeightKg! > 0 ? '${product.shippingWeightKg!.toStringAsFixed(3)} kg' : '—'}',
+                          ),
+                          Text(
+                            'Package: ${(product.shippingDimensionsCm != null && product.shippingDimensionsCm!.trim().isNotEmpty) ? '${product.shippingDimensionsCm} cm' : '—'}',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   if (!useWide) ...[
                     const SizedBox(height: 20),
                     if (!outOfStock) ...quantityBlock(),
