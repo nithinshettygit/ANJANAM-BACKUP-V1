@@ -2,6 +2,16 @@ import java.io.FileInputStream
 import java.util.Properties
 import org.gradle.api.GradleException
 
+/*
+ * Release identity safety:
+ * 1) package name/applicationId must never change
+ * 2) signing key must never change
+ * 3) versionCode must always increase
+ *
+ * Changing any of the above will break update compatibility
+ * and can cause INSTALL_FAILED_UPDATE_INCOMPATIBLE / package conflict errors.
+ */
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -17,7 +27,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.ecommerce_app"
+    namespace = "com.anjanam.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -32,10 +42,15 @@ android {
     }
 
     defaultConfig {
+        // WARNING: Changing applicationId will cause update conflicts and force users to uninstall the existing app.
         applicationId = "com.anjanam.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        // versionCode must always increase for Play Store updates.
+        // Reusing the same versionCode causes Play Console upload rejection.
+        // CI can pass BUILD_NUMBER for deterministic release increments.
+        val buildNumberFromEnv = System.getenv("BUILD_NUMBER")?.toIntOrNull()
+        versionCode = buildNumberFromEnv ?: flutter.versionCode
         versionName = flutter.versionName
     }
 

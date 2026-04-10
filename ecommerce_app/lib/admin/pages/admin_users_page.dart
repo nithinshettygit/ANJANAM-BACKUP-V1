@@ -354,6 +354,9 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                       if (role == 'super_admin') {
                         return const Text('Protected');
                       }
+                      if (role == 'admin' && !canManageRoles) {
+                        return const Text('Super admin only');
+                      }
                       return FilledButton.tonal(
                         onPressed: pending ? null : () => _toggleBlock(u),
                         style: FilledButton.styleFrom(

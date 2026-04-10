@@ -19,6 +19,9 @@ verify_jwt = false
 [functions.razorpay-webhook]
 verify_jwt = false
 
+[functions.razorpay_webhook]
+verify_jwt = false
+
 [functions.create_shiprocket_shipment]
 verify_jwt = false
 

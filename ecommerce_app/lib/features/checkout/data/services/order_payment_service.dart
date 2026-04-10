@@ -14,6 +14,12 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 class OrderPaymentService extends SupabaseServiceBase {
   OrderPaymentService(super.client);
 
+  static const String _friendlyInventoryRefundMessage =
+      'Payment received, but the item became unavailable. Your payment is being refunded automatically. Refund will reflect within 5–7 business days.';
+
+  static const String _friendlyVerifyFallbackMessage =
+      'We received your payment but could not confirm the order immediately. Our system will resolve this automatically. If the order is not created, the payment will be refunded.';
+
   Future<({int status, dynamic data})> _invokeVerifyPaymentNoPreflightWeb({
     required Map<String, dynamic> body,
   }) async {
@@ -267,20 +273,33 @@ class OrderPaymentService extends SupabaseServiceBase {
         );
       }
       if (fallbackStatus < 200 || fallbackStatus >= 300) {
-        final err =
-            (fallbackData is Map ? fallbackData['error']?.toString() : null) ??
-            'verify_failed';
-        final detail =
-            (fallbackData is Map ? fallbackData['detail']?.toString() : null) ??
-            '';
-        throw RepositoryException(
-          detail.isEmpty
-              ? 'Could not verify payment ($err).'
-              : 'Could not verify payment ($err): $detail',
+        final err = (fallbackData is Map ? fallbackData['error']?.toString() : null) ?? 'verify_failed';
+        final detail = (fallbackData is Map ? fallbackData['detail']?.toString() : null) ?? '';
+        final combined = '$err $detail'.toLowerCase();
+        developer.log(
+          'verify payment failed for payment_id=$razorpayPaymentId status=$fallbackStatus err=$err detail=$detail',
+          name: 'OrderPaymentService',
         );
+        if (combined.contains('inventory_reservation_convert_failed') ||
+            combined.contains('functionexception') ||
+            combined.contains('internal server error')) {
+          throw const RepositoryException(_friendlyInventoryRefundMessage);
+        }
+        throw const RepositoryException(_friendlyVerifyFallbackMessage);
       }
       if (fallbackData is Map && fallbackData['ok'] == true) return;
-      throw const RepositoryException('Could not verify payment.');
+      if (fallbackData is Map && fallbackData['auto_refund_initiated'] == true) {
+        developer.log(
+          'auto refund initiated for payment_id=$razorpayPaymentId order_id=$orderId',
+          name: 'OrderPaymentService',
+        );
+        throw const RepositoryException(_friendlyInventoryRefundMessage);
+      }
+      developer.log(
+        'verify payment unexpected response for payment_id=$razorpayPaymentId data=$fallbackData',
+        name: 'OrderPaymentService',
+      );
+      throw const RepositoryException(_friendlyVerifyFallbackMessage);
     } on AuthException {
       rethrow;
     } on RepositoryException {
@@ -298,7 +317,17 @@ class OrderPaymentService extends SupabaseServiceBase {
           'Payment verification failed (auth). Please sign in again and retry.',
         );
       }
-      rethrow;
+      final raw = e.toString().toLowerCase();
+      developer.log(
+        'verify payment exception for payment_id=$razorpayPaymentId: $e',
+        name: 'OrderPaymentService',
+      );
+      if (raw.contains('functionexception') ||
+          raw.contains('internal server error') ||
+          raw.contains('inventory_reservation_convert_failed')) {
+        throw const RepositoryException(_friendlyInventoryRefundMessage);
+      }
+      throw const RepositoryException(_friendlyVerifyFallbackMessage);
     }
   }
 

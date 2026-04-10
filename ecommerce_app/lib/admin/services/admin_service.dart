@@ -2326,11 +2326,32 @@ class AdminService {
         .select('role')
         .eq('id', targetUserId)
         .maybeSingle();
-    final targetRole = targetProfile?['role']?.toString().trim().toLowerCase();
-    if (targetRole == 'super_admin') {
+    if (targetProfile == null) {
+      throw const ValidationException('Target user not found.');
+    }
+    final targetRole = targetProfile['role']?.toString().trim().toLowerCase();
+
+    // Use DB security-definer role checks for reliable authorization, even if
+    // role text is stale/malformed in UI payloads.
+    bool targetIsAdmin = false;
+    bool targetIsSuperAdmin = false;
+    try {
+      final isAdminData = await client.rpc('is_admin', params: {'uid': targetUserId});
+      targetIsAdmin = isAdminData == true;
+    } catch (_) {
+      targetIsAdmin = targetRole == 'admin' || targetRole == 'super_admin';
+    }
+    try {
+      final isSuperData = await client.rpc('is_super_admin', params: {'uid': targetUserId});
+      targetIsSuperAdmin = isSuperData == true;
+    } catch (_) {
+      targetIsSuperAdmin = targetRole == 'super_admin';
+    }
+
+    if (targetIsSuperAdmin || targetRole == 'super_admin') {
       throw const ValidationException('Super admin accounts cannot be blocked.');
     }
-    if (!isSuperAdmin && targetRole == 'admin') {
+    if (!isSuperAdmin && (targetIsAdmin || targetRole == 'admin')) {
       throw const AuthException('Super admin role required to manage admin accounts.');
     }
 

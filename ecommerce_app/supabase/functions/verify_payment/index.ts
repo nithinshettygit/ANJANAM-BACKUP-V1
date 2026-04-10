@@ -107,7 +107,14 @@ Deno.serve(async (req) => {
     const orderUserId = order.user_id?.toString() ?? "";
     if (requesterId && orderUserId !== requesterId) return json(403, { error: "forbidden" });
     if (!requesterId && userIdInput && orderUserId !== userIdInput) return json(403, { error: "forbidden" });
-    if ((order.payment_method ?? "").toString().toLowerCase().trim() !== "razorpay") return json(400, { error: "not_razorpay_order" });
+    if ((order.payment_method ?? "").toString().toLowerCase().trim() !== "razorpay") {
+      return json(400, { error: "not_razorpay_order" });
+    }
+
+    const orderPaymentStatus = (order.payment_status ?? "").toString().toLowerCase().trim();
+    if (orderPaymentStatus === "paid") {
+      return json(200, { ok: true, already_verified: true, razorpay_payment_id: paymentId });
+    }
 
     const itemsRes = await supabase.from("order_items").select("unit_price, quantity").eq("order_id", orderId);
     if (itemsRes.error || !itemsRes.data || itemsRes.data.length === 0) return json(400, { error: "order_items_missing" });
@@ -139,29 +146,178 @@ Deno.serve(async (req) => {
     if (!timingSafeEqualHex(expected, signature)) return json(403, { error: "invalid_signature" });
     if ((payOrderId && payOrderId !== rzOrderId) || (dbRzOrder && dbRzOrder !== rzOrderId)) return json(409, { error: "razorpay_order_mismatch" });
 
-    const nowIso = new Date().toISOString();
-    let upQuery = supabase
-      .from("orders")
-      .update({
-        payment_status: "paid",
-        status: "processing",
-        razorpay_payment_id: paymentId,
-        razorpay_order_id: rzOrderId,
-        razorpay_signature: signature,
-        payment_signature: signature,
-        payment_verified_at: nowIso,
-        paid_at: nowIso,
-        updated_at: nowIso,
-      })
-      .eq("id", orderId);
-    if (guardUserId) {
-      upQuery = upQuery.eq("user_id", guardUserId);
+    async function logSystemError(params: {
+      errorType: string;
+      errorMessage: string;
+      stackTrace?: string;
+    }) {
+      try {
+        await supabase.from("system_error_logs").insert({
+          error_type: params.errorType,
+          order_id: orderId,
+          payment_id: paymentId,
+          error_message: params.errorMessage.slice(0, 4000),
+          stack_trace: (params.stackTrace ?? "").slice(0, 12000),
+        });
+      } catch (_) {
+        // Never break payment recovery if logs table is unavailable.
+      }
     }
-    const { error: upErr } = await upQuery;
-    if (upErr) return json(500, { error: "update_failed", detail: upErr.message ?? String(upErr) });
 
-    return json(200, { ok: true, razorpay_payment_id: paymentId });
+    async function triggerAutoRefund(refundAmountPaise: number) {
+      const refundRes = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
+        method: "POST",
+        headers: {
+          Authorization: auth,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ amount: refundAmountPaise }),
+      });
+      const refundText = await refundRes.text().catch(() => "");
+      if (!refundRes.ok) {
+        await logSystemError({
+          errorType: "automatic_refund_failed",
+          errorMessage: refundText || "automatic_refund_failed",
+        });
+      }
+      return refundText;
+    }
+
+    async function markFailureAndRefund(statusCode: "payment_failed_inventory" | "out_of_stock_after_payment", reason: string, stack?: string) {
+      const nowIso = new Date().toISOString();
+      await logSystemError({
+        errorType: statusCode,
+        errorMessage: reason,
+        stackTrace: stack,
+      });
+      await triggerAutoRefund(amountPaise);
+      let failUpdate = supabase
+        .from("orders")
+        .update({
+          status: statusCode,
+          payment_status: "paid",
+          refund_status: "processing",
+          refund_amount: amountPaise,
+          refund_requested_at: nowIso,
+          refund_reason: "Automatic refund due to post-payment inventory issue",
+          updated_at: nowIso,
+        })
+        .eq("id", orderId);
+      if (guardUserId) failUpdate = failUpdate.eq("user_id", guardUserId);
+      await failUpdate;
+
+      await supabase.from("order_status_history").insert([
+        {
+          order_id: orderId,
+          status: "payment_received",
+          updated_by: requesterId,
+          notes: "Payment received and verified with Razorpay.",
+          created_at: nowIso,
+        },
+        {
+          order_id: orderId,
+          status: "inventory_error_detected",
+          updated_by: requesterId,
+          notes: "Inventory conversion failed after payment verification.",
+          created_at: nowIso,
+        },
+        {
+          order_id: orderId,
+          status: "automatic_refund_initiated",
+          updated_by: requesterId,
+          notes: "Automatic refund initiated by system.",
+          created_at: nowIso,
+        },
+      ]);
+
+      return json(200, {
+        ok: false,
+        auto_refund_initiated: true,
+        order_status: statusCode,
+        message:
+          "Payment received, but the item became unavailable. Your payment is being refunded automatically. Refund will reflect within 5–7 business days.",
+        razorpay_payment_id: paymentId,
+      });
+    }
+
+    // Pre-conversion safety check to avoid race-condition status update attempts.
+    try {
+      const stockRows = await supabase
+        .from("order_items")
+        .select("product_id, quantity, products!order_items_product_id_fkey(inventory_count)")
+        .eq("order_id", orderId);
+      if (!stockRows.error && stockRows.data) {
+        let insufficient = false;
+        for (const row of stockRows.data) {
+          const qty = Number((row as any).quantity ?? 0);
+          const product = (row as any).products;
+          const inv = Number((product?.inventory_count) ?? 0);
+          if (!Number.isFinite(inv) || inv < qty) {
+            insufficient = true;
+            break;
+          }
+        }
+        if (insufficient) {
+          try {
+            await supabase.rpc("release_inventory_reservation_for_order", { p_order_id: orderId });
+          } catch (_) {}
+          return await markFailureAndRefund(
+            "out_of_stock_after_payment",
+            "Stock insufficient before reservation conversion.",
+          );
+        }
+      }
+    } catch (stockErr) {
+      await logSystemError({
+        errorType: "stock_recheck_failed",
+        errorMessage: stockErr instanceof Error ? stockErr.message : String(stockErr),
+      });
+    }
+
+    // Reservation conversion + order update can fail from DB trigger; recover automatically.
+    try {
+      const nowIso = new Date().toISOString();
+      let upQuery = supabase
+        .from("orders")
+        .update({
+          payment_status: "paid",
+          status: "processing",
+          razorpay_payment_id: paymentId,
+          razorpay_order_id: rzOrderId,
+          razorpay_signature: signature,
+          payment_signature: signature,
+          payment_verified_at: nowIso,
+          paid_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq("id", orderId);
+      if (guardUserId) upQuery = upQuery.eq("user_id", guardUserId);
+      const { error: upErr } = await upQuery;
+      if (upErr) {
+        throw upErr;
+      }
+      return json(200, { ok: true, razorpay_payment_id: paymentId });
+    } catch (convErr) {
+      const msg = convErr instanceof Error ? convErr.message : String(convErr);
+      if (msg.toLowerCase().includes("inventory_reservation_convert_failed")) {
+        return await markFailureAndRefund("payment_failed_inventory", msg);
+      }
+      return await markFailureAndRefund("payment_failed_inventory", msg);
+    }
   } catch (e) {
-    return json(500, { error: "verify_payment_failed", detail: e instanceof Error ? e.message : String(e) });
+    // Never leak internal diagnostics to client.
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    if (supabaseUrl && serviceRole) {
+      try {
+        const sb = createClient(supabaseUrl, serviceRole);
+        await sb.from("system_error_logs").insert({
+          error_type: "verify_payment_unhandled",
+          error_message: e instanceof Error ? e.message : String(e),
+          stack_trace: e instanceof Error ? e.stack ?? "" : "",
+        });
+      } catch (_) {}
+    }
+    return json(500, { error: "verify_payment_failed" });
   }
 });

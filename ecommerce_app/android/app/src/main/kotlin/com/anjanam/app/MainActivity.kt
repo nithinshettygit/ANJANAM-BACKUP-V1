@@ -1,4 +1,4 @@
-package com.example.ecommerce_app
+package com.anjanam.app
 
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
