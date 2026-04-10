@@ -141,14 +141,15 @@ flutter build web --release --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdh
 flutter run -d chrome  `
   --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co `
   --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr `
---dart-define=RAZORPAY_KEY_ID=rzp_live_SaY3QmPeB5ET3Q `
+--dart-define=RAZORPAY_KEY_ID=rzp_live_SaY3QmPeB5ET3Q 
 
   
 
   
 flutter run -d RZCX70FW7JB  `
-  --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co `
-  --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr
+ --dart-define=SUPABASE_URL=https://kgrlvagayvrswzbdhibn.supabase.co `
+  --dart-define=SUPABASE_ANON_KEY=sb_publishable_DujRRJguQRBauvHFlRaGIQ_speLMpxr `
+--dart-define=RAZORPAY_KEY_ID=rzp_live_SaY3QmPeB5ET3Q 
 
 
 
