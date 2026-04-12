@@ -1,5 +1,8 @@
 import 'dart:typed_data';
 
+import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
+import 'package:ecommerce_app/features/order_history/state/order_detail_provider.dart';
+import 'package:ecommerce_app/features/returns/data/returns_service.dart';
 import 'package:ecommerce_app/features/returns/domain/return_enums.dart';
 import 'package:ecommerce_app/features/returns/state/returns_providers.dart';
 import 'package:ecommerce_app/presentation/utils/user_facing_error_message.dart';
@@ -136,6 +139,91 @@ class _RequestReturnPageState extends ConsumerState<RequestReturnPage> {
 
   @override
   Widget build(BuildContext context) {
+    final a = widget.args;
+    final bundleAsync = ref.watch(orderDetailBundleProvider(a.orderId));
+    final returnsAsync = ref.watch(orderReturnsProvider(a.orderId));
+
+    return bundleAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text('Request Replacement')),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        appBar: AppBar(title: const Text('Request Replacement')),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(userFacingErrorMessage(e)),
+        ),
+      ),
+      data: (bundle) {
+        OrderItem? line;
+        for (final i in bundle.order.items) {
+          if (i.orderItemId == a.orderItemId) {
+            line = i;
+            break;
+          }
+        }
+        if (line == null) {
+          return _returnBlockedScaffold(
+            context,
+            'We could not find this item on your order.',
+          );
+        }
+        return returnsAsync.when(
+          loading: () => Scaffold(
+            appBar: AppBar(title: const Text('Request Replacement')),
+            body: const Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => _returnBlockedScaffold(
+            context,
+            'Could not verify return status. Go back to order details and try again.',
+          ),
+          data: (returnsList) {
+            final msg = ReturnsService.customerReturnBlockMessage(
+              order: bundle.order,
+              item: line!,
+              existingForOrder: returnsList,
+            );
+            if (msg != null) {
+              return _returnBlockedScaffold(context, msg);
+            }
+            return _buildFormScaffold(context);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _returnBlockedScaffold(BuildContext context, String message) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Request Replacement')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(
+              Icons.lock_clock_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.35),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Back'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormScaffold(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final a = widget.args;
 

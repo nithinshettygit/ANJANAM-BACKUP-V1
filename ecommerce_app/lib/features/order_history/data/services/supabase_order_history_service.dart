@@ -398,9 +398,14 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
       );
     } on RepositoryException catch (e) {
       final raw = e.message.toLowerCase();
+      if (raw.contains('cancellation_request_not_allowed_after_shipped')) {
+        throw const ValidationException(
+          'This order has already shipped or been handed to the courier. Cancellation can no longer be requested. Contact support if you need help.',
+        );
+      }
       if (raw.contains('cancellation_request_not_allowed_for_status')) {
         throw const ValidationException(
-          'Cancellation can only be requested while the order is processing or packed.',
+          'Cancellation can only be requested while the order is processing or packed and has not yet shipped.',
         );
       }
       if (raw.contains('order_not_found')) {

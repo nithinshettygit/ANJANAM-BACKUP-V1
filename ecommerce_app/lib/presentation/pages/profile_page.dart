@@ -14,6 +14,7 @@ import '../utils/main_shell_navigation.dart';
 import '../utils/auth_issue_presenter.dart';
 import '../utils/open_storefront_legal_page.dart';
 import '../widgets/legal_support_links.dart';
+import '../widgets/support_section.dart';
 import '../../core/config/storefront_legal_urls.dart';
 
 class _ProfileSnapshot {
@@ -111,7 +112,29 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
       body: session.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Failed to load account: $error')),
+        error: (error, _) {
+          final raw = error.toString().toLowerCase();
+          final message = raw.contains('refresh_token') || raw.contains('refresh token')
+              ? 'Your saved sign-in is no longer valid. Please sign in again.'
+              : 'We could not load your account. Please try signing in again.';
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(message, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () =>
+                        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
+                    child: const Text('Go to sign in'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
         data: (user) {
           if (user == null) return const Center(child: CircularProgressIndicator());
           return profile.when(
@@ -191,6 +214,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 14),
+                    const _Label('Support'),
+                    const SupportSection(),
                     const SizedBox(height: 14),
                     const _Label('Legal & Support'),
                     const LegalSupportLinksCard(),

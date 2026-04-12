@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,6 +53,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final exploreSectionGap =
+        kIsWeb && screenW >= 1100 ? 40.0 : 12.0;
     final wishlistCount = ref.watch(wishlistProvider).length;
     final cart = ref.watch(
       cartControllerProvider.select((async) => async.value),
@@ -107,11 +111,11 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             const SuggestedForYouCarousel(),
-            const SizedBox(height: 12),
+            SizedBox(height: exploreSectionGap),
             const ExploreArticlesSections(),
-            const SizedBox(height: 12),
+            SizedBox(height: exploreSectionGap),
             const ExploreNewVideosSwiper(),
-            const SizedBox(height: 12),
+            SizedBox(height: exploreSectionGap),
             _ExploreEntryCard(
               title: 'Articles',
               subtitle: 'Read free and premium knowledge PDFs',

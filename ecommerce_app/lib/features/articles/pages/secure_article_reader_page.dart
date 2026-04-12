@@ -72,7 +72,7 @@ class _SecureArticleReaderPageState extends State<SecureArticleReaderPage> {
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Text(
-                  'Secure article reader is available on mobile app builds.',
+                  'Secure article reader is available on mobile app .',
                   textAlign: TextAlign.center,
                 ),
               ),

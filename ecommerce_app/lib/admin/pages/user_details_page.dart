@@ -7,6 +7,7 @@ import 'package:ecommerce_app/core/theme/app_colors.dart';
 import '../providers/admin_providers.dart';
 import '../providers/is_admin_provider.dart';
 import '../services/admin_service.dart';
+import '../widgets/admin_detail_back_leading.dart';
 import '../widgets/admin_guard.dart';
 import '../widgets/admin_state_view.dart';
 
@@ -172,12 +173,8 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Customer Details'),
-          actions: [
-            IconButton(
-              onPressed: () => Navigator.of(context).pushReplacementNamed('/admin/users'),
-              icon: const Icon(Icons.arrow_back),
-            ),
-          ],
+          automaticallyImplyLeading: false,
+          leading: adminDetailBackLeading(context, fallbackRoute: '/admin/users'),
         ),
         body: Padding(
           padding: const EdgeInsets.all(16),
@@ -381,8 +378,7 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
                                         DataCell(
                                           InkWell(
                                             onTap: () => Navigator.of(context).pushNamed(
-                                              '/admin/orders/details',
-                                              arguments: o.id,
+                                              '/admin/orders/details/${o.id}',
                                             ),
                                             borderRadius: BorderRadius.circular(6),
                                             child: Padding(

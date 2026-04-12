@@ -92,4 +92,28 @@ extension OrderStatusX on OrderStatus {
         return 'Cancelled';
     }
   }
+
+  /// Shorter copy for dense list rows (order history, narrow columns). Full text stays in [displayLabel].
+  String get compactDisplayLabel {
+    switch (this) {
+      case OrderStatus.pendingPayment:
+        return 'Pending payment';
+      case OrderStatus.paymentFailed:
+        return 'Payment failed';
+      case OrderStatus.processing:
+        return 'Processing';
+      case OrderStatus.packed:
+        return 'Packed';
+      case OrderStatus.shipped:
+        return 'Shipped';
+      case OrderStatus.outForDelivery:
+        return 'Out for delivery';
+      case OrderStatus.delivered:
+        return 'Delivered';
+      case OrderStatus.cancelRequested:
+        return 'Cancel pending';
+      case OrderStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
 }

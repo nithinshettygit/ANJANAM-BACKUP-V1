@@ -378,8 +378,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                     label: 'View',
                     cellBuilder: (u) => FilledButton.tonal(
                       onPressed: () => Navigator.of(context).pushNamed(
-                        '/admin/users/details',
-                        arguments: u.id,
+                        '/admin/users/details/${u.id}',
                       ),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(90, 34),

@@ -122,26 +122,56 @@ class ReturnsService extends SupabaseServiceBase {
     }
   }
 
+  /// Matches `create_customer_return`: block when [Order.deliveredAt] is older than 7 days (UTC).
+  static bool isWithinSevenDayReturnWindow(Order order) {
+    final delivered = order.deliveredAt;
+    if (delivered == null) return false;
+    final nowUtc = DateTime.now().toUtc();
+    final deliveredUtc = delivered.toUtc();
+    if (deliveredUtc.isBefore(nowUtc.subtract(const Duration(days: 7)))) {
+      return false;
+    }
+    final rd = order.returnDeadline?.toUtc();
+    if (rd != null && nowUtc.isAfter(rd)) return false;
+    return true;
+  }
+
+  /// Non-null when the customer cannot start a return/replace for this line (for UI copy).
+  static String? customerReturnBlockMessage({
+    required Order order,
+    required OrderItem item,
+    required List<ReturnRecord> existingForOrder,
+  }) {
+    if (order.status != OrderStatus.delivered) {
+      return 'Returns and replacements are only available after your order is delivered.';
+    }
+    final oid = item.orderItemId;
+    if (oid == null || oid.isEmpty) {
+      return 'This item cannot be returned from the app. Please contact support.';
+    }
+    if (activeReturnForItem(existingForOrder, oid) != null) {
+      return 'A return or replacement is already in progress for this item.';
+    }
+    if (order.deliveredAt == null) {
+      return 'We need a confirmed delivery date before you can request a return. Please contact support if this order shows as delivered.';
+    }
+    if (!isWithinSevenDayReturnWindow(order)) {
+      return 'Returns and replacements are only available within 7 days of delivery. That window has closed.';
+    }
+    return null;
+  }
+
   static bool itemEligibleForNewReturn({
     required Order order,
     required OrderItem item,
     required List<ReturnRecord> existingForOrder,
   }) {
-    if (order.status != OrderStatus.delivered) return false;
-    final oid = item.orderItemId;
-    if (oid == null || oid.isEmpty) return false;
-    final deadline = order.returnDeadline ??
-        (order.deliveredAt != null
-            ? order.deliveredAt!.add(const Duration(days: 7))
-            : null);
-    if (deadline == null) return false;
-    if (DateTime.now().isAfter(deadline)) return false;
-    for (final r in existingForOrder) {
-      if (r.orderItemId == oid && r.status != ReturnWorkflowStatus.rejected) {
-        return false;
-      }
-    }
-    return true;
+    return customerReturnBlockMessage(
+          order: order,
+          item: item,
+          existingForOrder: existingForOrder,
+        ) ==
+        null;
   }
 
   static ReturnRecord? activeReturnForItem(

@@ -1,7 +1,8 @@
 name: ecommerce_app
 description: Android-first ecommerce app integrated with Supabase.
 publish_to: "none"
-version: 1.0.0+2
+# version: MAJOR.MINOR.PATCH+BUILD_NUMBER — BUILD_NUMBER (versionCode) must increase for every Play upload.
+version: 1.0.1+3
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

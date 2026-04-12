@@ -148,14 +148,14 @@ class NotificationTapNavigator {
     switch (type) {
       case 'order_created':
         if (referenceId != null && referenceId.isNotEmpty) {
-          nav.pushNamed('/admin/orders/details', arguments: referenceId);
+          nav.pushNamed('/admin/orders/details/$referenceId');
         } else {
           nav.pushNamed('/admin/orders');
         }
         return;
       case 'new_user':
         if (referenceId != null && referenceId.isNotEmpty) {
-          nav.pushNamed('/admin/users/details', arguments: referenceId);
+          nav.pushNamed('/admin/users/details/$referenceId');
         } else {
           nav.pushNamed('/admin/users');
         }

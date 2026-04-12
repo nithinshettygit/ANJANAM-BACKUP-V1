@@ -217,7 +217,7 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
   Future<void> _handleAction(AdminReturnRow r, _ReturnAdminAction action) async {
     switch (action) {
       case _ReturnAdminAction.viewOrder:
-        Navigator.of(context).pushNamed('/admin/orders/details', arguments: r.orderId);
+        Navigator.of(context).pushNamed('/admin/orders/details/${r.orderId}');
         return;
       case _ReturnAdminAction.viewImages:
         _viewImages(r);

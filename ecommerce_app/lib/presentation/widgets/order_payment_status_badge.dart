@@ -16,6 +16,7 @@ class OrderPaymentStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg) = _colors(context);
     return Container(
+      width: compact ? double.infinity : null,
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 6 : 10,
         vertical: compact ? 3 : 5,
@@ -27,6 +28,9 @@ class OrderPaymentStatusBadge extends StatelessWidget {
       ),
       child: Text(
         status.displayLabel.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: fg,
               fontWeight: FontWeight.w800,

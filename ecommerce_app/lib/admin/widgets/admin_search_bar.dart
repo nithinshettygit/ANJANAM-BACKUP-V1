@@ -140,13 +140,11 @@ class _AdminSearchBarState extends ConsumerState<AdminSearchBar> {
                                 Navigator.of(context).pushReplacementNamed('/admin/products');
                               } else if (type == 'order') {
                                 Navigator.of(context).pushNamed(
-                                  '/admin/orders/details',
-                                  arguments: id,
+                                  '/admin/orders/details/$id',
                                 );
                               } else {
                                 Navigator.of(context).pushNamed(
-                                  '/admin/users/details',
-                                  arguments: id,
+                                  '/admin/users/details/$id',
                                 );
                               }
                             },

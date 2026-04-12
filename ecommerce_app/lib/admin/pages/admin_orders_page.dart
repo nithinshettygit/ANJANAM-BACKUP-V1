@@ -313,8 +313,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                     label: 'View Details',
                     cellBuilder: (o) => FilledButton.tonal(
                       onPressed: () => Navigator.of(context).pushNamed(
-                        '/admin/orders/details',
-                        arguments: o.id,
+                        '/admin/orders/details/${o.id}',
                       ),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(90, 34),
@@ -478,11 +477,19 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       default:
         color = Colors.blueGrey;
     }
-    return Chip(
-      label: Text(_orderStatusDisplayLabel(c)),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 168),
+      child: Chip(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        label: Text(
+          _orderStatusDisplayLabel(c),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        backgroundColor: color.withOpacity(0.12),
+        side: BorderSide(color: color.withOpacity(0.35)),
+        labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+      ),
     );
   }
 
@@ -503,7 +510,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       case 'delivered':
         return 'Delivered';
       case 'cancel_requested':
-        return 'Cancel requested';
+        return 'Cancel pending';
       case 'cancelled':
         return 'Cancelled';
       case 'cancel_rejected':
@@ -702,11 +709,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
           rawError.contains('null');
       if (triedShipped && missingShipmentDetails) {
         Navigator.of(context).pushNamed(
-          '/admin/orders/details',
-          arguments: <String, dynamic>{
-            'orderId': orderId,
-            'focusShipmentDetails': true,
-          },
+          '/admin/orders/details/$orderId?focusShipment=1',
         );
         return;
       }

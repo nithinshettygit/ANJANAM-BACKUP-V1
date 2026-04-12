@@ -198,14 +198,14 @@ void _openNotificationTarget(BuildContext context, AdminNotificationRow item) {
   switch (item.type) {
     case 'order_created':
       if (referenceId != null && referenceId.isNotEmpty) {
-        Navigator.of(context).pushNamed('/admin/orders/details', arguments: referenceId);
+        Navigator.of(context).pushNamed('/admin/orders/details/$referenceId');
       } else {
         Navigator.of(context).pushNamed('/admin/orders');
       }
       return;
     case 'new_user':
       if (referenceId != null && referenceId.isNotEmpty) {
-        Navigator.of(context).pushNamed('/admin/users/details', arguments: referenceId);
+        Navigator.of(context).pushNamed('/admin/users/details/$referenceId');
       } else {
         Navigator.of(context).pushNamed('/admin/users');
       }

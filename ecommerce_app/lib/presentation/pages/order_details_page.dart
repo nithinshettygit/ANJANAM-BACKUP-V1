@@ -26,6 +26,7 @@ import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/user_facing_error_message.dart';
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
 import 'package:ecommerce_app/presentation/widgets/order_payment_status_badge.dart';
+import 'package:ecommerce_app/presentation/widgets/order_status_chip.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -157,7 +158,8 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     final canInstantCancel = order.status == OrderStatus.pendingPayment ||
         order.status == OrderStatus.paymentFailed;
     final canRequestCancel =
-        order.status == OrderStatus.processing || order.status == OrderStatus.packed;
+        (order.status == OrderStatus.processing || order.status == OrderStatus.packed) &&
+            order.shippedAt == null;
     final canCancel = canInstantCancel || canRequestCancel;
     final showTrack = order.status == OrderStatus.shipped ||
         order.status == OrderStatus.outForDelivery;
@@ -906,7 +908,7 @@ class _OrderHeaderCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               'Order ID',
@@ -930,7 +932,7 @@ class _OrderHeaderCard extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 6),
-            _CustomerStatusBadge(status: status),
+            OrderStatusChip(status: status, compact: false, uppercase: true),
             const SizedBox(height: 14),
             Text(
               'Ordered on',
@@ -949,59 +951,6 @@ class _OrderHeaderCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _CustomerStatusBadge extends StatelessWidget {
-  final OrderStatus status;
-
-  const _CustomerStatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final (bg, fg) = _colors(Theme.of(context).colorScheme);
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: fg.withOpacity(0.35)),
-        ),
-        child: Text(
-          status.displayLabel.toUpperCase(),
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: fg,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.4,
-              ),
-        ),
-      ),
-    );
-  }
-
-  (Color bg, Color fg) _colors(ColorScheme scheme) {
-    switch (status) {
-      case OrderStatus.pendingPayment:
-        return (scheme.surfaceContainerHighest, scheme.onSurfaceVariant);
-      case OrderStatus.paymentFailed:
-        return (Colors.red.shade50, Colors.red.shade900);
-      case OrderStatus.processing:
-        return (Colors.orange.shade100, Colors.orange.shade900);
-      case OrderStatus.packed:
-        return (Colors.amber.shade50, Colors.amber.shade900);
-      case OrderStatus.shipped:
-        return (Colors.blue.shade50, Colors.blue.shade800);
-      case OrderStatus.outForDelivery:
-        return (Colors.lightBlue.shade50, Colors.lightBlue.shade900);
-      case OrderStatus.delivered:
-        return (Colors.green.shade100, Colors.green.shade900);
-      case OrderStatus.cancelRequested:
-        return (scheme.secondaryContainer, scheme.onSecondaryContainer);
-      case OrderStatus.cancelled:
-        return (scheme.errorContainer, scheme.onErrorContainer);
-    }
   }
 }
 
@@ -1810,23 +1759,37 @@ class _OrderLineReturnRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final active = ReturnsService.activeReturnForItem(returnsList, item.orderItemId ?? '');
     if (active != null) return const SizedBox.shrink();
-    final eligible = ReturnsService.itemEligibleForNewReturn(
+    final block = ReturnsService.customerReturnBlockMessage(
       order: order,
       item: item,
       existingForOrder: returnsList,
     );
-    if (!eligible) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: OutlinedButton.icon(
-          onPressed: onOpenRequest,
-          icon: const Icon(Icons.assignment_return_outlined, size: 18),
-          label: const Text('Request replacement'),
+    if (block == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: onOpenRequest,
+            icon: const Icon(Icons.assignment_return_outlined, size: 18),
+            label: const Text('Request replacement'),
+          ),
         ),
-      ),
-    );
+      );
+    }
+    if (order.status == OrderStatus.delivered) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          block,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.35,
+              ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 

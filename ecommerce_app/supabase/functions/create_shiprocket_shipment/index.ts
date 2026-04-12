@@ -95,7 +95,9 @@ async function shiprocketCreateAdhoc(
       message,
       errors,
     });
-    const detail = [message, errors].where((s) => s && s.trim().length > 0).join(" | ");
+    const detail = [message, errors]
+      .filter((s) => s != null && String(s).trim().length > 0)
+      .join(" | ");
     throw new Error(`shiprocket_create_failed:${detail || "create_failed"}`);
   }
   return data as Record<string, unknown>;
@@ -193,6 +195,26 @@ function pickShiprocketOrderRef(obj: Record<string, unknown>): string | null {
     return null;
   }
   return pick(obj);
+}
+
+/** Shiprocket returns HTTP 200 with `message` + `data.data[]` (or `data` as array) listing valid `pickup_location` names when the requested pickup is wrong. */
+function extractSuggestedPickupLocations(obj: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const root = obj.data;
+  if (root == null) return out;
+  let rows: unknown[] = [];
+  if (Array.isArray(root)) {
+    rows = root;
+  } else if (typeof root === "object") {
+    const inner = (root as Record<string, unknown>).data;
+    if (Array.isArray(inner)) rows = inner;
+  }
+  for (const row of rows) {
+    if (row == null || typeof row !== "object") continue;
+    const pl = (row as Record<string, unknown>).pickup_location;
+    if (typeof pl === "string" && pl.trim().length > 0) out.push(pl.trim());
+  }
+  return [...new Set(out)];
 }
 
 function pickAwbAndCourier(
@@ -428,8 +450,32 @@ Deno.serve(async (req) => {
     };
 
     const srToken = await shiprocketLogin(SHIPROCKET_EMAIL, SHIPROCKET_PASSWORD);
-    const created = await shiprocketCreateAdhoc(srToken, adhocPayload);
-    const shipmentNum = pickShipmentId(created);
+    let created = await shiprocketCreateAdhoc(srToken, adhocPayload);
+    let shipmentNum = pickShipmentId(created);
+
+    if (shipmentNum == null) {
+      const suggestions = extractSuggestedPickupLocations(created);
+      for (const alt of suggestions) {
+        if (!alt || alt === pickupLocation) continue;
+        try {
+          const retryPayload = { ...adhocPayload, pickup_location: alt };
+          const createdRetry = await shiprocketCreateAdhoc(srToken, retryPayload);
+          const sid = pickShipmentId(createdRetry);
+          if (sid != null) {
+            console.log("shiprocket_pickup_retry_ok", {
+              previous_pickup: pickupLocation,
+              used_pickup: alt,
+            });
+            created = createdRetry;
+            shipmentNum = sid;
+            break;
+          }
+        } catch (e) {
+          console.error("shiprocket_pickup_retry_error", alt, String(e));
+        }
+      }
+    }
+
     const shiprocketOrderRef = pickShiprocketOrderRef(created);
 
     const assignRes = shipmentNum == null ? null : await shiprocketTryAssignAwb(srToken, shipmentNum);
@@ -443,7 +489,7 @@ Deno.serve(async (req) => {
       return json(502, {
         error: "shiprocket_unexpected_response",
         detail:
-          `Shiprocket did not return shipment_id. This often happens when account/KYC/pickup setup is incomplete. order_ref=${shiprocketOrderRef ?? "none"}, keys=${Object.keys(created).join(", ")}`,
+          `Shiprocket did not return shipment_id. Check pickup_location matches a warehouse in Shiprocket (see Edge logs shiprocket_missing_shipment_id). order_ref=${shiprocketOrderRef ?? "none"}, keys=${Object.keys(created).join(", ")}`,
       });
     }
     const nowIso = new Date().toISOString();

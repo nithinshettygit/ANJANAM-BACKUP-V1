@@ -5,6 +5,7 @@ import 'package:ecommerce_app/features/articles/providers/articles_providers.dar
 import 'package:ecommerce_app/features/explore_suggestions/providers/explore_suggestions_providers.dart';
 import 'package:ecommerce_app/features/videos/pages/video_player_page.dart';
 import 'package:ecommerce_app/features/videos/providers/videos_providers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,7 +17,9 @@ class SuggestedForYouCarousel extends ConsumerStatefulWidget {
 }
 
 class _SuggestedForYouCarouselState extends ConsumerState<SuggestedForYouCarousel> {
-  final PageController _controller = PageController(viewportFraction: 0.92);
+  late final PageController _controller = PageController(
+    viewportFraction: kIsWeb ? 0.84 : 0.92,
+  );
   Timer? _timer;
   int _index = 0;
 
@@ -47,18 +50,49 @@ class _SuggestedForYouCarouselState extends ConsumerState<SuggestedForYouCarouse
     final fallbackArticlesAsync = ref.watch(publishedArticlesProvider);
     final fallbackVideosAsync = ref.watch(homeVideosPreviewProvider);
     final theme = Theme.of(context);
+    final screenW = MediaQuery.sizeOf(context).width;
+    final double loadingH;
+    final double carouselH;
+    final double titleFont;
+    final double cardPadR;
+    if (kIsWeb) {
+      if (screenW >= 1200) {
+        loadingH = 232;
+        carouselH = 264;
+        titleFont = 22;
+        cardPadR = 12;
+      } else if (screenW >= 800) {
+        loadingH = 216;
+        carouselH = 244;
+        titleFont = 21;
+        cardPadR = 11;
+      } else {
+        loadingH = 200;
+        carouselH = 224;
+        titleFont = 20;
+        cardPadR = 10;
+      }
+    } else {
+      loadingH = 180;
+      carouselH = 190;
+      titleFont = 20;
+      cardPadR = 10;
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Suggested for you',
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            fontSize: kIsWeb && screenW >= 1100 ? 22 : null,
+          ),
         ),
         const SizedBox(height: 8),
         suggestionsAsync.when(
-          loading: () => const SizedBox(
-            height: 180,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          loading: () => SizedBox(
+            height: loadingH,
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
           error: (_, __) => const SizedBox.shrink(),
           data: (items) {
@@ -109,7 +143,7 @@ class _SuggestedForYouCarouselState extends ConsumerState<SuggestedForYouCarouse
             if (cards.isEmpty) return const SizedBox.shrink();
             _syncAutoSwipe(cards.length);
             return SizedBox(
-              height: 190,
+              height: carouselH,
               child: PageView.builder(
                 controller: _controller,
                 itemCount: cards.length,
@@ -118,7 +152,7 @@ class _SuggestedForYouCarouselState extends ConsumerState<SuggestedForYouCarouse
                   final s = cards[i];
                   final isArticle = s.contentType == 'article';
                   return Padding(
-                    padding: const EdgeInsets.only(right: 10),
+                    padding: EdgeInsets.only(right: cardPadR),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(16),
                       onTap: () => _openTarget(context, s.contentType, s.articleId, s.videoId),
@@ -178,10 +212,10 @@ class _SuggestedForYouCarouselState extends ConsumerState<SuggestedForYouCarouse
                                     : (isArticle ? 'Featured article' : 'Featured video'),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 20,
+                                  fontSize: titleFont,
                                 ),
                               ),
                               if (s.subtitle?.trim().isNotEmpty == true)

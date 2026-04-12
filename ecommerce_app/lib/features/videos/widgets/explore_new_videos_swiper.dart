@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:ecommerce_app/features/videos/pages/video_player_page.dart';
 import 'package:ecommerce_app/features/videos/providers/videos_providers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,7 +15,9 @@ class ExploreNewVideosSwiper extends ConsumerStatefulWidget {
 }
 
 class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper> {
-  final PageController _controller = PageController(viewportFraction: 0.9);
+  late final PageController _controller = PageController(
+    viewportFraction: kIsWeb ? 0.86 : 0.9,
+  );
   Timer? _timer;
   int _index = 0;
 
@@ -46,17 +49,34 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
     final screenWidth = MediaQuery.sizeOf(context).width;
     final bool isWideWeb = screenWidth >= 1100;
     final bool isTabletLike = screenWidth >= 700 && screenWidth < 1100;
-    final double swiperHeight = isWideWeb
-        ? 275
-        : isTabletLike
-            ? 258
-            : 238;
-    final double thumbHeight = isWideWeb
-        ? 170
-        : isTabletLike
-            ? 158
-            : 144;
-    final double cardGapRight = isWideWeb ? 14 : 10;
+    final double swiperHeight;
+    final double thumbHeight;
+    final double cardGapRight;
+    if (kIsWeb) {
+      swiperHeight = isWideWeb
+          ? 378
+          : isTabletLike
+              ? 296
+              : 272;
+      thumbHeight = isWideWeb
+          ? 238
+          : isTabletLike
+              ? 182
+              : 168;
+      cardGapRight = isWideWeb ? 20 : isTabletLike ? 14 : 12;
+    } else {
+      swiperHeight = isWideWeb
+          ? 275
+          : isTabletLike
+              ? 258
+              : 238;
+      thumbHeight = isWideWeb
+          ? 170
+          : isTabletLike
+              ? 158
+              : 144;
+      cardGapRight = isWideWeb ? 14 : 10;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,7 +85,10 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
           children: [
             Text(
               'Fresh Watch',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                fontSize: kIsWeb && isWideWeb ? 18.5 : null,
+              ),
             ),
             const Spacer(),
             TextButton(
@@ -76,9 +99,11 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
         ),
         const SizedBox(height: 6),
         async.when(
-          loading: () => const SizedBox(
-            height: 205,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          loading: () => SizedBox(
+            height: kIsWeb
+                ? (isWideWeb ? 268 : 228)
+                : 205,
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
           error: (_, __) => const SizedBox.shrink(),
           data: (videos) {

@@ -1,7 +1,7 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
-import 'package:gotrue/gotrue.dart' show UserAttributes;
+import 'package:gotrue/gotrue.dart' show AuthApiException, UserAttributes;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../domain/entities/app_user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -27,6 +27,43 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   String? get _passwordResetRedirectTo =>
       _passwordResetRedirect.isEmpty ? null : _passwordResetRedirect;
 
+  /// Stale Android/iOS secure storage can keep a user id with a revoked refresh token
+  /// (common after server-side session invalidation). PostgREST then fails refresh and throws.
+  static bool _isInvalidRefreshTokenError(Object error) {
+    if (error is AuthApiException) {
+      final c = error.code?.toLowerCase().trim() ?? '';
+      if (c == 'refresh_token_not_found') return true;
+      final m = (error.message).toLowerCase();
+      if (m.contains('refresh token not found') || m.contains('invalid refresh token')) {
+        return true;
+      }
+    }
+    final s = error.toString().toLowerCase();
+    return s.contains('refresh_token_not_found') ||
+        s.contains('invalid refresh token') ||
+        s.contains('refresh token not found');
+  }
+
+  Future<void> _clearStaleLocalAuthSession() async {
+    try {
+      await client.auth.signOut();
+    } catch (_) {}
+  }
+
+  Future<AppUser?> _emitSessionUserOrNull(User? raw) async {
+    try {
+      final authUser = await _userIfEmailConfirmedOrSignOut(raw);
+      if (authUser == null) return null;
+      return await _toAppUser(authUser);
+    } catch (e) {
+      if (_isInvalidRefreshTokenError(e)) {
+        await _clearStaleLocalAuthSession();
+        return null;
+      }
+      rethrow;
+    }
+  }
+
   Future<AppUser> _toAppUser(User authUser) async {
     await _ensureProfileRow(authUser);
     await ensureUserIsNotBlocked(
@@ -46,21 +83,11 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   @override
   Stream<AppUser?> watchAuthState() {
     return () async* {
-      final initial = await _userIfEmailConfirmedOrSignOut(client.auth.currentUser);
-      if (initial == null) {
-        yield null;
-      } else {
-        yield await _toAppUser(initial);
-      }
+      yield await _emitSessionUserOrNull(client.auth.currentUser);
 
       await for (final event in client.auth.onAuthStateChange) {
         final raw = event.session?.user ?? client.auth.currentUser;
-        final authUser = await _userIfEmailConfirmedOrSignOut(raw);
-        if (authUser == null) {
-          yield null;
-          continue;
-        }
-        yield await _toAppUser(authUser);
+        yield await _emitSessionUserOrNull(raw);
       }
     }();
   }

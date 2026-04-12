@@ -92,10 +92,50 @@ Route<dynamic>? _tryProductsRoute(RouteSettings settings) {
   return _customerRoute(CatalogPage(title: title, category: category));
 }
 
+Route<dynamic>? _tryAdminOrderDetailsPathRoute(RouteSettings settings) {
+  final name = settings.name;
+  if (name == null || name.isEmpty) return null;
+  final pathOnly = _routePathOnly(name);
+  if (pathOnly == null || !pathOnly.startsWith('/admin/orders/details/')) return null;
+  final tail = pathOnly.substring('/admin/orders/details/'.length).trim();
+  if (tail.isEmpty) return null;
+  final orderId = Uri.decodeComponent(tail);
+  if (orderId.isEmpty) return null;
+  final uri = Uri.parse('http://placeholder$name');
+  final focus = uri.queryParameters['focusShipment'] == '1' ||
+      uri.queryParameters['focusShipment'] == 'true';
+  return _AdminMaterialPageRoute<void>(
+    settings: settings,
+    builder: (_) => AdminOrderDetailsPage(
+      orderId: orderId,
+      focusShipmentDetails: focus,
+    ),
+  );
+}
+
+Route<dynamic>? _tryAdminUserDetailsPathRoute(RouteSettings settings) {
+  final name = settings.name;
+  if (name == null || name.isEmpty) return null;
+  final pathOnly = _routePathOnly(name);
+  if (pathOnly == null || !pathOnly.startsWith('/admin/users/details/')) return null;
+  final tail = pathOnly.substring('/admin/users/details/'.length).trim();
+  if (tail.isEmpty) return null;
+  final userId = Uri.decodeComponent(tail);
+  if (userId.isEmpty) return null;
+  return _AdminMaterialPageRoute<void>(
+    settings: settings,
+    builder: (_) => AdminUserDetailsPage(userId: userId),
+  );
+}
+
 class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     final productsRoute = _tryProductsRoute(settings);
     if (productsRoute != null) return productsRoute;
+    final adminOrderDetailsRoute = _tryAdminOrderDetailsPathRoute(settings);
+    if (adminOrderDetailsRoute != null) return adminOrderDetailsRoute;
+    final adminUserDetailsRoute = _tryAdminUserDetailsPathRoute(settings);
+    if (adminUserDetailsRoute != null) return adminUserDetailsRoute;
     final path = _routePathOnly(settings.name);
     // Shareable storefront URLs: {STOREFRONT_SHARE_BASE_URL}/product/<id> (default: anjanam-app.web.app)
     if (path != null && path.startsWith('/product/')) {

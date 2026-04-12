@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/supabase/supabase_client_provider.dart';
 import '../domain/repositories/auth_repository.dart';
 import 'auth_session_provider.dart';
 
@@ -14,6 +15,13 @@ class AuthActionsController extends AsyncNotifier<void> {
     required String password,
   }) async {
     state = const AsyncLoading();
+    final client = ref.read(supabaseClientProvider);
+    try {
+      await client.auth.signOut();
+    } catch (_) {
+      // Clear any broken persisted session (e.g. invalid refresh token on Android)
+      // so the new password sign-in is not racing with stale local auth storage.
+    }
     final result = await AsyncValue.guard(
       () => _repo.signInWithEmailAndPassword(email: email, password: password),
     );
@@ -30,6 +38,10 @@ class AuthActionsController extends AsyncNotifier<void> {
     String userName = '',
   }) async {
     state = const AsyncLoading();
+    final client = ref.read(supabaseClientProvider);
+    try {
+      await client.auth.signOut();
+    } catch (_) {}
     final result = await AsyncValue.guard(
       () => _repo.signUpWithEmailAndPassword(
             email: email,

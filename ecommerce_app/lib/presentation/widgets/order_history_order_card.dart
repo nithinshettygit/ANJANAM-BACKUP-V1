@@ -8,6 +8,7 @@ import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 import 'package:ecommerce_app/presentation/utils/order_history_format.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/widgets/order_payment_status_badge.dart';
+import 'package:ecommerce_app/presentation/widgets/order_status_chip.dart';
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -59,71 +60,82 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                 : null,
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppNetworkImage(
-                    imageUrl: imageUrl,
-                    width: _imageSize,
-                    height: _imageSize,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          primary.title.isNotEmpty ? primary.title : 'Order item',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Order #${formatOrderIdDisplay(order.id)}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                        if (moreCount > 0) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            '+$moreCount more ${moreCount == 1 ? 'item' : 'items'}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: scheme.outline,
-                                ),
-                          ),
-                        ],
-                        const SizedBox(height: 6),
-                        Text(
-                          'Order date: ${formatShortOrderDate(order.createdAt)}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Qty: $totalQty · ${formatRupee(order.grandTotal)}',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.priceText,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+              child: LayoutBuilder(
+                builder: (context, rowConstraints) {
+                  final badgeColumnWidth = (rowConstraints.maxWidth * 0.42).clamp(118.0, 168.0);
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _StatusBadge(status: order.status),
-                      const SizedBox(height: 6),
-                      OrderPaymentStatusBadge(status: order.paymentStatus, compact: true),
+                      AppNetworkImage(
+                        imageUrl: imageUrl,
+                        width: _imageSize,
+                        height: _imageSize,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              primary.title.isNotEmpty ? primary.title : 'Order item',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Order #${formatOrderIdDisplay(order.id)}',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                            if (moreCount > 0) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                '+$moreCount more ${moreCount == 1 ? 'item' : 'items'}',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: scheme.outline,
+                                    ),
+                              ),
+                            ],
+                            const SizedBox(height: 6),
+                            Text(
+                              'Order date: ${formatShortOrderDate(order.createdAt)}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Qty: $totalQty · ${formatRupee(order.grandTotal)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.priceText,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: badgeColumnWidth,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            OrderStatusChip(status: order.status, compact: true),
+                            const SizedBox(height: 6),
+                            OrderPaymentStatusBadge(status: order.paymentStatus, compact: true),
+                          ],
+                        ),
+                      ),
                     ],
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ),
@@ -202,54 +214,5 @@ class OrderHistoryOrderCard extends ConsumerWidget {
       productId: line.productId,
       quantity: qty,
     );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final OrderStatus status;
-
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final (bg, fg) = _colors(Theme.of(context).colorScheme);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: fg.withOpacity(0.35)),
-      ),
-      child: Text(
-        status.displayLabel,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: fg,
-              fontWeight: FontWeight.w700,
-            ),
-      ),
-    );
-  }
-
-  (Color bg, Color fg) _colors(ColorScheme scheme) {
-    switch (status) {
-      case OrderStatus.pendingPayment:
-        return (scheme.surfaceContainerHighest, scheme.onSurfaceVariant);
-      case OrderStatus.paymentFailed:
-        return (Colors.red.shade50, Colors.red.shade900);
-      case OrderStatus.packed:
-        return (Colors.amber.shade50, Colors.amber.shade900);
-      case OrderStatus.outForDelivery:
-        return (Colors.lightBlue.shade50, Colors.lightBlue.shade900);
-      case OrderStatus.processing:
-        return (Colors.orange.shade100, Colors.orange.shade900);
-      case OrderStatus.shipped:
-        return (Colors.blue.shade50, Colors.blue.shade800);
-      case OrderStatus.delivered:
-        return (Colors.green.shade100, Colors.green.shade900);
-      case OrderStatus.cancelRequested:
-        return (scheme.secondaryContainer, scheme.onSecondaryContainer);
-      case OrderStatus.cancelled:
-        return (scheme.errorContainer, scheme.onErrorContainer);
-    }
   }
 }

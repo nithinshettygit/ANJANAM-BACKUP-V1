@@ -1,9 +1,30 @@
+import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/articles/pages/secure_article_reader_page.dart';
 import 'package:ecommerce_app/features/articles/providers/articles_providers.dart';
 import 'package:ecommerce_app/presentation/utils/universal_share.dart';
 import 'package:ecommerce_app/presentation/utils/user_facing_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+bool _looksLikeAuthOrAccessError(Object e) {
+  final s = e.toString().toLowerCase();
+  return s.contains('jwt') ||
+      s.contains('not authorized') ||
+      s.contains('unauthor') ||
+      s.contains(' 403') ||
+      s.contains('403 ') ||
+      s.contains('forbidden') ||
+      s.contains('row-level security') ||
+      s.contains('permission denied') ||
+      s.contains('invalid claim');
+}
+
+String _articleDetailLoadErrorMessage(Object e) {
+  if (_looksLikeAuthOrAccessError(e)) {
+    return 'Sign in to view this article. Log in or create an account, then try again.';
+  }
+  return userFacingErrorMessage(e);
+}
 
 class ArticleDetailPage extends ConsumerWidget {
   const ArticleDetailPage({super.key, required this.articleId});
@@ -13,6 +34,8 @@ class ArticleDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final articleAsync = ref.watch(articleByIdProvider(articleId));
+    final theme = Theme.of(context);
+    final signedIn = ref.watch(supabaseClientProvider).auth.currentUser != null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Article'),
@@ -43,7 +66,30 @@ class ArticleDetailPage extends ConsumerWidget {
       ),
       body: articleAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 44, color: theme.colorScheme.outline),
+                const SizedBox(height: 14),
+                Text(
+                  _articleDetailLoadErrorMessage(e),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge,
+                ),
+                if (_looksLikeAuthOrAccessError(e)) ...[
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/login'),
+                    child: const Text('Sign in'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
         data: (article) {
           if (article == null) {
             return const Center(child: Text('Article not found.'));
@@ -87,9 +133,20 @@ class ArticleDetailPage extends ConsumerWidget {
               Text(article.description),
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed: () => _openReader(context, ref, article.id, article.title, article.pdfPath),
-                icon: const Icon(Icons.menu_book_outlined),
-                label: const Text('Read Article'),
+                onPressed: () {
+                  if (!signedIn) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Sign in to read articles.'),
+                      ),
+                    );
+                    Navigator.of(context).pushNamed('/login');
+                    return;
+                  }
+                  _openReader(context, ref, article.id, article.title, article.pdfPath);
+                },
+                icon: Icon(signedIn ? Icons.menu_book_outlined : Icons.login_rounded),
+                label: Text(signedIn ? 'Read Article' : 'Sign in to read'),
               ),
             ],
           );
@@ -105,6 +162,14 @@ class ArticleDetailPage extends ConsumerWidget {
     String title,
     String pdfPath,
   ) async {
+    if (ref.read(supabaseClientProvider).auth.currentUser == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to read articles.')),
+      );
+      await Navigator.of(context).pushNamed('/login');
+      return;
+    }
     try {
       final url = await ref.read(articlesSupabaseServiceProvider).createSignedPdfUrl(pdfPath: pdfPath);
       await Navigator.of(context).push<void>(
@@ -114,8 +179,11 @@ class ArticleDetailPage extends ConsumerWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
+      final msg = _looksLikeAuthOrAccessError(e)
+          ? 'Sign in to read this article, or check that you are still logged in.'
+          : userFacingErrorMessage(e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(userFacingErrorMessage(e))),
+        SnackBar(content: Text(msg)),
       );
     }
   }

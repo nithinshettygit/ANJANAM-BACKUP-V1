@@ -19,6 +19,7 @@ import '../utils/admin_return_status_push.dart';
 import '../utils/admin_order_status_workflow.dart';
 import '../../features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import '../widgets/admin_cached_image.dart';
+import '../widgets/admin_detail_back_leading.dart';
 import '../widgets/admin_guard.dart';
 import '../widgets/admin_state_view.dart';
 
@@ -366,7 +367,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     String orderId,
     AdminOrderDetails details,
   ) async {
-    final pickupCtrl = TextEditingController(text: 'Primary');
+    final pickupCtrl = TextEditingController();
     final stateCtrl = TextEditingController(text: details.shippingState ?? '');
     final weightCtrl = TextEditingController(
       text: details.packageWeightKg == null ? '0.5' : details.packageWeightKg!.toString(),
@@ -394,6 +395,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                 controller: pickupCtrl,
                 decoration: const InputDecoration(
                   labelText: 'Pickup location name',
+                  hintText: 'Exact Shiprocket warehouse name (e.g. warehouse)',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -444,12 +446,6 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     dimCtrl.dispose();
     stateCtrl.dispose();
     if (ok != true || !context.mounted) return;
-    if (pickup.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pickup location is required.')),
-      );
-      return;
-    }
     final weight = double.tryParse(weightRaw);
     if (weight == null || weight <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -514,7 +510,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       case 'delivered':
         return 'Delivered';
       case 'cancel_requested':
-        return 'Cancel requested';
+        return 'Cancel pending';
       case 'cancelled':
         return 'Cancelled';
       default:
@@ -845,12 +841,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Order Details'),
-          actions: [
-            IconButton(
-              onPressed: () => Navigator.of(context).pushReplacementNamed('/admin/orders'),
-              icon: const Icon(Icons.arrow_back),
-            ),
-          ],
+          automaticallyImplyLeading: false,
+          leading: adminDetailBackLeading(context, fallbackRoute: '/admin/orders'),
         ),
         body: Padding(
           padding: const EdgeInsets.all(16),
