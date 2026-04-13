@@ -18,7 +18,7 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
       'tracking_number, courier_name, estimated_delivery_date, '
       'payment_method, payment_status, razorpay_payment_id, '
       'delivery_method, delivery_status, delivery_partner_name, delivery_partner_phone, shipping_provider, '
-      'shipment_id, awb_code, shipment_status, tracking_url, shipped_at';
+      'shipment_id, awb_code, shipment_status, tracking_url, shipped_at, last_tracking_update';
 
   static const _orderSelectDetail = '$_orderSelect, '
       'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, shipping_state';

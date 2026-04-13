@@ -37,6 +37,7 @@ class Order {
   final String? shipmentStatus;
   final String? trackingUrl;
   final DateTime? shippedAt;
+  final DateTime? lastTrackingUpdate;
 
   const Order({
     required this.id,
@@ -64,6 +65,7 @@ class Order {
     this.shipmentStatus,
     this.trackingUrl,
     this.shippedAt,
+    this.lastTrackingUpdate,
   });
 
   double get subtotal => items.fold(0.0, (sum, item) => sum + item.lineTotal);

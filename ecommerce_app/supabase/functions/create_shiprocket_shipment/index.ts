@@ -399,7 +399,7 @@ Deno.serve(async (req) => {
       const sku = pid.slice(0, 40) || "SKU";
       const pw = weightByProductId.get(pid) ?? 0;
       if (pw > 0) derivedWeight += pw * qty;
-      if (!derivedDimensions && (dimsByProductId.get(pid) ?? "").trim().isNotEmpty) {
+      if (!derivedDimensions && (dimsByProductId.get(pid) ?? "").trim().length > 0) {
         derivedDimensions = (dimsByProductId.get(pid) ?? "").trim();
       }
       return {

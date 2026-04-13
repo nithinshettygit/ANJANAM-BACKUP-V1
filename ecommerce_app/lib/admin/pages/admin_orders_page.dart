@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show RealtimeChannel, PostgresChangeEvent;
 
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
+import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 
@@ -45,12 +48,57 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
   final Set<String> _refundingOrderIds = {};
   final _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
+  RealtimeChannel? _ordersRealtimeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeOrdersRealtime();
+  }
 
   @override
   void dispose() {
+    if (_ordersRealtimeChannel != null) {
+      ref.read(supabaseClientProvider).removeChannel(_ordersRealtimeChannel!);
+      _ordersRealtimeChannel = null;
+    }
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _subscribeOrdersRealtime() {
+    final client = ref.read(supabaseClientProvider);
+    final channel = client.channel('admin-orders-live');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'orders',
+      callback: (_) {
+        if (!mounted) return;
+        ref.invalidate(adminOrdersProvider);
+      },
+    );
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'orders',
+      callback: (_) {
+        if (!mounted) return;
+        ref.invalidate(adminOrdersProvider);
+      },
+    );
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: 'orders',
+      callback: (_) {
+        if (!mounted) return;
+        ref.invalidate(adminOrdersProvider);
+      },
+    );
+    channel.subscribe();
+    _ordersRealtimeChannel = channel;
   }
 
   void _scheduleAdminSearch(String value) {
@@ -292,6 +340,20 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                     label: 'Order Status',
                     sortValue: (o) => o.status,
                     cellBuilder: (o) => _statusBadge(o.status),
+                  ),
+                  AdminTableColumn<AdminOrderRow>(
+                    label: 'Delivery Mode',
+                    sortValue: (o) => (o.deliveryMethod ?? '').toLowerCase(),
+                    cellBuilder: (o) => _deliveryModeBadge(o),
+                  ),
+                  AdminTableColumn<AdminOrderRow>(
+                    label: 'Delivery Status',
+                    sortValue: (o) =>
+                        (o.deliveryStatus ?? o.shipmentStatus ?? '').toLowerCase(),
+                    cellBuilder: (o) => _deliveryStatusBadge(
+                      o.deliveryStatus,
+                      o.shipmentStatus,
+                    ),
                   ),
                   AdminTableColumn<AdminOrderRow>(
                     label: 'Refund Status',
@@ -555,6 +617,61 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       backgroundColor: color.withOpacity(0.12),
       side: BorderSide(color: color.withOpacity(0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+    );
+  }
+
+  Widget _deliveryStatusBadge(String? deliveryStatus, String? shipmentStatus) {
+    final raw = (deliveryStatus ?? shipmentStatus ?? '').toLowerCase().trim();
+    if (raw.isEmpty) return const Text('—');
+    final label = switch (raw) {
+      'created' => 'Created',
+      'shipped' => 'Shipped',
+      'in_transit' => 'In Transit',
+      'out_for_delivery' => 'Out for Delivery',
+      'delivered' => 'Delivered',
+      'cancelled' => 'Cancelled',
+      'rto_initiated' => 'RTO Initiated',
+      'rto_completed' => 'RTO',
+      _ => raw.replaceAll('_', ' '),
+    };
+    final color = switch (raw) {
+      'delivered' => Colors.green.shade700,
+      'cancelled' => Colors.red.shade700,
+      'out_for_delivery' => Colors.teal.shade700,
+      'in_transit' => Colors.blue.shade700,
+      'shipped' => Colors.indigo.shade700,
+      'created' => Colors.blueGrey.shade700,
+      'rto_initiated' || 'rto_completed' => Colors.deepOrange.shade700,
+      _ => Colors.blueGrey.shade700,
+    };
+    return Chip(
+      label: Text(label),
+      backgroundColor: color.withOpacity(0.12),
+      side: BorderSide(color: color.withOpacity(0.35)),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+    );
+  }
+
+  Widget _deliveryModeBadge(AdminOrderRow o) {
+    final mode = (o.deliveryMethod ?? '').toLowerCase().trim();
+    String label;
+    Color color;
+    if (mode == 'shiprocket_delivery') {
+      label = 'Shiprocket';
+      color = Colors.blue.shade700;
+    } else if (mode == 'manual_delivery') {
+      label = 'Manual';
+      color = Colors.deepPurple.shade700;
+    } else {
+      label = 'Not set';
+      color = Colors.blueGrey.shade700;
+    }
+    final suffix = (o.shipmentId ?? '').trim().isNotEmpty ? ' • ID set' : '';
+    return Chip(
+      label: Text('$label$suffix'),
+      backgroundColor: color.withOpacity(0.12),
+      side: BorderSide(color: color.withOpacity(0.35)),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }
 

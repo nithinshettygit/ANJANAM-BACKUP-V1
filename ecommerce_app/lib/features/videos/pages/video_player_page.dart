@@ -1,14 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:ecommerce_app/presentation/utils/universal_share.dart';
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 
 import '../models/storefront_video.dart';
 import '../utils/youtube_url_parser.dart';
-import '../widgets/youtube_embed_webview.dart';
+import '../widgets/youtube_video_player_widget.dart';
 
 /// Chrome-style mobile UA so YouTube treats the WebView closer to a normal browser tab.
 String? _youtubeWebViewUserAgent() {
@@ -68,16 +66,22 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   Future<void> _shareVideo(BuildContext context) async {
-    await showUniversalShareSheet(
-      context,
-      payload: UniversalSharePayload(
+    final payload = UniversalSharePayload(
         contentType: ShareContentType.video,
         idOrSlug: widget.video.id,
         title: widget.video.title,
         description: widget.video.description,
         imageUrl: widget.video.effectiveThumbnailUrl,
-      ),
-    );
+      );
+    try {
+      await shareUniversalPayload(
+        payload: payload,
+        channel: ShareChannel.system,
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      await showUniversalShareSheet(context, payload: payload);
+    }
   }
 
   @override
@@ -97,7 +101,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           IconButton(
             tooltip: 'Share',
             onPressed: () => _shareVideo(context),
-            icon: const Icon(Icons.share_outlined),
+            style: IconButton.styleFrom(
+              foregroundColor: AppColors.brandSaffron,
+            ),
+            icon: const Icon(Icons.share_rounded),
           ),
         ],
       ),
@@ -113,24 +120,22 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (kIsWeb)
-                    _WebYoutubePlayer(videoId: id, aspectRatio: _playerAspectRatio)
-                  else
-                    _MobileYoutubeEmbed(
-                      key: ValueKey('mobile-$_embedSession-$id'),
-                      videoId: id,
-                      aspectRatio: _playerAspectRatio,
-                      thumbnailUrl:
-                          widget.video.effectiveThumbnailUrl ?? youtubeDefaultThumbnailUrl(id),
-                      userAgent: _youtubeWebViewUserAgent(),
-                      onPageFinished: () {
-                        if (mounted) setState(() => _embedPageFinished = true);
-                      },
-                      onMainFrameError: (msg) {
-                        if (mounted) setState(() => _embedLoadWarning = msg);
-                      },
-                      pageFinished: _embedPageFinished,
-                    ),
+                  YouTubeVideoPlayerWidget(
+                    key: ValueKey('player-$_embedSession-$id-${kIsWeb ? "web" : "mobile"}'),
+                    videoId: id,
+                    aspectRatio: _playerAspectRatio,
+                    thumbnailUrl:
+                        widget.video.effectiveThumbnailUrl ?? youtubeDefaultThumbnailUrl(id),
+                    userAgent: _youtubeWebViewUserAgent(),
+                    pageFinished: _embedPageFinished,
+                    onPageFinished: () {
+                      if (mounted) setState(() => _embedPageFinished = true);
+                    },
+                    onMainFrameError: (msg) {
+                      if (mounted) setState(() => _embedLoadWarning = msg);
+                    },
+                    onWatchOnYoutube: _openOnYoutube,
+                  ),
                   const SizedBox(height: 10),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -138,6 +143,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       onPressed: _openOnYoutube,
                       icon: const Icon(Icons.open_in_new),
                       label: const Text('Watch on YouTube'),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: FilledButton.icon(
+                      onPressed: () => _shareVideo(context),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brandSaffron,
+                        foregroundColor: Colors.white,
+                        iconColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.share_rounded),
+                      label: const Text('Share video'),
                     ),
                   ),
                   if (!kIsWeb)
@@ -206,132 +224,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 ],
               ),
             ),
-    );
-  }
-}
-
-class _MobileYoutubeEmbed extends StatelessWidget {
-  const _MobileYoutubeEmbed({
-    super.key,
-    required this.videoId,
-    required this.aspectRatio,
-    required this.thumbnailUrl,
-    required this.userAgent,
-    required this.onPageFinished,
-    required this.onMainFrameError,
-    required this.pageFinished,
-  });
-
-  final String videoId;
-  final double aspectRatio;
-  final String thumbnailUrl;
-  final String? userAgent;
-  final VoidCallback onPageFinished;
-  final void Function(String description) onMainFrameError;
-  final bool pageFinished;
-
-  @override
-  Widget build(BuildContext context) {
-    final surface = Theme.of(context).colorScheme.surfaceContainerHighest;
-
-    return ClipRect(
-      child: AspectRatio(
-        aspectRatio: aspectRatio,
-        child: Stack(
-          fit: StackFit.expand,
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned.fill(
-              child: Image.network(
-                thumbnailUrl,
-                fit: BoxFit.cover,
-                alignment: Alignment.center,
-                errorBuilder: (_, __, ___) => ColoredBox(color: surface),
-              ),
-            ),
-            YoutubeEmbedWebView(
-              videoId: videoId,
-              userAgent: userAgent,
-              onEmbedReady: onPageFinished,
-              onMainFrameError: onMainFrameError,
-            ),
-            if (!pageFinished)
-              ColoredBox(
-                color: Colors.black.withValues(alpha: 0.35),
-                child: const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator.adaptive(),
-                      SizedBox(height: 12),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
-                        child: Text(
-                          'Loading YouTube…',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WebYoutubePlayer extends StatefulWidget {
-  const _WebYoutubePlayer({required this.videoId, required this.aspectRatio});
-
-  final String videoId;
-  final double aspectRatio;
-
-  @override
-  State<_WebYoutubePlayer> createState() => _WebYoutubePlayerState();
-}
-
-class _WebYoutubePlayerState extends State<_WebYoutubePlayer> {
-  late final YoutubePlayerController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = YoutubePlayerController.fromVideoId(
-      videoId: widget.videoId,
-      params: const YoutubePlayerParams(
-        showControls: true,
-        mute: false,
-        enableCaption: true,
-        showFullscreenButton: true,
-      ),
-      autoPlay: false,
-    );
-  }
-
-  @override
-  void dispose() {
-    unawaited(_controller.close());
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: AspectRatio(
-        aspectRatio: widget.aspectRatio,
-        child: YoutubePlayer(
-          controller: _controller,
-          aspectRatio: widget.aspectRatio,
-          backgroundColor: Colors.transparent,
-        ),
-      ),
     );
   }
 }

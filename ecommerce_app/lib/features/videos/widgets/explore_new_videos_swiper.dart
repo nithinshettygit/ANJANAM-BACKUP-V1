@@ -1,5 +1,4 @@
-import 'dart:async';
-
+import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/features/videos/pages/video_player_page.dart';
 import 'package:ecommerce_app/features/videos/providers/videos_providers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -15,31 +14,9 @@ class ExploreNewVideosSwiper extends ConsumerStatefulWidget {
 }
 
 class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper> {
-  late final PageController _controller = PageController(
-    viewportFraction: kIsWeb ? 0.86 : 0.9,
-  );
-  Timer? _timer;
-  int _index = 0;
-
   @override
   void dispose() {
-    _timer?.cancel();
-    _controller.dispose();
     super.dispose();
-  }
-
-  void _syncAutoSwipe(int count) {
-    _timer?.cancel();
-    if (count <= 1) return;
-    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!_controller.hasClients) return;
-      final next = (_index + 1) % count;
-      _controller.animateToPage(
-        next,
-        duration: const Duration(milliseconds: 360),
-        curve: Curves.easeOutCubic,
-      );
-    });
   }
 
   @override
@@ -47,36 +24,16 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
     final async = ref.watch(homeVideosPreviewProvider);
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final bool isWideWeb = screenWidth >= 1100;
+    final bool isWideWeb = kIsWeb && screenWidth >= 1100;
     final bool isTabletLike = screenWidth >= 700 && screenWidth < 1100;
-    final double swiperHeight;
-    final double thumbHeight;
-    final double cardGapRight;
-    if (kIsWeb) {
-      swiperHeight = isWideWeb
-          ? 378
-          : isTabletLike
-              ? 296
-              : 272;
-      thumbHeight = isWideWeb
-          ? 238
-          : isTabletLike
-              ? 182
-              : 168;
-      cardGapRight = isWideWeb ? 20 : isTabletLike ? 14 : 12;
-    } else {
-      swiperHeight = isWideWeb
-          ? 275
-          : isTabletLike
-              ? 258
-              : 238;
-      thumbHeight = isWideWeb
-          ? 170
-          : isTabletLike
-              ? 158
-              : 144;
-      cardGapRight = isWideWeb ? 14 : 10;
-    }
+    final double cardGapRight = isWideWeb ? 16 : 12;
+    final double cardWidth = isWideWeb
+        ? 320
+        : isTabletLike
+            ? 320
+            : (screenWidth * (kIsWeb ? 0.62 : 0.82)).clamp(260.0, 300.0);
+    final double thumbHeight = cardWidth * 9 / 16;
+    final double swiperHeight = thumbHeight + 66;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,7 +44,7 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
               'Fresh Watch',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                fontSize: kIsWeb && isWideWeb ? 18.5 : null,
+                fontSize: isWideWeb ? 18.5 : null,
               ),
             ),
             const Spacer(),
@@ -100,9 +57,7 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
         const SizedBox(height: 6),
         async.when(
           loading: () => SizedBox(
-            height: kIsWeb
-                ? (isWideWeb ? 268 : 228)
-                : 205,
+            height: swiperHeight,
             child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
           error: (_, __) => const SizedBox.shrink(),
@@ -110,18 +65,18 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
             if (videos.isEmpty) {
               return const SizedBox.shrink();
             }
-            _syncAutoSwipe(videos.length);
             return SizedBox(
               height: swiperHeight,
-              child: PageView.builder(
-                controller: _controller,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.zero,
                 itemCount: videos.length,
-                onPageChanged: (v) => _index = v,
+                separatorBuilder: (_, __) => SizedBox(width: cardGapRight),
                 itemBuilder: (context, i) {
                   final v = videos[i];
                   final thumb = v.effectiveThumbnailUrl;
-                  return Padding(
-                    padding: EdgeInsets.only(right: cardGapRight),
+                  return SizedBox(
+                    width: cardWidth,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
                       onTap: () {
@@ -133,12 +88,16 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
                       },
                       child: Card(
                         clipBehavior: Clip.antiAlias,
+                        elevation: 1.4,
+                        shadowColor: Colors.black.withValues(alpha: 0.16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(
-                              height: thumbHeight,
-                              width: double.infinity,
+                            AspectRatio(
+                              aspectRatio: 16 / 9,
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
@@ -159,20 +118,25 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
                                         begin: Alignment.bottomCenter,
                                         end: Alignment.topCenter,
                                         colors: [
-                                          Colors.black.withValues(alpha: 0.55),
-                                          Colors.black.withValues(alpha: 0.10),
+                                          Colors.black.withValues(alpha: 0.42),
+                                          Colors.black.withValues(alpha: 0.18),
                                         ],
                                       ),
                                     ),
                                   ),
                                   const Center(
-                                    child: CircleAvatar(
-                                      radius: 22,
-                                      backgroundColor: Color(0xCC000000),
-                                      child: Icon(
-                                        Icons.play_arrow_rounded,
-                                        color: Colors.white,
-                                        size: 28,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: Color(0xB3000000),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: Icon(
+                                          Icons.play_arrow_rounded,
+                                          color: Colors.white,
+                                          size: 30,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -180,14 +144,15 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 3),
                               child: Text(
                                 v.title,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w600,
                                   fontSize: isWideWeb ? 16 : null,
+                                  height: 1.2,
                                 ),
                               ),
                             ),
@@ -197,31 +162,51 @@ class _ExploreNewVideosSwiperState extends ConsumerState<ExploreNewVideosSwiper>
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 5,
+                                      horizontal: 8,
+                                      vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.red.withValues(alpha: 0.14),
+                                      color: AppColors.brandSaffron.withValues(alpha: 0.14),
                                       borderRadius: BorderRadius.circular(999),
                                       border: Border.all(
-                                        color: Colors.red.withValues(alpha: 0.36),
+                                        color: AppColors.brandSaffron.withValues(alpha: 0.3),
                                       ),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       'VIDEO',
-                                      style: TextStyle(
-                                        color: Colors.red,
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: AppColors.brandSaffronDeep,
                                         fontWeight: FontWeight.w800,
-                                        fontSize: 11.5,
                                       ),
                                     ),
                                   ),
                                   const Spacer(),
-                                  Text(
-                                    'Tap to watch',
-                                    style: theme.textTheme.labelMedium?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                      fontWeight: FontWeight.w600,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.play_arrow_rounded,
+                                          size: 14,
+                                          color: theme.colorScheme.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          'Watch',
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],

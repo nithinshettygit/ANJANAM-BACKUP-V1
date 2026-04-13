@@ -223,6 +223,10 @@ class AdminOrderRow {
   final String refundStatus;
   final int? refundAmountPaise;
   final String? refundId;
+  final String? deliveryStatus;
+  final String? shipmentStatus;
+  final String? deliveryMethod;
+  final String? shipmentId;
 
   const AdminOrderRow({
     required this.id,
@@ -241,6 +245,10 @@ class AdminOrderRow {
     this.refundStatus = 'none',
     this.refundAmountPaise,
     this.refundId,
+    this.deliveryStatus,
+    this.shipmentStatus,
+    this.deliveryMethod,
+    this.shipmentId,
   });
 }
 
@@ -309,6 +317,7 @@ class AdminOrderDetails {
   final String? shipmentStatus;
   final String? trackingUrl;
   final DateTime? shippedAt;
+  final DateTime? lastTrackingUpdate;
   final String? shippingState;
   final String refundStatus;
   final int? refundAmountPaise;
@@ -350,6 +359,7 @@ class AdminOrderDetails {
     this.shipmentStatus,
     this.trackingUrl,
     this.shippedAt,
+    this.lastTrackingUpdate,
     this.shippingState,
     this.refundStatus = 'none',
     this.refundAmountPaise,
@@ -1193,7 +1203,7 @@ class AdminService {
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
             'payment_method, payment_status, razorpay_payment_id, '
-            'refund_status, refund_amount, refund_id',
+            'refund_status, refund_amount, refund_id, delivery_status, shipment_status, delivery_method, shipment_id',
           )
           .order('created_at', ascending: false);
       if (limit != null) {
@@ -1206,7 +1216,7 @@ class AdminService {
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, '
             'payment_method, payment_status, razorpay_payment_id, '
-            'refund_status, refund_amount, refund_id',
+            'refund_status, refund_amount, refund_id, delivery_status, shipment_status, delivery_method, shipment_id',
           )
           .order('created_at', ascending: false);
       if (limit != null) {
@@ -1285,6 +1295,22 @@ class AdminService {
         refundAmountPaise: (row['refund_amount'] as num?)?.toInt(),
         refundId: () {
           final t = row['refund_id']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
+        deliveryStatus: () {
+          final t = row['delivery_status']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
+        shipmentStatus: () {
+          final t = row['shipment_status']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
+        deliveryMethod: () {
+          final t = row['delivery_method']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
+        shipmentId: () {
+          final t = row['shipment_id']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
         }(),
       );
@@ -1449,7 +1475,7 @@ class AdminService {
             'tracking_number, courier_name, estimated_delivery_date, '
             'package_weight_kg, package_dimensions_cm, '
             'delivery_method, delivery_status, delivery_partner_name, delivery_partner_phone, shipping_provider, '
-            'shipment_id, awb_code, shipment_status, tracking_url, shipped_at, '
+            'shipment_id, awb_code, shipment_status, tracking_url, shipped_at, last_tracking_update, '
             'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at, '
             'refund_status, refund_amount, refund_id, refund_requested_at, refund_processed_at, '
             'refund_initiated_by, refund_initiated_at, refund_reason',
@@ -1664,6 +1690,9 @@ class AdminService {
       shipmentStatus: orderColStr('shipment_status'),
       trackingUrl: orderColStr('tracking_url'),
       shippedAt: DateTime.tryParse(orderMap['shipped_at']?.toString() ?? ''),
+      lastTrackingUpdate: DateTime.tryParse(
+        orderMap['last_tracking_update']?.toString() ?? '',
+      ),
       shippingState: shippingStateParsed,
       refundStatus: (orderMap['refund_status']?.toString().trim().isNotEmpty ?? false)
           ? orderMap['refund_status'].toString().trim().toLowerCase()
@@ -1980,7 +2009,7 @@ class AdminService {
       }
       final payload = <String, dynamic>{...body, 'access_token': token};
       final res = await http.post(
-        Uri.parse('$base/sync_shiprocket_shipment_status'),
+        Uri.parse('$base/sync-shiprocket-status'),
         headers: const <String, String>{'Content-Type': 'text/plain'},
         body: jsonEncode(payload),
       );
@@ -1992,7 +2021,7 @@ class AdminService {
       }
     } else {
       final res = await client.functions.invoke(
-        'sync_shiprocket_shipment_status',
+        'sync-shiprocket-status',
         body: body,
       );
       status = res.status;

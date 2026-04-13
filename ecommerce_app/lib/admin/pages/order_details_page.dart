@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/formatting/estimated_delivery_format.dart';
 import 'package:ecommerce_app/core/invoice/invoice_generator.dart';
+import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_shipping_info.dart';
@@ -22,6 +23,8 @@ import '../widgets/admin_cached_image.dart';
 import '../widgets/admin_detail_back_leading.dart';
 import '../widgets/admin_guard.dart';
 import '../widgets/admin_state_view.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show RealtimeChannel, PostgresChangeEvent, PostgresChangeFilter, PostgresChangeFilterType;
 
 class AdminOrderDetailsPage extends ConsumerStatefulWidget {
   final String orderId;
@@ -52,10 +55,21 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   bool _didAutoFocusShipment = false;
   bool _manualDeliveryBusy = false;
   bool _shiprocketBusy = false;
+  RealtimeChannel? _orderRealtimeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeOrderRealtime();
+  }
   bool _refundBusy = false;
 
   @override
   void dispose() {
+    if (_orderRealtimeChannel != null) {
+      ref.read(supabaseClientProvider).removeChannel(_orderRealtimeChannel!);
+      _orderRealtimeChannel = null;
+    }
     _trackCtrl.dispose();
     _courierCtrl.dispose();
     _pkgWeightCtrl.dispose();
@@ -67,10 +81,37 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   void didUpdateWidget(AdminOrderDetailsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.orderId != widget.orderId) {
+      if (_orderRealtimeChannel != null) {
+        ref.read(supabaseClientProvider).removeChannel(_orderRealtimeChannel!);
+        _orderRealtimeChannel = null;
+      }
+      _subscribeOrderRealtime();
       _syncedShipmentOrderId = null;
       _syncedShipmentSignature = null;
       _shipmentDirty = false;
     }
+  }
+
+  void _subscribeOrderRealtime() {
+    final client = ref.read(supabaseClientProvider);
+    final channel = client.channel('admin-order-${widget.orderId}');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'orders',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'id',
+        value: widget.orderId,
+      ),
+      callback: (_) {
+        if (!mounted) return;
+        ref.invalidate(adminOrderDetailsProvider(widget.orderId));
+        ref.invalidate(adminOrdersProvider);
+      },
+    );
+    channel.subscribe();
+    _orderRealtimeChannel = channel;
   }
 
   bool _shipmentEditableForStatus(String rawStatus) {
@@ -169,6 +210,38 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       default:
         return (raw == null || raw.trim().isEmpty) ? '—' : raw.trim();
     }
+  }
+
+  String _humanShiprocketStatus(String? raw) {
+    switch ((raw ?? '').toLowerCase().trim()) {
+      case 'created':
+        return 'Created';
+      case 'shipped':
+        return 'Shipped';
+      case 'in_transit':
+        return 'In transit';
+      case 'out_for_delivery':
+        return 'Out for delivery';
+      case 'delivered':
+        return 'Delivered';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'rto_initiated':
+        return 'RTO initiated';
+      case 'rto_completed':
+        return 'RTO';
+      default:
+        return (raw == null || raw.trim().isEmpty) ? '—' : raw.trim();
+    }
+  }
+
+  String _relativeTime(DateTime? at) {
+    if (at == null) return '—';
+    final diff = DateTime.now().difference(at.toLocal());
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
   }
 
   bool _manualTransitionAllowed(String currentStatus, String target) {
@@ -1189,11 +1262,17 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                   ),
                                   _AdminShipmentReadOnlyLine(
                                     label: 'Shipment status',
-                                    value: details.shipmentStatus,
+                                    value: _humanShiprocketStatus(
+                                      details.deliveryStatus ?? details.shipmentStatus,
+                                    ),
                                   ),
                                   _AdminShipmentReadOnlyLine(
                                     label: 'Tracking URL',
                                     value: details.trackingUrl,
+                                  ),
+                                  _AdminShipmentReadOnlyLine(
+                                    label: 'Last updated',
+                                    value: _relativeTime(details.lastTrackingUpdate),
                                   ),
                                   const SizedBox(height: 8),
                                   Align(

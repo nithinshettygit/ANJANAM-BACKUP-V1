@@ -32,6 +32,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show RealtimeChannel, PostgresChangeEvent, PostgresChangeFilter, PostgresChangeFilterType;
 
 class OrderDetailsPage extends ConsumerWidget {
   final String orderId;
@@ -102,6 +104,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
   bool _retryPaymentBusy = false;
   final GlobalKey _shipmentSectionKey = GlobalKey();
   final GlobalKey _progressSectionKey = GlobalKey();
+  RealtimeChannel? _orderRealtimeChannel;
 
   Order get order => widget.bundle.order;
 
@@ -133,21 +136,91 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
 
   String _humanDeliveryStatusLabel(String? raw) {
     switch ((raw ?? '').toLowerCase().trim()) {
+      case 'created':
+        return 'Created';
       case 'pending':
         return 'Pending';
       case 'assigned':
         return 'Assigned';
+      case 'shipped':
+        return 'Shipped';
+      case 'in_transit':
+        return 'In transit';
       case 'packed':
         return 'Packed';
       case 'out_for_delivery':
         return 'Out for delivery';
       case 'delivered':
         return 'Delivered';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'rto_initiated':
+        return 'RTO initiated';
+      case 'rto_completed':
+        return 'RTO';
       case 'failed':
         return 'Failed';
       default:
         return (raw == null || raw.trim().isEmpty) ? '—' : raw.trim();
     }
+  }
+
+  String _relativeTime(DateTime? at) {
+    if (at == null) return '—';
+    final diff = DateTime.now().difference(at.toLocal());
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeOrderRealtime();
+  }
+
+  @override
+  void didUpdateWidget(covariant _OrderDetailsBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.orderId != widget.orderId) {
+      if (_orderRealtimeChannel != null) {
+        ref.read(supabaseClientProvider).removeChannel(_orderRealtimeChannel!);
+        _orderRealtimeChannel = null;
+      }
+      _subscribeOrderRealtime();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_orderRealtimeChannel != null) {
+      ref.read(supabaseClientProvider).removeChannel(_orderRealtimeChannel!);
+      _orderRealtimeChannel = null;
+    }
+    super.dispose();
+  }
+
+  void _subscribeOrderRealtime() {
+    final client = ref.read(supabaseClientProvider);
+    final channel = client.channel('user-order-${widget.orderId}');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'orders',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'id',
+        value: widget.orderId,
+      ),
+      callback: (_) {
+        if (!mounted) return;
+        ref.invalidate(orderDetailBundleProvider(widget.orderId));
+        ref.invalidate(orderHistoryControllerProvider);
+      },
+    );
+    channel.subscribe();
+    _orderRealtimeChannel = channel;
   }
 
   @override
@@ -353,6 +426,16 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                               value: (order.awbCode != null && order.awbCode!.isNotEmpty)
                                   ? order.awbCode!
                                   : (order.trackingNumber ?? '—'),
+                            ),
+                            _DetailRow(
+                              label: 'Delivery status',
+                              value: _humanDeliveryStatusLabel(
+                                order.deliveryStatus ?? order.shipmentStatus,
+                              ),
+                            ),
+                            _DetailRow(
+                              label: 'Last updated',
+                              value: _relativeTime(order.lastTrackingUpdate),
                             ),
                           ],
                         ],

@@ -30,6 +30,7 @@ class OrderModel {
   final String? shipmentStatus;
   final String? trackingUrl;
   final DateTime? shippedAt;
+  final DateTime? lastTrackingUpdate;
 
   const OrderModel({
     required this.id,
@@ -56,6 +57,7 @@ class OrderModel {
     this.shipmentStatus,
     this.trackingUrl,
     this.shippedAt,
+    this.lastTrackingUpdate,
   });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
@@ -126,6 +128,9 @@ class OrderModel {
         return t != null && t.isNotEmpty ? t : null;
       }(),
       shippedAt: DateTime.tryParse(json['shipped_at']?.toString() ?? ''),
+      lastTrackingUpdate: DateTime.tryParse(
+        json['last_tracking_update']?.toString() ?? '',
+      ),
     );
   }
 
@@ -182,6 +187,7 @@ class OrderModel {
       shipmentStatus: shipmentStatus,
       trackingUrl: trackingUrl,
       shippedAt: shippedAt,
+      lastTrackingUpdate: lastTrackingUpdate,
     );
   }
 }
