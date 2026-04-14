@@ -14,6 +14,8 @@ import '../pages/cart_page.dart';
 import '../pages/checkout_page.dart';
 import '../pages/customer_details_page.dart';
 import '../pages/login_page.dart';
+import '../pages/auth_choice_page.dart';
+import '../pages/phone_login_page.dart';
 import '../pages/main_shell.dart';
 import '../pages/more_page.dart';
 import '../pages/music_page.dart';
@@ -199,7 +201,11 @@ class AppRouter {
           ),
         );
       case '/login':
+        return MaterialPageRoute(builder: (_) => const AuthChoicePage());
+      case '/login/email':
         return MaterialPageRoute(builder: (_) => const LoginPage());
+      case '/login/phone':
+        return MaterialPageRoute(builder: (_) => const PhoneLoginPage());
       case '/signup':
         return MaterialPageRoute(builder: (_) => const SignupPage());
       // Email confirmation (PKCE). Supabase establishes session from `code` in the URL (web + App Links).

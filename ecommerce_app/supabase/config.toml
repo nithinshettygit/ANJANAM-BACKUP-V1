@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.refund-payment]
 verify_jwt = false
+
+[functions.google-auth-bridge]
+verify_jwt = false

@@ -33,7 +33,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'
-    show RealtimeChannel, PostgresChangeEvent, PostgresChangeFilter, PostgresChangeFilterType;
+    show
+        RealtimeChannel,
+        PostgresChangeEvent,
+        PostgresChangeFilter,
+        PostgresChangeFilterType,
+        SupabaseClient;
 
 class OrderDetailsPage extends ConsumerWidget {
   final String orderId;
@@ -105,6 +110,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
   final GlobalKey _shipmentSectionKey = GlobalKey();
   final GlobalKey _progressSectionKey = GlobalKey();
   RealtimeChannel? _orderRealtimeChannel;
+  SupabaseClient? _orderRealtimeClient;
 
   Order get order => widget.bundle.order;
 
@@ -129,9 +135,16 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
           order.trackingNumber != null ||
           order.estimatedDeliveryDate != null);
 
+  bool get _showShipmentAwaitingAfterCancel {
+    final m = order.deliveryMethod?.trim() ?? '';
+    final ds = (order.deliveryStatus ?? '').toLowerCase().trim();
+    return m.isEmpty && ds == 'cancelled';
+  }
+
   bool get _showDualDeliverySection {
     final m = order.deliveryMethod?.toLowerCase().trim() ?? '';
-    return m == 'manual_delivery' || m == 'shiprocket_delivery';
+    if (m == 'manual_delivery' || m == 'shiprocket_delivery') return true;
+    return _showShipmentAwaitingAfterCancel;
   }
 
   String _humanDeliveryStatusLabel(String? raw) {
@@ -184,9 +197,10 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
   void didUpdateWidget(covariant _OrderDetailsBody oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.orderId != widget.orderId) {
-      if (_orderRealtimeChannel != null) {
-        ref.read(supabaseClientProvider).removeChannel(_orderRealtimeChannel!);
+      if (_orderRealtimeChannel != null && _orderRealtimeClient != null) {
+        _orderRealtimeClient!.removeChannel(_orderRealtimeChannel!);
         _orderRealtimeChannel = null;
+        _orderRealtimeClient = null;
       }
       _subscribeOrderRealtime();
     }
@@ -194,15 +208,17 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
 
   @override
   void dispose() {
-    if (_orderRealtimeChannel != null) {
-      ref.read(supabaseClientProvider).removeChannel(_orderRealtimeChannel!);
+    if (_orderRealtimeChannel != null && _orderRealtimeClient != null) {
+      _orderRealtimeClient!.removeChannel(_orderRealtimeChannel!);
       _orderRealtimeChannel = null;
+      _orderRealtimeClient = null;
     }
     super.dispose();
   }
 
   void _subscribeOrderRealtime() {
     final client = ref.read(supabaseClientProvider);
+    _orderRealtimeClient = client;
     final channel = client.channel('user-order-${widget.orderId}');
     channel.onPostgresChanges(
       event: PostgresChangeEvent.update,
@@ -230,9 +246,10 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     final returnsList = returnsAsync.asData?.value ?? const <ReturnRecord>[];
     final canInstantCancel = order.status == OrderStatus.pendingPayment ||
         order.status == OrderStatus.paymentFailed;
-    final canRequestCancel =
-        (order.status == OrderStatus.processing || order.status == OrderStatus.packed) &&
-            order.shippedAt == null;
+    // Match DB `request_cancel_my_order`: processing or packed only (not yet shipped in order workflow).
+    // Do not use shipped_at: Shiprocket booking used to set shipped_at early and hid this button incorrectly.
+    final canRequestCancel = order.status == OrderStatus.processing ||
+        order.status == OrderStatus.packed;
     final canCancel = canInstantCancel || canRequestCancel;
     final showTrack = order.status == OrderStatus.shipped ||
         order.status == OrderStatus.outForDelivery;
@@ -432,6 +449,23 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                               value: _humanDeliveryStatusLabel(
                                 order.deliveryStatus ?? order.shipmentStatus,
                               ),
+                            ),
+                            _DetailRow(
+                              label: 'Last updated',
+                              value: _relativeTime(order.lastTrackingUpdate),
+                            ),
+                          ] else if (_showShipmentAwaitingAfterCancel) ...[
+                            Text(
+                              'The courier shipment for this order was cancelled. '
+                              'We will set up shipping again — this page updates automatically when tracking is available.',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            const SizedBox(height: 10),
+                            _DetailRow(
+                              label: 'Courier status',
+                              value: _humanDeliveryStatusLabel(order.deliveryStatus),
                             ),
                             _DetailRow(
                               label: 'Last updated',

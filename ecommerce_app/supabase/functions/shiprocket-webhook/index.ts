@@ -37,7 +37,7 @@ function pickFromAny(obj: unknown, keys: string[]): string {
   const rec = obj as Record<string, unknown>;
   const direct = pickFirstString(rec, keys);
   if (direct) return direct;
-  for (const k of ["data", "payload", "response", "tracking_data"]) {
+  for (const k of ["data", "payload", "response", "tracking_data", "order", "body", "shipment", "event"]) {
     const nested = pickFromAny(rec[k], keys);
     if (nested) return nested;
   }
@@ -115,6 +115,13 @@ function orderStatusRank(statusRaw: string): number {
   if (s === "cancel_requested") return 99;
   if (s === "cancelled") return 100;
   return -1;
+}
+
+/** Shiprocket adhoc uses UUID without dashes as `order_id` / channel_order_id (see create_shiprocket_shipment). */
+function normalizeChannelOrderRefToUuid(raw: string): string | null {
+  const t = raw.trim().toLowerCase().replace(/-/g, "");
+  if (!/^[0-9a-f]{32}$/.test(t)) return null;
+  return `${t.slice(0, 8)}-${t.slice(8, 12)}-${t.slice(12, 16)}-${t.slice(16, 20)}-${t.slice(20, 32)}`;
 }
 
 function parseIncomingEventAt(payload: Record<string, unknown>): Date | null {
@@ -215,24 +222,30 @@ Deno.serve(async (req) => {
 
     let payload: Record<string, unknown> = {};
     try {
-      payload = await req.json();
+      const raw = await req.json();
+      if (Array.isArray(raw) && raw.length > 0 && raw[0] && typeof raw[0] === "object") {
+        payload = raw[0] as Record<string, unknown>;
+      } else if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        payload = raw as Record<string, unknown>;
+      } else {
+        payload = {};
+      }
       console.log("shiprocket_webhook_payload_parsed");
     } catch (_) {
       console.log("shiprocket_webhook_invalid_or_empty_json");
       payload = {};
     }
-    const shipmentId = pickFromAny(payload, ["shipment_id", "shipmentId", "shipment"]);
-    const awbCode = pickFromAny(payload, ["awb_code", "awb", "awbCode"]);
     const statusRaw = pickFromAny(payload, [
       "current_status",
       "status",
       "shipment_status",
       "current_status_name",
+      "new_status",
+      "sr_status",
+      "order_status",
+      "orderStatus",
     ]);
-    const courierName = pickFromAny(payload, ["courier_name", "courier"]);
-    const trackingUrl = pickFromAny(payload, ["tracking_url", "track_url", "etrack_url"]);
-
-    if (!statusRaw || (!shipmentId && !awbCode)) {
+    if (!statusRaw) {
       return ok({
         ok: true,
         received: true,
@@ -240,59 +253,82 @@ Deno.serve(async (req) => {
       });
     }
 
-    const mapped = mapShiprocketStatus(statusRaw);
+    const mappedPreview = mapShiprocketStatus(statusRaw);
+    const isCancelPreview = mappedPreview.shipmentStatus === "cancelled";
+
+    const shipmentId = pickFromAny(payload, ["shipment_id", "shipmentId", "shipment"]);
+    const awbCode = pickFromAny(payload, ["awb_code", "awb", "awbCode"]);
+    const channelRefRaw = pickFromAny(payload, [
+      "channel_order_id",
+      "channelOrderId",
+      "channel_order",
+    ]);
+    const adhocOrderRefRaw = pickFromAny(payload, ["order_id", "orderId"]);
+    const channelOrderUuid =
+      normalizeChannelOrderRefToUuid(channelRefRaw) ?? normalizeChannelOrderRefToUuid(adhocOrderRefRaw);
+
+    const courierName = pickFromAny(payload, ["courier_name", "courier"]);
+    const trackingUrl = pickFromAny(payload, ["tracking_url", "track_url", "etrack_url"]);
+
+    if (!shipmentId && !awbCode && !(isCancelPreview && channelOrderUuid)) {
+      return ok({
+        ok: true,
+        received: true,
+        ignored: "invalid_webhook_payload",
+      });
+    }
+
+    const mapped = mappedPreview;
+    const isShipmentCancelled = isCancelPreview;
     const nowIso = new Date().toISOString();
-    const updateRow: Record<string, unknown> = {
-      shipment_status: mapped.shipmentStatus,
-      ...(awbCode ? { awb_code: awbCode, tracking_number: awbCode } : {}),
-      ...(courierName ? { courier_name: courierName } : {}),
-      ...(trackingUrl ? { tracking_url: trackingUrl } : {}),
-    };
-    updateRow.delivery_status = mapped.deliveryStatus;
-    if (mapped.shipmentStatus === "delivered") updateRow.delivered_at = nowIso;
-    if (mapped.shipmentStatus === "cancelled") updateRow.cancelled_at = nowIso;
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    let matchOrder: {
+    type MatchRow = {
       id: string;
       user_id: string | null;
       status: string;
+      delivery_method: string | null;
       delivery_status: string | null;
       last_tracking_update: string | null;
-    } | null = null;
+    };
+
+    let matchOrder: MatchRow | null = null;
     if (shipmentId) {
       const byShipment = await admin
         .from("orders")
-        .select("id, user_id, status, delivery_status, last_tracking_update")
+        .select("id, user_id, status, delivery_method, delivery_status, last_tracking_update")
         .eq("shipment_id", shipmentId)
         .limit(1)
         .maybeSingle();
       if (!byShipment.error && byShipment.data?.id) {
-        matchOrder = byShipment.data as {
-          id: string;
-          user_id: string | null;
-          status: string;
-          delivery_status: string | null;
-          last_tracking_update: string | null;
-        };
+        matchOrder = byShipment.data as MatchRow;
       }
     }
     if (!matchOrder && awbCode) {
       const byAwb = await admin
         .from("orders")
-        .select("id, user_id, status, delivery_status, last_tracking_update")
+        .select("id, user_id, status, delivery_method, delivery_status, last_tracking_update")
         .eq("awb_code", awbCode)
         .limit(1)
         .maybeSingle();
       if (!byAwb.error && byAwb.data?.id) {
-        matchOrder = byAwb.data as {
-          id: string;
-          user_id: string | null;
-          status: string;
-          delivery_status: string | null;
-          last_tracking_update: string | null;
-        };
+        matchOrder = byAwb.data as MatchRow;
+      }
+    }
+    if (!matchOrder && isShipmentCancelled && channelOrderUuid) {
+      const byChannel = await admin
+        .from("orders")
+        .select("id, user_id, status, delivery_method, delivery_status, last_tracking_update")
+        .eq("id", channelOrderUuid)
+        .limit(1)
+        .maybeSingle();
+      if (!byChannel.error && byChannel.data?.id) {
+        const row = byChannel.data as MatchRow;
+        const dm = (row.delivery_method ?? "").toString().trim().toLowerCase();
+        if (dm === "shiprocket_delivery") {
+          matchOrder = row;
+        }
       }
     }
     if (!matchOrder) {
@@ -303,11 +339,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    const existingDelivery = (matchOrder.delivery_status ?? "").toString().trim().toLowerCase();
+    if (isShipmentCancelled && existingDelivery === "delivered") {
+      return ok({
+        ok: true,
+        received: true,
+        ignored: "delivered_order_ignore_shipment_cancel",
+      });
+    }
+
+    const resumeAfterCancelled =
+      existingDelivery === "cancelled" && mapped.shipmentStatus !== "cancelled";
+
     const incomingAt = parseIncomingEventAt(payload) ?? new Date();
     const existingTrackAt = matchOrder.last_tracking_update
       ? new Date(matchOrder.last_tracking_update)
       : null;
+    const bypassStale = isShipmentCancelled || resumeAfterCancelled;
     if (
+      !bypassStale &&
       existingTrackAt &&
       !Number.isNaN(existingTrackAt.getTime()) &&
       incomingAt.getTime() <= existingTrackAt.getTime()
@@ -327,10 +377,9 @@ Deno.serve(async (req) => {
       return ok({ ok: true, received: true, ignored: "stale_or_duplicate_event" });
     }
 
-    const existingDelivery = (matchOrder.delivery_status ?? "").toString().trim().toLowerCase();
     const existingPriority = deliveryStatusPriority[existingDelivery] ?? 0;
     const incomingPriority = deliveryStatusPriority[mapped.deliveryStatus] ?? 0;
-    if (incomingPriority < existingPriority) {
+    if (!resumeAfterCancelled && incomingPriority < existingPriority) {
       await writeWebhookLog(admin, {
         shipmentId: shipmentId || null,
         status: mapped.shipmentStatus,
@@ -346,17 +395,51 @@ Deno.serve(async (req) => {
       return ok({ ok: true, received: true, ignored: "status_downgrade_blocked" });
     }
 
-    updateRow.last_tracking_update = nowIso;
+    let updateRow: Record<string, unknown>;
+    if (isShipmentCancelled) {
+      updateRow = {
+        shipment_status: "cancelled",
+        delivery_status: "cancelled",
+        shipment_id: null,
+        awb_code: null,
+        tracking_number: null,
+        tracking_url: null,
+        delivery_method: null,
+        shipping_provider: null,
+        courier_name: null,
+        shipped_at: null,
+        last_tracking_update: nowIso,
+      };
+      const ord = (matchOrder.status ?? "").toString().trim().toLowerCase();
+      const dm = (matchOrder.delivery_method ?? "").toString().trim().toLowerCase();
+      if (ord === "cancelled" && dm === "shiprocket_delivery") {
+        updateRow.status = "processing";
+      } else if (ord === "shipped" || ord === "out_for_delivery") {
+        updateRow.status = "packed";
+      }
+    } else {
+      updateRow = {
+        shipment_status: mapped.shipmentStatus,
+        ...(awbCode ? { awb_code: awbCode, tracking_number: awbCode } : {}),
+        ...(courierName ? { courier_name: courierName } : {}),
+        ...(trackingUrl ? { tracking_url: trackingUrl } : {}),
+        delivery_status: mapped.deliveryStatus,
+        last_tracking_update: nowIso,
+      };
+      if (mapped.shipmentStatus === "delivered") updateRow.delivered_at = nowIso;
+    }
 
-    if (mapped.orderStatus) {
+    if (!isShipmentCancelled && mapped.orderStatus) {
       const currentRank = orderStatusRank(matchOrder.status ?? "");
       const nextRank = orderStatusRank(mapped.orderStatus);
       const currentStatus = (matchOrder.status ?? "").toString().trim().toLowerCase();
       const isTerminal = currentStatus === "delivered" || currentStatus === "cancelled";
-      if (!isTerminal && mapped.orderStatus === "cancelled") {
-        updateRow.status = "cancelled";
-      } else if (!isTerminal && nextRank > currentRank && currentRank >= 0 && currentRank < 99) {
+      if (!isTerminal && nextRank > currentRank && currentRank >= 0 && currentRank < 99) {
         updateRow.status = mapped.orderStatus;
+        const nextSt = (mapped.orderStatus ?? "").toString().trim().toLowerCase();
+        if (nextSt === "shipped") {
+          updateRow.shipped_at = nowIso;
+        }
       }
     }
 

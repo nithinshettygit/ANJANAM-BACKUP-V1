@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
         "id, user_id, status, currency, delivery_fee, payment_method, payment_status, created_at, " +
           "shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, shipping_state, " +
           "customer_email, package_weight_kg, package_dimensions_cm, " +
-          "shipment_id, delivery_method, tracking_number, courier_name",
+          "shipment_id, delivery_method, delivery_status, tracking_number, courier_name",
       )
       .eq("id", orderId)
       .single();
@@ -326,12 +326,14 @@ Deno.serve(async (req) => {
       return json(409, { error: "shipment_already_exists" });
     }
     const dm = (order.delivery_method ?? "").toString().trim().toLowerCase();
-    if (dm === "shiprocket_delivery") {
+    const priorDelivery = (order.delivery_status ?? "").toString().trim().toLowerCase();
+    const shiprocketRedoAfterCancel = dm === "shiprocket_delivery" && priorDelivery === "cancelled";
+    if (dm === "shiprocket_delivery" && !shiprocketRedoAfterCancel) {
       return json(409, { error: "shipment_already_exists" });
     }
 
     const st = (order.status ?? "").toString().trim().toLowerCase();
-    const allowedStatus = new Set(["processing", "packed"]);
+    const allowedStatus = new Set(["processing", "packed", "shipped", "out_for_delivery"]);
     if (!allowedStatus.has(st)) {
       return json(400, { error: "invalid_order_status", detail: st });
     }
@@ -492,8 +494,6 @@ Deno.serve(async (req) => {
           `Shiprocket did not return shipment_id. Check pickup_location matches a warehouse in Shiprocket (see Edge logs shiprocket_missing_shipment_id). order_ref=${shiprocketOrderRef ?? "none"}, keys=${Object.keys(created).join(", ")}`,
       });
     }
-    const nowIso = new Date().toISOString();
-
     const updateRow: Record<string, unknown> = {
       delivery_method: "shiprocket_delivery",
       shipping_provider: "Shiprocket",
@@ -501,7 +501,8 @@ Deno.serve(async (req) => {
       awb_code: awb,
       tracking_url: trackUrl,
       shipment_status: "shipment_created",
-      shipped_at: nowIso,
+      delivery_status: "created",
+      // Do not set shipped_at here — it blocked customer cancel requests while status was still processing/packed.
       tracking_number: awb ?? order.tracking_number,
       courier_name: courierResolved ?? order.courier_name,
     };

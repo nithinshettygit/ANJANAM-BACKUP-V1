@@ -67,6 +67,19 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     super.dispose();
   }
 
+  void _invalidateOrderDetailsFromPayload(dynamic payload) {
+    try {
+      final nr = (payload as dynamic).newRecord;
+      final or = (payload as dynamic).oldRecord;
+      String? id;
+      if (nr is Map) id = nr['id']?.toString();
+      if ((id == null || id.isEmpty) && or is Map) id = or['id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        ref.invalidate(adminOrderDetailsProvider(id));
+      }
+    } catch (_) {}
+  }
+
   void _subscribeOrdersRealtime() {
     final client = ref.read(supabaseClientProvider);
     final channel = client.channel('admin-orders-live');
@@ -74,8 +87,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       event: PostgresChangeEvent.update,
       schema: 'public',
       table: 'orders',
-      callback: (_) {
+      callback: (payload) {
         if (!mounted) return;
+        _invalidateOrderDetailsFromPayload(payload);
         ref.invalidate(adminOrdersProvider);
       },
     );
@@ -83,8 +97,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       event: PostgresChangeEvent.insert,
       schema: 'public',
       table: 'orders',
-      callback: (_) {
+      callback: (payload) {
         if (!mounted) return;
+        _invalidateOrderDetailsFromPayload(payload);
         ref.invalidate(adminOrdersProvider);
       },
     );
@@ -92,8 +107,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       event: PostgresChangeEvent.delete,
       schema: 'public',
       table: 'orders',
-      callback: (_) {
+      callback: (payload) {
         if (!mounted) return;
+        _invalidateOrderDetailsFromPayload(payload);
         ref.invalidate(adminOrdersProvider);
       },
     );
@@ -654,6 +670,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
 
   Widget _deliveryModeBadge(AdminOrderRow o) {
     final mode = (o.deliveryMethod ?? '').toLowerCase().trim();
+    final ds = (o.deliveryStatus ?? '').toLowerCase().trim();
     String label;
     Color color;
     if (mode == 'shiprocket_delivery') {
@@ -662,6 +679,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     } else if (mode == 'manual_delivery') {
       label = 'Manual';
       color = Colors.deepPurple.shade700;
+    } else if (mode.isEmpty && ds == 'cancelled') {
+      label = 'Reset (SR cancelled)';
+      color = Colors.deepOrange.shade800;
     } else {
       label = 'Not set';
       color = Colors.blueGrey.shade700;

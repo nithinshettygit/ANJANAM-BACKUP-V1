@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/supabase/supabase_client_provider.dart';
 import '../domain/repositories/auth_repository.dart';
+import 'auth_local_session_store.dart';
 import 'auth_session_provider.dart';
 
 class AuthActionsController extends AsyncNotifier<void> {
@@ -63,6 +65,10 @@ class AuthActionsController extends AsyncNotifier<void> {
       state = AsyncError(result.error!, result.stackTrace!);
       throw result.error!;
     }
+    await ref.read(authLocalSessionStoreProvider).clear();
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
     state = const AsyncData(null);
   }
 

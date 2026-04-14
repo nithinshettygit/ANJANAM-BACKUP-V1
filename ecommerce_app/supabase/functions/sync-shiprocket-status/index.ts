@@ -97,6 +97,33 @@ function pickTrackData(data: unknown): Record<string, unknown> | null {
   return null;
 }
 
+function compactOrderId(uuid: string): string {
+  return uuid.replace(/-/g, "").toLowerCase();
+}
+
+/** Shiprocket GET /orders list: find row matching our channel_order_id (compact UUID). */
+function pickStatusFromOrdersListResponse(json: unknown, channelCompact: string): string {
+  const want = channelCompact.toLowerCase();
+  const root = json as Record<string, unknown>;
+  const candidates: unknown[] = [];
+  if (Array.isArray(root.data)) candidates.push(...root.data);
+  else if (root.data && typeof root.data === "object") {
+    const d = root.data as Record<string, unknown>;
+    if (Array.isArray(d.data)) candidates.push(...d.data);
+  }
+  if (Array.isArray(root.orders)) candidates.push(...root.orders);
+  for (const row of candidates) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as Record<string, unknown>;
+    const ch = (r.channel_order_id ?? r.channel_order ?? "").toString().trim().replace(/-/g, "").toLowerCase();
+    if (ch && ch === want) {
+      const st = (r.status ?? r.order_status ?? "").toString().trim();
+      if (st) return st;
+    }
+  }
+  return "";
+}
+
 async function insertStatusNotificationIfNeeded(
   admin: ReturnType<typeof createClient>,
   row: { id: string; user_id: string | null; delivery_status: string | null },
@@ -190,17 +217,65 @@ Deno.serve(async (req) => {
     }
 
     const awb = (order.awb_code ?? "").toString().trim();
-    if (!awb) return json(200, { synced: false, detail: "AWB not available yet. Sync after courier assignment." });
+    const shipmentId = (order.shipment_id ?? "").toString().trim();
 
     const srToken = await shiprocketLogin(SHIPROCKET_EMAIL, SHIPROCKET_PASSWORD);
-    const trackRes = await fetch(`${SHIPROCKET_BASE}/v1/external/courier/track/awb/${encodeURIComponent(awb)}`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${srToken}` },
-    });
-    const trackJson = await trackRes.json().catch(() => ({}));
-    if (!trackRes.ok) {
-      const msg = typeof trackJson?.message === "string" ? trackJson.message : "track_failed";
-      return json(502, { error: "shiprocket_track_failed", detail: msg });
+
+    let trackJson: Record<string, unknown> = {};
+    let trackSource: "awb" | "shipment" | "orders_search" = "awb";
+
+    if (awb) {
+      const trackRes = await fetch(`${SHIPROCKET_BASE}/v1/external/courier/track/awb/${encodeURIComponent(awb)}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${srToken}` },
+      });
+      trackJson = (await trackRes.json().catch(() => ({}))) as Record<string, unknown>;
+      trackSource = "awb";
+      if (!trackRes.ok) {
+        const msg = typeof trackJson?.message === "string" ? trackJson.message : "track_failed";
+        return json(502, { error: "shiprocket_track_failed", detail: msg });
+      }
+    } else if (shipmentId) {
+      const trackRes = await fetch(
+        `${SHIPROCKET_BASE}/v1/external/courier/track/shipment/${encodeURIComponent(shipmentId)}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${srToken}` },
+        },
+      );
+      trackJson = (await trackRes.json().catch(() => ({}))) as Record<string, unknown>;
+      trackSource = "shipment";
+      if (!trackRes.ok) {
+        const msg = typeof trackJson?.message === "string" ? trackJson.message : "track_shipment_failed";
+        return json(502, { error: "shiprocket_track_failed", detail: msg });
+      }
+    } else {
+      const fromD = new Date();
+      fromD.setDate(fromD.getDate() - 29);
+      const fromStr = fromD.toISOString().slice(0, 10);
+      const toStr = new Date().toISOString().slice(0, 10);
+      const search = compactOrderId(orderId);
+      const listUrl =
+        `${SHIPROCKET_BASE}/v1/external/orders?from=${encodeURIComponent(fromStr)}` +
+        `&to=${encodeURIComponent(toStr)}&search=${encodeURIComponent(search)}&per_page=20`;
+      const listRes = await fetch(listUrl, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${srToken}` },
+      });
+      const listJson = (await listRes.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!listRes.ok) {
+        const msg = typeof listJson?.message === "string" ? listJson.message : "orders_list_failed";
+        return json(502, { error: "shiprocket_orders_search_failed", detail: msg });
+      }
+      const statusFromList = pickStatusFromOrdersListResponse(listJson, search);
+      if (!statusFromList) {
+        return json(200, {
+          synced: false,
+          detail: "No AWB yet. Create or link a Shiprocket shipment, or wait for assignment.",
+        });
+      }
+      trackJson = { data: { shipment_status: statusFromList } };
+      trackSource = "orders_search";
     }
 
     const td = pickTrackData(trackJson);
@@ -208,18 +283,34 @@ Deno.serve(async (req) => {
     const latest = shipmentTrack.length > 0 && typeof shipmentTrack[0] === "object"
       ? shipmentTrack[0] as Record<string, unknown>
       : {};
-    const currentStatusRaw =
+    let currentStatusRaw =
       (td?.shipment_status as string | undefined) ??
       (latest.current_status as string | undefined) ??
       "";
+    if (!currentStatusRaw && trackJson.data && typeof trackJson.data === "object") {
+      const d = trackJson.data as Record<string, unknown>;
+      currentStatusRaw =
+        (d.shipment_status ?? d.status ?? d.current_status ?? "").toString().trim();
+    }
     const trackUrl = (td?.track_url as string | undefined) ?? null;
     const courier = (td?.courier_name as string | undefined) ?? (latest.courier_name as string | undefined) ?? null;
 
     const mapped = mapShiprocketStatus(currentStatusRaw || "");
+    const isShipmentCancelled = mapped.shipmentStatus === "cancelled";
+
+    const existingDelivery = (order.delivery_status ?? "").toString().trim().toLowerCase();
+    if (isShipmentCancelled && existingDelivery === "delivered") {
+      return json(200, { synced: false, ignored: "delivered_order_ignore_shipment_cancel" });
+    }
+
+    const resumeAfterCancelled =
+      existingDelivery === "cancelled" && mapped.shipmentStatus !== "cancelled";
 
     const incomingAt = new Date();
     const existingTrackAt = order.last_tracking_update ? new Date(order.last_tracking_update) : null;
+    const bypassStale = isShipmentCancelled || resumeAfterCancelled;
     if (
+      !bypassStale &&
       existingTrackAt &&
       !Number.isNaN(existingTrackAt.getTime()) &&
       incomingAt.getTime() <= existingTrackAt.getTime()
@@ -234,10 +325,9 @@ Deno.serve(async (req) => {
       return json(200, { synced: false, ignored: "stale_or_duplicate_event" });
     }
 
-    const existingDelivery = (order.delivery_status ?? "").toString().trim().toLowerCase();
     const existingPriority = deliveryStatusPriority[existingDelivery] ?? 0;
     const incomingPriority = deliveryStatusPriority[mapped.deliveryStatus] ?? 0;
-    if (incomingPriority < existingPriority) {
+    if (!resumeAfterCancelled && incomingPriority < existingPriority) {
       await writeWebhookLog(adminClient, {
         shipmentId: (order.shipment_id ?? null) as string | null,
         status: mapped.shipmentStatus,
@@ -249,26 +339,51 @@ Deno.serve(async (req) => {
     }
 
     const nowIso = new Date().toISOString();
-    const patch: Record<string, unknown> = {
-      shipment_status: mapped.shipmentStatus,
-      delivery_status: mapped.deliveryStatus,
-      tracking_url: trackUrl,
-      courier_name: courier ?? null,
-      tracking_number: awb,
-      last_tracking_update: nowIso,
-    };
-    if (mapped.shipmentStatus === "delivered") patch.delivered_at = nowIso;
-    if (mapped.shipmentStatus === "cancelled") patch.cancelled_at = nowIso;
+    let patch: Record<string, unknown>;
+    if (isShipmentCancelled) {
+      patch = {
+        shipment_status: "cancelled",
+        delivery_status: "cancelled",
+        shipment_id: null,
+        awb_code: null,
+        tracking_number: null,
+        tracking_url: null,
+        delivery_method: null,
+        shipping_provider: null,
+        courier_name: null,
+        shipped_at: null,
+        last_tracking_update: nowIso,
+      };
+      const ord = (order.status ?? "").toString().trim().toLowerCase();
+      const dm = (order.delivery_method ?? "").toString().trim().toLowerCase();
+      if (ord === "cancelled" && dm === "shiprocket_delivery") {
+        patch.status = "processing";
+      } else if (ord === "shipped" || ord === "out_for_delivery") {
+        patch.status = "packed";
+      }
+    } else {
+      patch = {
+        shipment_status: mapped.shipmentStatus,
+        delivery_status: mapped.deliveryStatus,
+        tracking_url: trackUrl,
+        courier_name: courier ?? null,
+        last_tracking_update: nowIso,
+      };
+      if (awb) patch.tracking_number = awb;
+      if (mapped.shipmentStatus === "delivered") patch.delivered_at = nowIso;
+    }
 
-    if (mapped.orderStatus) {
+    if (!isShipmentCancelled && mapped.orderStatus) {
       const currentRank = orderStatusRank((order.status ?? "").toString());
       const nextRank = orderStatusRank(mapped.orderStatus);
       const currentStatus = (order.status ?? "").toString().trim().toLowerCase();
       const isTerminal = currentStatus === "delivered" || currentStatus === "cancelled";
-      if (!isTerminal && mapped.orderStatus === "cancelled") {
-        patch.status = "cancelled";
-      } else if (!isTerminal && nextRank > currentRank && currentRank >= 0 && currentRank < 99) {
+      if (!isTerminal && nextRank > currentRank && currentRank >= 0 && currentRank < 99) {
         patch.status = mapped.orderStatus;
+        const nextSt = (mapped.orderStatus ?? "").toString().trim().toLowerCase();
+        if (nextSt === "shipped") {
+          patch.shipped_at = nowIso;
+        }
       }
     }
 
@@ -300,7 +415,8 @@ Deno.serve(async (req) => {
 
     return json(200, {
       synced: true,
-      awb_code: awb,
+      track_source: trackSource,
+      awb_code: awb || null,
       shipment_status: mapped.shipmentStatus,
       delivery_status: mapped.deliveryStatus,
       tracking_url: trackUrl,

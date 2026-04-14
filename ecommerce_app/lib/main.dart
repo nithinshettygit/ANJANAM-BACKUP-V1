@@ -71,6 +71,15 @@ Future<void> _runWebApp() async {
       url: env.supabaseUrl,
       anonKey: env.supabaseAnonKey,
     );
+    // Web in this project can run without Firebase web options.
+    // When options are unavailable, keep storefront/admin web usable.
+    try {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    } on UnsupportedError catch (e) {
+      if (kDebugMode) {
+        debugPrint('Web Firebase init skipped: $e');
+      }
+    }
     runApp(
       const ProviderScope(
         child: EcommerceApp(),

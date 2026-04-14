@@ -17,6 +17,8 @@ dependencies:
   supabase_flutter: any
   gotrue: any
   firebase_core: any
+  firebase_auth: any
+  google_sign_in: any
   firebase_messaging: any
   flutter_local_notifications: any
   http: any

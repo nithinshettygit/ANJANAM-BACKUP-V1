@@ -1,13 +1,19 @@
 import 'package:ecommerce_app/features/auth/domain/entities/app_user.dart';
 import 'package:ecommerce_app/features/auth/data/auth_error_mapper.dart';
+import 'package:ecommerce_app/features/auth/data/services/firebase_google_auth_service.dart';
 import 'package:ecommerce_app/features/auth/state/auth_actions_controller.dart';
+import 'package:ecommerce_app/features/auth/state/auth_local_session_store.dart';
 import 'package:ecommerce_app/features/auth/state/auth_session_provider.dart';
 import 'package:ecommerce_app/features/auth/utils/auth_input_validators.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/presentation/utils/auth_issue_presenter.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ecommerce_app/firebase_options.dart';
 
 const int _kMaxEmailFailures = 5;
 const Duration _kEmailLockDuration = Duration(minutes: 15);
@@ -24,6 +30,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
+  bool _isGoogleSubmitting = false;
   bool _sessionRedirectScheduled = false;
   bool _authListenAttached = false;
 
@@ -74,6 +81,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       } catch (_) {
         isAdmin = false;
       }
+    }
+    if (authUser != null) {
+      await ref.read(authLocalSessionStoreProvider).save(
+            userId: authUser.id,
+            loginType: LoginType.email,
+          );
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -131,6 +144,71 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         error: ex,
         onRetry: _submit,
       );
+    }
+  }
+
+  Future<void> _submitGoogle() async {
+    if (_isSubmitting || _isGoogleSubmitting) return;
+    if (kIsWeb && Firebase.apps.isEmpty) {
+      try {
+        await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      } catch (_) {}
+    }
+    if (kIsWeb && Firebase.apps.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google login is unavailable right now. Please refresh and try again.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _isGoogleSubmitting = true);
+    try {
+      final auth = ref.read(firebaseGoogleAuthServiceProvider);
+      final firebaseCred = await auth.signInWithGoogle();
+      final firebaseUser = firebaseCred.user;
+      if (firebaseUser == null) {
+        throw Exception('Google sign-in did not return a user.');
+      }
+      final appUser = await auth.signInToSupabaseFromGoogleUser(
+        firebaseCredential: firebaseCred,
+      );
+      await ref.read(authLocalSessionStoreProvider).save(
+            userId: appUser.id,
+            loginType: LoginType.google,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login successful')),
+      );
+      goToStorefrontAfterCustomerAuth(ref, context);
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      final code = e.code.toLowerCase().trim();
+      final isCancel = code == 'google-sign-in-cancelled' ||
+          code == 'popup-closed-by-user' ||
+          code == 'cancelled-popup-request';
+      final isPopupIssue = code == 'popup-blocked' || code == 'operation-not-allowed';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isCancel
+                ? 'Google sign-in cancelled.'
+                : isPopupIssue
+                    ? 'Google popup blocked or not enabled in Firebase Auth (${e.code}).'
+                : (e.message?.trim().isNotEmpty == true
+                    ? '${e.message!.trim()} (${e.code})'
+                    : 'Unable to continue with Google.'),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Google sign-in failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isGoogleSubmitting = false);
     }
   }
 
@@ -247,6 +325,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: (_isSubmitting || _isGoogleSubmitting) ? null : _submitGoogle,
+                    icon: _isGoogleSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.g_mobiledata_rounded),
+                    label: Text(
+                      _isGoogleSubmitting ? 'Connecting to Google...' : 'Continue with Google',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
                 TextButton(
                   onPressed: () => Navigator.of(context).pushNamed('/signup'),
                   child: const Text('Don\'t have an account? Sign up'),

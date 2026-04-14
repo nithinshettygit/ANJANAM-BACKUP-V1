@@ -1567,6 +1567,11 @@ class AdminService {
     final psRaw = _orderPaymentStatusRaw(orderMap);
     final rzpId = _razorpayPaymentIdFromRow(orderMap);
     final rzpOid = _razorpayOrderIdFromRow(orderMap);
+    String? orderColStr(String key) {
+      final t = orderMap[key]?.toString().trim();
+      return t != null && t.isNotEmpty ? t : null;
+    }
+
     final order = AdminOrderRow(
       id: orderMap['id'].toString(),
       userId: userId,
@@ -1595,6 +1600,10 @@ class AdminService {
         final t = orderMap['refund_id']?.toString().trim();
         return t != null && t.isNotEmpty ? t : null;
       }(),
+      deliveryStatus: orderColStr('delivery_status'),
+      shipmentStatus: orderColStr('shipment_status'),
+      deliveryMethod: orderColStr('delivery_method'),
+      shipmentId: orderColStr('shipment_id'),
     );
 
     final shipName = orderMap['shipping_full_name']?.toString().trim();
@@ -1622,11 +1631,6 @@ class AdminService {
     final dimRaw = orderMap['package_dimensions_cm']?.toString().trim();
     final packageDimensionsCm =
         dimRaw != null && dimRaw.isNotEmpty ? dimRaw : null;
-
-    String? orderColStr(String key) {
-      final t = orderMap[key]?.toString().trim();
-      return t != null && t.isNotEmpty ? t : null;
-    }
 
     final shipStateRaw = orderMap['shipping_state']?.toString().trim();
     final shippingStateParsed =

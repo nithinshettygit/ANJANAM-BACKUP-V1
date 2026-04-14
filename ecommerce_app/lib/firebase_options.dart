@@ -7,9 +7,9 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, Tar
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions are not configured for web — FCM is disabled on web in this app.',
-      );
+      final opts = _webFromDartDefines();
+      if (opts != null) return opts;
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -27,5 +27,44 @@ class DefaultFirebaseOptions {
     messagingSenderId: '464689472535',
     projectId: 'anjanam-app',
     storageBucket: 'anjanam-app.firebasestorage.app',
+  );
+
+  static FirebaseOptions? _webFromDartDefines() {
+    const apiKey = String.fromEnvironment('FIREBASE_WEB_API_KEY');
+    const appId = String.fromEnvironment('FIREBASE_WEB_APP_ID');
+    const messagingSenderId = String.fromEnvironment('FIREBASE_WEB_MESSAGING_SENDER_ID');
+    const projectId = String.fromEnvironment('FIREBASE_WEB_PROJECT_ID');
+    const authDomainFromDefine = String.fromEnvironment('FIREBASE_WEB_AUTH_DOMAIN');
+    const storageBucket = String.fromEnvironment('FIREBASE_WEB_STORAGE_BUCKET');
+    const measurementId = String.fromEnvironment('FIREBASE_WEB_MEASUREMENT_ID');
+
+    if (apiKey.isEmpty || appId.isEmpty || messagingSenderId.isEmpty || projectId.isEmpty) {
+      return null;
+    }
+
+    final authDomain = authDomainFromDefine.isNotEmpty
+        ? authDomainFromDefine
+        : '$projectId.firebaseapp.com';
+
+    return FirebaseOptions(
+      apiKey: apiKey,
+      appId: appId,
+      messagingSenderId: messagingSenderId,
+      projectId: projectId,
+      authDomain: authDomain,
+      storageBucket: storageBucket.isEmpty ? null : storageBucket,
+      measurementId: measurementId.isEmpty ? null : measurementId,
+    );
+  }
+
+  // Production fallback for hosted web builds where dart-defines may be omitted.
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBgdR_rS545EsIRWDPY2djHQNI3q5EV8ew',
+    appId: '1:464689472535:web:483c9581b7a07f9205a852',
+    messagingSenderId: '464689472535',
+    projectId: 'anjanam-app',
+    authDomain: 'anjanam-app.firebaseapp.com',
+    storageBucket: 'anjanam-app.firebasestorage.app',
+    measurementId: 'G-C7FLSTTP2L',
   );
 }

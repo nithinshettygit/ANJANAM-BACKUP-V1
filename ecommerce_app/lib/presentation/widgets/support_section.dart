@@ -9,9 +9,13 @@ class SupportSection extends StatelessWidget {
 
   static final Uri _mailto = Uri.parse('mailto:support.anjanam@gmail.com');
   static final Uri _tel = Uri.parse('tel:+918129107108');
+  static final Uri _instagram = Uri.parse(
+    'https://www.instagram.com/anjanam_official?igsh=dWtocGZ6ZnM1Y3Vp',
+  );
 
   static const String _emailDisplay = 'support.anjanam@gmail.com';
   static const String _phoneDisplay = '+91 8129107108';
+  static const String _instagramDisplay = '@anjanam_official';
   static const String _availability = 'Mon–Sat, 9 AM – 10 PM';
 
   Future<void> _launchUri(
@@ -80,6 +84,19 @@ class SupportSection extends StatelessWidget {
                   );
                 },
               ),
+              ListTile(
+                leading: Icon(Icons.camera_alt_outlined, color: Theme.of(sheetContext).colorScheme.primary),
+                title: const Text('Instagram'),
+                subtitle: const Text(_instagramDisplay),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _launchUri(
+                    context,
+                    _instagram,
+                    failureMessage: 'Unable to open Instagram',
+                  );
+                },
+              ),
               const SizedBox(height: 8),
             ],
           ),
@@ -128,6 +145,18 @@ class SupportSection extends StatelessWidget {
                 context,
                 _tel,
                 failureMessage: 'Unable to open dialer',
+              ),
+            ),
+            const SizedBox(height: 10),
+            _SupportContactRow(
+              icon: Icons.camera_alt_outlined,
+              title: 'Instagram',
+              value: _instagramDisplay,
+              iconColor: scheme.primary,
+              onTap: () => _launchUri(
+                context,
+                _instagram,
+                failureMessage: 'Unable to open Instagram',
               ),
             ),
             const SizedBox(height: 12),

@@ -163,62 +163,73 @@ class _HomeProductDiscoveryCardState extends State<HomeProductDiscoveryCard> {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            product.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  height: HomeLayoutMetrics.homeProductTitleLineHeight(context),
-                                  fontSize: HomeLayoutMetrics.homeProductTitleFontSize(context),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compactMeta = constraints.maxHeight < 90;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                product.title,
+                                maxLines: compactMeta ? 1 : 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      height: HomeLayoutMetrics.homeProductTitleLineHeight(context),
+                                      fontSize: HomeLayoutMetrics.homeProductTitleFontSize(context),
+                                    ),
+                              ),
+                              const Spacer(),
+                              if (!compactMeta &&
+                                  product.averageRating != null &&
+                                  product.totalReviews > 0) ...[
+                                Row(
+                                  children: [
+                                    StarRatingDisplay(
+                                      rating: product.averageRating!.round().clamp(1, 5),
+                                      size: 12,
+                                      color: AppColors.deepGold,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        '${product.averageRating!.toStringAsFixed(1)} (${product.totalReviews})',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                              color: scheme.onSurfaceVariant,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 10,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                          ),
-                          const Spacer(),
-                          if (product.averageRating != null && product.totalReviews > 0) ...[
-                            Row(
-                              children: [
-                                StarRatingDisplay(
-                                  rating: product.averageRating!.round().clamp(1, 5),
-                                  size: 12,
-                                  color: AppColors.deepGold,
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    '${product.averageRating!.toStringAsFixed(1)} (${product.totalReviews})',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                          color: scheme.onSurfaceVariant,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 10,
-                                        ),
-                                  ),
-                                ),
+                                const SizedBox(height: 2),
                               ],
-                            ),
-                            const SizedBox(height: 2),
-                          ],
-                          if (pricing.showPromo)
-                            Text(
-                              formatRupeeCompact(pricing.mrp!),
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    decoration: TextDecoration.lineThrough,
-                                    color: scheme.onSurfaceVariant,
-                                    fontSize: 10,
-                                  ),
-                            ),
-                          Text(
-                            formatRupeeCompact(pricing.salePrice),
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  color: AppColors.priceText,
-                                  fontWeight: FontWeight.w800,
+                              if (pricing.showPromo)
+                                Text(
+                                  formatRupeeCompact(pricing.mrp!),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                        decoration: TextDecoration.lineThrough,
+                                        color: scheme.onSurfaceVariant,
+                                        fontSize: 10,
+                                      ),
                                 ),
-                          ),
-                        ],
+                              Text(
+                                formatRupeeCompact(pricing.salePrice),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                      color: AppColors.priceText,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),

@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
+import 'package:ecommerce_app/features/order_history/state/order_detail_provider.dart';
 import 'package:ecommerce_app/features/order_history/state/order_history_controller.dart';
 import 'package:ecommerce_app/features/wishlist/state/wishlist_provider.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
@@ -9,6 +11,13 @@ import 'package:ecommerce_app/presentation/widgets/order_history_order_card.dart
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show
+        PostgresChangeEvent,
+        PostgresChangeFilter,
+        PostgresChangeFilterType,
+        RealtimeChannel,
+        SupabaseClient;
 
 class OrderHistoryPage extends ConsumerStatefulWidget {
   const OrderHistoryPage({super.key});
@@ -21,10 +30,13 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
   final _searchCtrl = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Timer? _searchDebounce;
+  RealtimeChannel? _ordersRealtimeChannel;
+  SupabaseClient? _ordersRealtimeClient;
 
   @override
   void initState() {
     super.initState();
+    _subscribeMyOrdersRealtime();
     ref.listenManual<Map<int, int>>(
       storefrontScrollToTopSignalProvider,
       (previous, next) {
@@ -43,10 +55,51 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
 
   @override
   void dispose() {
+    final ch = _ordersRealtimeChannel;
+    final cl = _ordersRealtimeClient;
+    if (ch != null && cl != null) {
+      cl.removeChannel(ch);
+      _ordersRealtimeChannel = null;
+      _ordersRealtimeClient = null;
+    }
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _subscribeMyOrdersRealtime() {
+    final client = ref.read(supabaseClientProvider);
+    _ordersRealtimeClient = client;
+    final uid = client.auth.currentUser?.id;
+    if (uid == null || uid.isEmpty) return;
+
+    final channel = client.channel('storefront-my-orders-$uid');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'orders',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'user_id',
+        value: uid,
+      ),
+      callback: (payload) {
+        if (!mounted) return;
+        try {
+          final nr = (payload as dynamic).newRecord;
+          if (nr is Map) {
+            final id = nr['id']?.toString();
+            if (id != null && id.isNotEmpty) {
+              ref.invalidate(orderDetailBundleProvider(id));
+            }
+          }
+        } catch (_) {}
+        ref.invalidate(orderHistoryControllerProvider);
+      },
+    );
+    channel.subscribe();
+    _ordersRealtimeChannel = channel;
   }
 
   void _scheduleSearchCommit(String value) {

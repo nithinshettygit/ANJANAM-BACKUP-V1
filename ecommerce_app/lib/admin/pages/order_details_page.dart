@@ -24,7 +24,7 @@ import '../widgets/admin_detail_back_leading.dart';
 import '../widgets/admin_guard.dart';
 import '../widgets/admin_state_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'
-    show RealtimeChannel, PostgresChangeEvent, PostgresChangeFilter, PostgresChangeFilterType;
+    show RealtimeChannel, PostgresChangeEvent, SupabaseClient;
 
 class AdminOrderDetailsPage extends ConsumerStatefulWidget {
   final String orderId;
@@ -56,6 +56,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   bool _manualDeliveryBusy = false;
   bool _shiprocketBusy = false;
   RealtimeChannel? _orderRealtimeChannel;
+  SupabaseClient? _orderRealtimeClient;
+  String? _manualPkgDefaultsOrderId;
+  String? _manualPkgDefaultsKey;
+  double? _manualAutoWeightKg;
+  String? _manualAutoDimensionsCm;
+  bool _manualPkgDefaultsLoading = false;
 
   @override
   void initState() {
@@ -66,9 +72,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
 
   @override
   void dispose() {
-    if (_orderRealtimeChannel != null) {
-      ref.read(supabaseClientProvider).removeChannel(_orderRealtimeChannel!);
+    if (_orderRealtimeChannel != null && _orderRealtimeClient != null) {
+      _orderRealtimeClient!.removeChannel(_orderRealtimeChannel!);
       _orderRealtimeChannel = null;
+      _orderRealtimeClient = null;
     }
     _trackCtrl.dispose();
     _courierCtrl.dispose();
@@ -81,9 +88,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   void didUpdateWidget(AdminOrderDetailsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.orderId != widget.orderId) {
-      if (_orderRealtimeChannel != null) {
-        ref.read(supabaseClientProvider).removeChannel(_orderRealtimeChannel!);
+      if (_orderRealtimeChannel != null && _orderRealtimeClient != null) {
+        _orderRealtimeClient!.removeChannel(_orderRealtimeChannel!);
         _orderRealtimeChannel = null;
+        _orderRealtimeClient = null;
       }
       _subscribeOrderRealtime();
       _syncedShipmentOrderId = null;
@@ -94,20 +102,23 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
 
   void _subscribeOrderRealtime() {
     final client = ref.read(supabaseClientProvider);
+    _orderRealtimeClient = client;
     final channel = client.channel('admin-order-${widget.orderId}');
+    // No server-side filter: filtered postgres_changes can miss updates on some clients;
+    // we only invalidate when the changed row id matches this order.
     channel.onPostgresChanges(
       event: PostgresChangeEvent.update,
       schema: 'public',
       table: 'orders',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'id',
-        value: widget.orderId,
-      ),
-      callback: (_) {
+      callback: (payload) {
         if (!mounted) return;
-        ref.invalidate(adminOrderDetailsProvider(widget.orderId));
-        ref.invalidate(adminOrdersProvider);
+        try {
+          final nr = (payload as dynamic).newRecord;
+          if (nr is Map && nr['id']?.toString() == widget.orderId) {
+            ref.invalidate(adminOrderDetailsProvider(widget.orderId));
+            ref.invalidate(adminOrdersProvider);
+          }
+        } catch (_) {}
       },
     );
     channel.subscribe();
@@ -117,6 +128,18 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   bool _shipmentEditableForStatus(String rawStatus) {
     final c = canonicalAdminOrderStatus(rawStatus);
     return c != 'delivered' && c != 'cancelled' && c != 'cancel_requested';
+  }
+
+  /// Store order was marked [cancelled] (e.g. old webhook) while Shiprocket fulfilment never completed — allow admin to recover.
+  bool _fulfillmentRecoveryMode(AdminOrderDetails details) {
+    final st = canonicalAdminOrderStatus(details.order.status);
+    if (st != 'cancelled') return false;
+    if ((details.deliveryMethod ?? '').toLowerCase().trim() != 'shiprocket_delivery') {
+      return false;
+    }
+    final ds = (details.deliveryStatus ?? '').toLowerCase().trim();
+    if (ds == 'delivered') return false;
+    return true;
   }
 
   bool _shipmentFormDiffersFrom(AdminOrderDetails details) {
@@ -168,6 +191,162 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             '${details.estimatedDeliveryDate!.month.toString().padLeft(2, '0')}-'
             '${details.estimatedDeliveryDate!.day.toString().padLeft(2, '0')}';
     return '$tracking|$courier|$weight|$dimensions|$date';
+  }
+
+  String _manualPkgDefaultsSignature(AdminOrderDetails details) {
+    final parts = <String>[];
+    for (final item in details.items) {
+      parts.add('${item.productId}:${item.quantity}');
+    }
+    parts.sort();
+    return parts.join('|');
+  }
+
+  String _formatWeightKg(double value) {
+    final fixed = value.toStringAsFixed(3);
+    return fixed.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+  }
+
+  List<double>? _parseDims3(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty) return null;
+    final m = RegExp(
+      r'^([0-9]+(?:\.[0-9]+)?)\s*[xX×]\s*([0-9]+(?:\.[0-9]+)?)\s*[xX×]\s*([0-9]+(?:\.[0-9]+)?)$',
+    ).firstMatch(s);
+    if (m == null) return null;
+    final a = double.tryParse(m.group(1)!);
+    final b = double.tryParse(m.group(2)!);
+    final c = double.tryParse(m.group(3)!);
+    if (a == null || b == null || c == null) return null;
+    return <double>[a, b, c];
+  }
+
+  String _formatDims3(List<double> dims) {
+    String f(double v) {
+      final s = v.toStringAsFixed(2);
+      return s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+    }
+    return '${f(dims[0])}x${f(dims[1])}x${f(dims[2])}';
+  }
+
+  void _applyManualPkgDefaultsToForm(AdminOrderDetails details) {
+    final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() == 'manual_delivery';
+    if (!isManual || _shipmentDirty) return;
+    var changed = false;
+    if (_manualAutoWeightKg != null) {
+      final next = _formatWeightKg(_manualAutoWeightKg!);
+      if (_pkgWeightCtrl.text.trim() != next) {
+        _pkgWeightCtrl.text = next;
+        changed = true;
+      }
+    }
+    if (_manualAutoDimensionsCm != null && _manualAutoDimensionsCm!.trim().isNotEmpty) {
+      final next = _manualAutoDimensionsCm!.trim();
+      if (_pkgDimCtrl.text.trim() != next) {
+        _pkgDimCtrl.text = next;
+        changed = true;
+      }
+    }
+    if (changed) setState(() {});
+  }
+
+  Future<void> _ensureManualPkgDefaults(AdminOrderDetails details) async {
+    final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() == 'manual_delivery';
+    if (!isManual) return;
+    final key = _manualPkgDefaultsSignature(details);
+    if (_manualPkgDefaultsOrderId == details.order.id && _manualPkgDefaultsKey == key) {
+      _applyManualPkgDefaultsToForm(details);
+      return;
+    }
+
+    setState(() => _manualPkgDefaultsLoading = true);
+    try {
+      final ids = details.items
+          .map((e) => e.productId.trim())
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList();
+      if (ids.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _manualPkgDefaultsOrderId = details.order.id;
+          _manualPkgDefaultsKey = key;
+          _manualAutoWeightKg = null;
+          _manualAutoDimensionsCm = null;
+        });
+        return;
+      }
+
+      final rows = await ref
+          .read(supabaseClientProvider)
+          .from('products')
+          .select('id, weight, dimensions')
+          .inFilter('id', ids);
+      final byId = <String, Map<String, dynamic>>{};
+      for (final row in (rows as List).cast<Map<String, dynamic>>()) {
+        final id = row['id']?.toString().trim();
+        if (id == null || id.isEmpty) continue;
+        byId[id] = row;
+      }
+
+      var totalWeight = 0.0;
+      var hasAnyWeight = false;
+      final dimVectors = <List<double>>[];
+      final dimTexts = <String>[];
+
+      for (final item in details.items) {
+        final p = byId[item.productId.trim()];
+        if (p == null) continue;
+        final w = (p['weight'] as num?)?.toDouble();
+        if (w != null && w > 0) {
+          totalWeight += (w * item.quantity);
+          hasAnyWeight = true;
+        }
+        final d = p['dimensions']?.toString().trim();
+        if (d != null && d.isNotEmpty) {
+          dimTexts.add(d);
+          final parsed = _parseDims3(d);
+          if (parsed != null) {
+            dimVectors.add(parsed);
+            for (var i = 1; i < item.quantity; i++) {
+              dimVectors.add(parsed);
+            }
+          }
+        }
+      }
+
+      String? derivedDims;
+      if (dimVectors.isNotEmpty) {
+        var maxL = 0.0;
+        var maxW = 0.0;
+        var totalH = 0.0;
+        for (final v in dimVectors) {
+          if (v[0] > maxL) maxL = v[0];
+          if (v[1] > maxW) maxW = v[1];
+          totalH += v[2];
+        }
+        derivedDims = _formatDims3(<double>[maxL, maxW, totalH]);
+      } else if (dimTexts.isNotEmpty) {
+        derivedDims = dimTexts.first;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _manualPkgDefaultsOrderId = details.order.id;
+        _manualPkgDefaultsKey = key;
+        _manualAutoWeightKg = hasAnyWeight && totalWeight > 0 ? totalWeight : null;
+        _manualAutoDimensionsCm = derivedDims;
+      });
+      _applyManualPkgDefaultsToForm(details);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _manualPkgDefaultsOrderId = details.order.id;
+        _manualPkgDefaultsKey = key;
+      });
+    } finally {
+      if (mounted) setState(() => _manualPkgDefaultsLoading = false);
+    }
   }
 
   void _focusShipmentSectionIfRequested() {
@@ -226,6 +405,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
         return 'Delivered';
       case 'cancelled':
         return 'Cancelled';
+      case 'shipment_created':
+        return 'Shipment created';
       case 'rto_initiated':
         return 'RTO initiated';
       case 'rto_completed':
@@ -296,6 +477,27 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   bool _hasShiprocketShipment(AdminOrderDetails d) {
     final sid = (d.shipmentId ?? '').trim();
     return sid.isNotEmpty;
+  }
+
+  /// After Shiprocket cancels a shipment, IDs are cleared — admin must be able to book again.
+  bool _shiprocketShipmentCancelledAwaitingChoice(AdminOrderDetails d) {
+    final ds = (d.deliveryStatus ?? '').toLowerCase().trim();
+    final dm = (d.deliveryMethod ?? '').trim();
+    return ds == 'cancelled' && dm.isEmpty;
+  }
+
+  bool _blocksNewShiprocketShipment(AdminOrderDetails d) {
+    final ds = (d.deliveryStatus ?? '').toLowerCase().trim();
+    if (ds == 'cancelled') return false;
+    return _hasShiprocketShipment(d);
+  }
+
+  bool _blocksManualWhileShiprocketSelected(AdminOrderDetails d) {
+    final dm = (d.deliveryMethod ?? '').toLowerCase().trim();
+    if (dm != 'shiprocket_delivery') return false;
+    final ds = (d.deliveryStatus ?? '').toLowerCase().trim();
+    if (ds == 'cancelled') return false;
+    return true;
   }
 
   Future<void> _openManualDeliveryDialog(
@@ -375,10 +577,18 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     AdminOrderDetails details,
   ) async {
     if (status == 'out_for_delivery') {
+      final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() == 'manual_delivery';
+      final effectiveWeightText = isManual && _manualAutoWeightKg != null
+          ? _formatWeightKg(_manualAutoWeightKg!)
+          : _pkgWeightCtrl.text.trim();
+      final effectiveDimsText =
+          isManual && _manualAutoDimensionsCm != null && _manualAutoDimensionsCm!.trim().isNotEmpty
+              ? _manualAutoDimensionsCm!.trim()
+              : _pkgDimCtrl.text.trim();
       final hasShipmentFields = (_trackCtrl.text.trim().isNotEmpty) &&
           (_courierCtrl.text.trim().isNotEmpty) &&
-          (_pkgWeightCtrl.text.trim().isNotEmpty) &&
-          (_pkgDimCtrl.text.trim().isNotEmpty);
+          (effectiveWeightText.isNotEmpty) &&
+          (effectiveDimsText.isNotEmpty);
       if (!hasShipmentFields) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -394,8 +604,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
               trackingNumber: _trackCtrl.text,
               courierName: _courierCtrl.text,
               estimatedDeliveryDate: _estDelivery,
-              packageWeightKg: double.tryParse(_pkgWeightCtrl.text.trim()),
-              packageDimensionsCm: _pkgDimCtrl.text.trim(),
+              packageWeightKg: double.tryParse(effectiveWeightText),
+              packageDimensionsCm: effectiveDimsText,
             );
       } catch (e) {
         if (context.mounted) {
@@ -904,6 +1114,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _syncShipmentFieldsFromDetails(details, details.order.id);
+          _applyManualPkgDefaultsToForm(details);
+          _ensureManualPkgDefaults(details);
         });
       });
     });
@@ -928,7 +1140,21 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
               data: (details) {
                     _focusShipmentSectionIfRequested();
                     final order = details.order;
-                    final shipmentEditable = _shipmentEditableForStatus(order.status);
+                    final manualDeliverySelected =
+                        (details.deliveryMethod ?? '').toLowerCase().trim() ==
+                            'manual_delivery';
+                    final effectiveWeightText =
+                        manualDeliverySelected && _manualAutoWeightKg != null
+                            ? _formatWeightKg(_manualAutoWeightKg!)
+                            : _pkgWeightCtrl.text.trim();
+                    final effectiveDimsText =
+                        manualDeliverySelected &&
+                                _manualAutoDimensionsCm != null &&
+                                _manualAutoDimensionsCm!.trim().isNotEmpty
+                            ? _manualAutoDimensionsCm!.trim()
+                            : _pkgDimCtrl.text.trim();
+                    final shipmentEditable = _shipmentEditableForStatus(order.status) ||
+                        _fulfillmentRecoveryMode(details);
                     final orderReturns = returnsAsync.asData?.value
                             .where((r) => r.orderId == order.id)
                             .toList() ??
@@ -1224,9 +1450,43 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                     final m = (details.deliveryMethod ?? '').toLowerCase().trim();
                                     if (m == 'manual_delivery') return 'Manual delivery';
                                     if (m == 'shiprocket_delivery') return 'Shiprocket';
+                                    if (_shiprocketShipmentCancelledAwaitingChoice(details)) {
+                                      return 'Not set (previous Shiprocket shipment cancelled)';
+                                    }
                                     return 'Not set';
                                   }(),
                                 ),
+                                if (_shiprocketShipmentCancelledAwaitingChoice(details)) ...[
+                                  const SizedBox(height: 8),
+                                  Material(
+                                    color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.35),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            size: 20,
+                                            color: Theme.of(context).colorScheme.onErrorContainer,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Shiprocket reported this shipment as cancelled. '
+                                              'Delivery method was reset — choose Manual delivery or create a new Shiprocket shipment.',
+                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                    color: Theme.of(context).colorScheme.onErrorContainer,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 if ((details.deliveryMethod ?? '').toLowerCase() ==
                                     'manual_delivery') ...[
                                   _AdminShipmentReadOnlyLine(
@@ -1357,8 +1617,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                       onPressed: (!shipmentEditable ||
                                               _manualDeliveryBusy ||
                                               _shiprocketBusy ||
-                                              (details.deliveryMethod ?? '').toLowerCase() ==
-                                                  'shiprocket_delivery' ||
+                                              _blocksManualWhileShiprocketSelected(details) ||
                                               canonicalAdminOrderStatus(order.status) ==
                                                   'pending_payment' ||
                                               canonicalAdminOrderStatus(order.status) ==
@@ -1375,7 +1634,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                       onPressed: (!shipmentEditable ||
                                               _manualDeliveryBusy ||
                                               _shiprocketBusy ||
-                                              _hasShiprocketShipment(details) ||
+                                              _blocksNewShiprocketShipment(details) ||
                                               canonicalAdminOrderStatus(order.status) ==
                                                   'payment_failed')
                                           ? null
@@ -1389,7 +1648,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                   ],
                                 ),
                                 if ((details.deliveryMethod ?? '').toLowerCase() ==
-                                    'shiprocket_delivery') ...[
+                                        'shiprocket_delivery' &&
+                                    !_fulfillmentRecoveryMode(details) &&
+                                    (details.deliveryStatus ?? '').toLowerCase().trim() !=
+                                        'cancelled') ...[
                                   const SizedBox(height: 8),
                                   Text(
                                     'Manual status buttons are hidden while Shiprocket delivery is selected.',
@@ -1417,9 +1679,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                 const SizedBox(height: 8),
                                 if (!shipmentEditable) ...[
                                   Text(
-                                    canonicalAdminOrderStatus(order.status) == 'cancelled'
-                                        ? 'Shipment details cannot be edited for a cancelled order.'
-                                        : canonicalAdminOrderStatus(order.status) == 'cancel_requested'
+                                    _fulfillmentRecoveryMode(details)
+                                        ? 'Order is marked cancelled but Shiprocket fulfilment was not completed. '
+                                            'Choose Manual delivery or Shiprocket below to resume, or leave as cancelled.'
+                                        : canonicalAdminOrderStatus(order.status) == 'cancelled'
+                                            ? 'Shipment details cannot be edited for a cancelled order.'
+                                            : canonicalAdminOrderStatus(order.status) == 'cancel_requested'
                                             ? 'Shipment is read-only while a cancellation request is open.'
                                             : 'This order is delivered. Tracking and estimated delivery are read-only.',
                                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -1475,9 +1740,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                     decoration: const InputDecoration(
                                       labelText: 'Package weight (kg)',
                                       border: OutlineInputBorder(),
-                                      hintText: 'Required before marking shipped',
+                                      hintText:
+                                          'Auto from product weight for manual delivery',
                                     ),
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    readOnly: manualDeliverySelected,
+                                    enabled: !manualDeliverySelected,
                                     onChanged: (_) => setState(() => _shipmentDirty = true),
                                   ),
                                   const SizedBox(height: 10),
@@ -1486,10 +1754,25 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                     decoration: const InputDecoration(
                                       labelText: 'Package dimensions (cm)',
                                       border: OutlineInputBorder(),
-                                      hintText: 'e.g. 30×20×10',
+                                      hintText:
+                                          'Auto from product dimensions for manual delivery',
                                     ),
+                                    readOnly: manualDeliverySelected,
+                                    enabled: !manualDeliverySelected,
                                     onChanged: (_) => setState(() => _shipmentDirty = true),
                                   ),
+                                  if (manualDeliverySelected) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _manualPkgDefaultsLoading
+                                          ? 'Loading package specs from product details...'
+                                          : 'Package weight and dimensions are auto-filled from product details for manual delivery.',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color:
+                                                Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 10),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
@@ -1562,10 +1845,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                                       trackingNumber: _trackCtrl.text,
                                                       courierName: _courierCtrl.text,
                                                       estimatedDeliveryDate: _estDelivery,
-                                                      packageWeightKg: double.tryParse(
-                                                        _pkgWeightCtrl.text.trim(),
-                                                      ),
-                                                      packageDimensionsCm: _pkgDimCtrl.text.trim(),
+                                                    packageWeightKg:
+                                                        double.tryParse(effectiveWeightText),
+                                                    packageDimensionsCm: effectiveDimsText,
                                                     );
                                                 if (!context.mounted) return;
                                                 setState(() {
