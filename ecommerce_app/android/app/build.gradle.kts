@@ -15,7 +15,7 @@ import org.gradle.api.GradleException
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") apply false
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -90,4 +90,11 @@ dependencies {
     // Required by FlutterPlayStoreSplitApplication/deferred components classes during release builds.
     // Use modern feature-delivery artifact to avoid duplicate classes with core-common 2.x.
     implementation("com.google.android.play:feature-delivery:2.1.0")
+}
+
+val googleServicesJson = project.file("google-services.json")
+val debugGoogleServicesJson = project.file("src/debug/google-services.json")
+val releaseGoogleServicesJson = project.file("src/release/google-services.json")
+if (googleServicesJson.exists() || debugGoogleServicesJson.exists() || releaseGoogleServicesJson.exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }

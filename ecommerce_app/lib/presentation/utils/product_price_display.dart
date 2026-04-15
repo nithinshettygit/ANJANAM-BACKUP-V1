@@ -43,8 +43,9 @@ class ProductPriceDisplay {
     Product product, {
     bool hidePromoWhenOutOfStock = false,
     bool outOfStock = false,
+    double? salePriceOverride,
   }) {
-    final sale = product.price;
+    final sale = salePriceOverride ?? product.price;
     final d = product.displayDiscountPercent.clamp(0, 99);
     final skip = d <= 0 ||
         sale <= 0 ||

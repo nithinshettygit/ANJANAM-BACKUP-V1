@@ -133,6 +133,12 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Refresh',
+            onPressed: () =>
+                ref.read(orderHistoryControllerProvider.notifier).refresh(),
+            icon: const Icon(Icons.refresh),
+          ),
+          IconButton(
             tooltip: 'Wishlist',
             iconSize: WishlistHeartSizes.appBar,
             onPressed: () => Navigator.of(context).pushNamed('/wishlist'),

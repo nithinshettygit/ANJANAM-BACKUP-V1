@@ -14,6 +14,7 @@ Future<void> openBuyNowCheckout(
   BuildContext context,
   WidgetRef ref, {
   required String productId,
+  String? variantId,
   int quantity = 1,
 }) async {
   ref.invalidate(productDetailsProvider(productId));
@@ -23,6 +24,7 @@ Future<void> openBuyNowCheckout(
     '/checkout',
     arguments: <String, dynamic>{
       'productId': productId,
+      if (variantId != null && variantId.trim().isNotEmpty) 'variantId': variantId.trim(),
       'quantity': quantity < 1 ? 1 : quantity,
     },
   );

@@ -78,8 +78,7 @@ String buildUniversalShareMessage(UniversalSharePayload payload) {
       return '$link\n\n'
           '${payload.title}\n'
           'Check out this product on ANJANAM\n\n'
-          '$link\n\n'
-          'Open in ANJANAM app (Android):\n$appLink';
+          '$link';
     case ShareContentType.video:
       return '$link\n\n'
           '${payload.title}\n'

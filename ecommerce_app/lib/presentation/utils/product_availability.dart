@@ -19,10 +19,7 @@ bool productIsLowStock(Product product) {
 /// Short label for chips / detail row (null = no extra banner).
 String? productStockBannerText(Product product) {
   if (productIsOutOfStock(product)) return 'Out of stock';
-  if (productIsLowStock(product)) {
-    final n = product.sellableStock!;
-    return n == 1 ? 'Only 1 left' : 'Only $n left';
-  }
+  if (productIsLowStock(product)) return 'Low stock';
   return null;
 }
 

@@ -13,10 +13,13 @@ class OrderItemModel {
   final String currency;
   final int quantity;
 
+  final String? variantId;
+
   const OrderItemModel({
     this.id,
     required this.orderId,
     required this.productId,
+    this.variantId,
     required this.title,
     required this.imageUrls,
     required this.unitPrice,
@@ -30,6 +33,9 @@ class OrderItemModel {
         ? imageUrlsDynamic.map((e) => e.toString()).toList()
         : <String>[];
 
+    final rawVid = json['variant_id'] ?? json['variantId'];
+    final vid = rawVid == null ? null : rawVid.toString().trim();
+
     return OrderItemModel(
       id: () {
         final raw = json['id']?.toString().trim();
@@ -37,6 +43,7 @@ class OrderItemModel {
       }(),
       orderId: (json['order_id'] ?? json['orderId'] ?? '').toString(),
       productId: (json['product_id'] ?? json['productId'] ?? '').toString(),
+      variantId: vid?.isNotEmpty == true ? vid : null,
       title: (json['title'] ?? '').toString(),
       imageUrls: imageUrls,
       unitPrice: (json['unit_price'] as num?)?.toDouble() ?? 0.0,
@@ -58,6 +65,7 @@ class OrderItemModel {
   OrderItem toEntity() {
     return OrderItem(
       orderItemId: id,
+      variantId: variantId,
       productId: productId,
       title: title,
       imageUrls: imageUrls,

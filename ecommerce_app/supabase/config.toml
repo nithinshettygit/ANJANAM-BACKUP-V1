@@ -42,3 +42,8 @@ verify_jwt = false
 
 [functions.google-auth-bridge]
 verify_jwt = false
+
+# Phone bridge is called right after Firebase OTP, before Supabase session exists.
+# Anon JWT from publishable keys (sb_publishable_…) is rejected at gateway if verify_jwt stays true.
+[functions.phone-auth-bridge]
+verify_jwt = false

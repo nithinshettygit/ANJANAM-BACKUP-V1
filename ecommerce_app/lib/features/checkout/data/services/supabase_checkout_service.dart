@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../cart/domain/entities/cart_item.dart';
 import '../../../cart/domain/repositories/cart_repository.dart';
 import '../../../catalog/data/models/product_model.dart';
+import '../../../catalog/domain/entities/product_variant.dart';
 import '../../../order_history/data/models/order_item_model.dart';
 import '../../../order_history/domain/entities/order.dart';
 import '../../../order_history/domain/entities/order_item.dart';
@@ -43,16 +44,19 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
         combined.contains('could not find the function');
   }
 
-  /// [order_items] PK is (order_id, product_id) — merge duplicate product lines.
-  static List<CartItem> _mergeLinesByProduct(List<CartItem> items) {
+  /// Merge duplicate cart lines that share the same product and variant.
+  static List<CartItem> _mergeLinesByProductAndVariant(List<CartItem> items) {
     final map = <String, CartItem>{};
     for (final e in items) {
-      final existing = map[e.productId];
+      final key = '${e.productId}|${e.variantId ?? ''}';
+      final existing = map[key];
       if (existing == null) {
-        map[e.productId] = e;
+        map[key] = e;
       } else {
-        map[e.productId] = CartItem(
+        map[key] = CartItem(
           productId: e.productId,
+          variantId: e.variantId,
+          variantName: e.variantName ?? existing.variantName,
           title: existing.title,
           imageUrls: existing.imageUrls,
           unitPrice: existing.unitPrice,
@@ -131,6 +135,15 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
     }
     if (m.contains('invalid_product_price')) {
       return 'A product price could not be applied. Try again or contact support.';
+    }
+    if (m.contains('variant_required')) {
+      return 'Please choose a product option (size/weight/color) for each item.';
+    }
+    if (m.contains('variant_not_found') || m.contains('invalid_variant_id')) {
+      return 'A selected product option is no longer available.';
+    }
+    if (m.contains('variant_not_applicable')) {
+      return 'This product does not use options; refresh and try again.';
     }
     final msg = e.message.trim();
     return msg.isNotEmpty ? msg : e.toString();
@@ -222,6 +235,21 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
           'A product price could not be applied. Try again or contact support.',
         );
       }
+      if (m.contains('variant_required')) {
+        throw const ValidationException(
+          'Please choose a product option for each item.',
+        );
+      }
+      if (m.contains('variant_not_found') || m.contains('invalid_variant_id')) {
+        throw const ValidationException(
+          'A selected product option is no longer available.',
+        );
+      }
+      if (m.contains('variant_not_applicable')) {
+        throw const ValidationException(
+          'This product does not use options; refresh and try again.',
+        );
+      }
       CheckoutTelemetry.checkoutRpcFailed(
         reason: 'unexpected_postgrest',
         detail: msg,
@@ -235,7 +263,7 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       () => client
           .from('order_items')
           .select(
-            'id, order_id, product_id, title, image_urls, unit_price, currency, quantity',
+            'id, order_id, product_id, variant_id, title, image_urls, unit_price, currency, quantity',
           )
           .eq('order_id', orderId),
     );
@@ -271,6 +299,7 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
         () => client.from('order_items').insert({
           'order_id': orderId,
           'product_id': item.productId,
+          if (item.variantId != null) 'variant_id': item.variantId,
           'title': item.title,
           'image_urls': item.imageUrls,
           'unit_price': item.unitPrice,
@@ -286,6 +315,7 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
   Future<Order> placeOrder({
     required ShippingDetails shipping,
     String? buyNowProductId,
+    String? buyNowVariantId,
     int buyNowQuantity = 1,
   }) async {
     final v = shipping.validationError();
@@ -297,6 +327,7 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
 
     late List<CartItem> checkoutItems;
     String? removeCartProductId;
+    String? removeCartVariantId;
     var clearEntireCart = false;
 
     if (buyNowProductId == null) {
@@ -306,43 +337,110 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       checkoutItems = cart.items.toList();
       clearEntireCart = true;
     } else {
-      final fromCart =
-          cart.items.where((e) => e.productId == buyNowProductId).toList();
+      var fromCart = cart.items.where((e) => e.productId == buyNowProductId).toList();
+      final vFilter = buyNowVariantId?.trim();
+      if (vFilter != null && vFilter.isNotEmpty) {
+        fromCart = fromCart.where((e) => e.variantId == vFilter).toList();
+      } else if (fromCart.length > 1) {
+        fromCart = [fromCart.first];
+      }
       if (fromCart.isNotEmpty) {
         checkoutItems = fromCart;
         removeCartProductId = buyNowProductId;
+        removeCartVariantId = fromCart.length == 1 ? fromCart.first.variantId : vFilter;
       } else {
-        final productJson = await guard(
-          () => client
-              .from('products')
-              .select('id, title, price, currency, image_urls, inventory_count, available_stock')
-              .eq('id', buyNowProductId)
-              .eq('is_active', true)
-              .single(),
-        );
-        final product = ProductModel.fromJson(productJson);
-        final inv = product.sellableQuantity;
-        if (inv != null && inv <= 0) {
-          throw const ValidationException('This product is out of stock.');
+        late final Map<String, dynamic> productJson;
+        try {
+          final data = await guard(
+            () => client
+                .from('products')
+                .select(
+                  'id, title, price, currency, image_urls, inventory_count, available_stock, '
+                  'product_variants(id, price, stock_quantity, available_stock, is_default, variant_name, image_url)',
+                )
+                .eq('id', buyNowProductId)
+                .eq('is_active', true)
+                .single(),
+          );
+          productJson = Map<String, dynamic>.from(data as Map);
+        } catch (_) {
+          final data = await guard(
+            () => client
+                .from('products')
+                .select(
+                  'id, title, price, currency, image_urls, inventory_count, available_stock',
+                )
+                .eq('id', buyNowProductId)
+                .eq('is_active', true)
+                .single(),
+          );
+          productJson = Map<String, dynamic>.from(data as Map);
         }
+        final entity = ProductModel.fromJson(productJson).toEntity();
         final qty = buyNowQuantity < 1 ? 1 : buyNowQuantity;
-        if (inv != null && qty > inv) {
-          throw ValidationException('Only $inv available in stock.');
+        if (entity.hasVariants) {
+          final want = buyNowVariantId?.trim();
+          ProductVariant? chosen;
+          if (want != null && want.isNotEmpty) {
+            for (final v in entity.variants) {
+              if (v.id == want) {
+                chosen = v;
+                break;
+              }
+            }
+          }
+          chosen ??= entity.defaultVariant;
+          if (chosen == null) {
+            throw const ValidationException('No variant is available for this product.');
+          }
+          final inv = chosen.sellableStock;
+          if (inv != null && inv <= 0) {
+            throw const ValidationException('This product is out of stock.');
+          }
+          if (inv != null && qty > inv) {
+            throw const ValidationException('Requested quantity is not available.');
+          }
+          final vi = chosen.imageUrl.trim();
+          final imgs = vi.isNotEmpty
+              ? [vi, ...entity.imageUrls.where((u) => u != vi)]
+              : entity.imageUrls;
+          checkoutItems = [
+            CartItem(
+              productId: entity.id,
+              variantId: chosen.id,
+              variantName: chosen.variantName,
+              title:
+                  '${entity.title} · ${chosen.variantType.trim().isNotEmpty ? '${chosen.variantType}: ' : ''}${chosen.variantName}',
+              imageUrls: imgs,
+              unitPrice: chosen.price,
+              currency: entity.currency,
+              quantity: qty,
+            ),
+          ];
+        } else {
+          final product = ProductModel.fromJson(productJson);
+          final inv = product.sellableQuantity;
+          if (inv != null && inv <= 0) {
+            throw const ValidationException('This product is out of stock.');
+          }
+          if (inv != null && qty > inv) {
+            throw const ValidationException('Requested quantity is not available.');
+          }
+          checkoutItems = [
+            CartItem(
+              productId: product.id,
+              title: product.title,
+              imageUrls: product.imageUrls,
+              unitPrice: product.price,
+              currency: product.currency,
+              quantity: qty,
+            ),
+          ];
         }
-        checkoutItems = [
-          CartItem(
-            productId: product.id,
-            title: product.title,
-            imageUrls: product.imageUrls,
-            unitPrice: product.price,
-            currency: product.currency,
-            quantity: qty,
-          ),
-        ];
       }
     }
 
-    checkoutItems = _mergeLinesByProduct(checkoutItems);
+    checkoutItems = _mergeLinesByProductAndVariant(checkoutItems);
 
     final authUser = client.auth.currentUser;
     if (authUser == null) {
@@ -366,6 +464,8 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
         .map(
           (e) => <String, dynamic>{
             'product_id': e.productId,
+            if (e.variantId != null && e.variantId!.trim().isNotEmpty)
+              'variant_id': e.variantId,
             'title': e.title,
             'image_urls': e.imageUrls,
             'unit_price': e.unitPrice,
@@ -464,6 +564,7 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       orderItems = checkoutItems
           .map(
             (e) => OrderItem(
+              variantId: e.variantId,
               productId: e.productId,
               title: e.title,
               imageUrls: e.imageUrls,
@@ -478,7 +579,10 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
     if (clearEntireCart) {
       await _cartRepository.clearCart();
     } else if (removeCartProductId != null) {
-      await _cartRepository.removeItem(productId: removeCartProductId);
+      await _cartRepository.removeItem(
+        productId: removeCartProductId,
+        variantId: removeCartVariantId,
+      );
     }
 
     return Order(

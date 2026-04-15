@@ -21,6 +21,7 @@ class CheckoutActionsController extends AsyncNotifier<Order?> {
   Future<Order> placeOrder({
     required ShippingDetails shipping,
     String? buyNowProductId,
+    String? buyNowVariantId,
     int buyNowQuantity = 1,
   }) async {
     state = const AsyncLoading();
@@ -28,6 +29,7 @@ class CheckoutActionsController extends AsyncNotifier<Order?> {
       final result = await _repo.placeOrder(
         shipping: shipping,
         buyNowProductId: buyNowProductId,
+        buyNowVariantId: buyNowVariantId,
         buyNowQuantity: buyNowQuantity,
       );
       state = AsyncData(result);

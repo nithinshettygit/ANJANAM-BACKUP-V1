@@ -8,6 +8,8 @@ class AdminProductReviewRow {
   final String? reviewText;
   final bool isVerifiedPurchase;
   final bool isVisible;
+  final String? adminReplyText;
+  final DateTime? adminReplyUpdatedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -21,6 +23,8 @@ class AdminProductReviewRow {
     required this.reviewText,
     required this.isVerifiedPurchase,
     required this.isVisible,
+    required this.adminReplyText,
+    required this.adminReplyUpdatedAt,
     required this.createdAt,
     required this.updatedAt,
   });

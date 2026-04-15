@@ -249,6 +249,7 @@ class AppRouter {
         return _authCustomerRoute(const CartPage());
       case '/checkout':
         String? buyNowProductId;
+        String? buyNowVariantId;
         var buyNowQuantity = 1;
         final checkoutArgs = settings.arguments;
         if (checkoutArgs is String) {
@@ -257,6 +258,10 @@ class AppRouter {
           final id = checkoutArgs['productId'];
           if (id is String && id.isNotEmpty) {
             buyNowProductId = id;
+          }
+          final vid = checkoutArgs['variantId'];
+          if (vid is String && vid.isNotEmpty) {
+            buyNowVariantId = vid;
           }
           final q = checkoutArgs['quantity'];
           if (q is int && q > 0) {
@@ -268,6 +273,7 @@ class AppRouter {
         return _authCustomerRoute(
           CheckoutPage(
             buyNowProductId: buyNowProductId,
+            buyNowVariantId: buyNowVariantId,
             buyNowQuantity: buyNowQuantity,
           ),
         );

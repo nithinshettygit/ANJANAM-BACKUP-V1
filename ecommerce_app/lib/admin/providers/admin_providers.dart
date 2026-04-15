@@ -57,8 +57,8 @@ final adminReturnsProvider =
       ),
 );
 
-final adminInventoryProvider = FutureProvider.autoDispose<List<AdminProduct>>(
-  (ref) => ref.read(adminServiceProvider).getInventory(),
+final adminInventoryProvider = FutureProvider.autoDispose<List<AdminInventoryRow>>(
+  (ref) => ref.read(adminServiceProvider).getInventoryRows(),
 );
 
 final adminStoreDeliverySettingsProvider =

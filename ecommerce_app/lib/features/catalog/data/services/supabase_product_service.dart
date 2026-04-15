@@ -379,13 +379,13 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
 
   @override
   Future<Product> fetchProductById(String productId) async {
+    const kDetailCols =
+        'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions, product_variants(*)';
     try {
       final data = await guard(
         () => client
             .from('products')
-            .select(
-              'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions',
-            )
+            .select(kDetailCols)
             .eq('id', productId)
             .eq('is_active', true)
             .single(),
@@ -397,7 +397,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
           () => client
               .from('products')
               .select(
-                'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, weight, dimensions',
+                'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, weight, dimensions, product_variants(*)',
               )
               .eq('id', productId)
               .eq('is_active', true)
@@ -405,17 +405,31 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
         );
         return ProductModel.fromJson(data).toEntity();
       } catch (_) {
-        final data = await guard(
-          () => client
-              .from('products')
-              .select(
-                'id, title, description, price, currency, image_urls, category, tags, inventory_count, created_at, weight, dimensions',
-              )
-              .eq('id', productId)
-              .eq('is_active', true)
-              .single(),
-        );
-        return ProductModel.fromJson(data).toEntity();
+        try {
+          final data = await guard(
+            () => client
+                .from('products')
+                .select(
+                  'id, title, description, price, currency, image_urls, category, tags, inventory_count, created_at, weight, dimensions, product_variants(*)',
+                )
+                .eq('id', productId)
+                .eq('is_active', true)
+                .single(),
+          );
+          return ProductModel.fromJson(data).toEntity();
+        } catch (_) {
+          final data = await guard(
+            () => client
+                .from('products')
+                .select(
+                  'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions',
+                )
+                .eq('id', productId)
+                .eq('is_active', true)
+                .single(),
+          );
+          return ProductModel.fromJson(data).toEntity();
+        }
       }
     }
   }

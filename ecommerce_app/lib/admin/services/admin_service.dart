@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart'
     show FileOptions, PostgrestException, SupabaseClient;
+import 'package:uuid/uuid.dart';
 
 class AdminDashboardSummary {
   final int totalProducts;
@@ -181,6 +182,44 @@ class AdminProduct {
   }
 }
 
+class AdminInventoryRow {
+  final String rowId;
+  final String productId;
+  final String productTitle;
+  final String? category;
+  final String productImageUrl;
+  final String? variantId;
+  final String? variantType;
+  final String? variantName;
+  final String variantImageUrl;
+  final String sku;
+  final double price;
+  final int stockQuantity;
+  final int reservedQuantity;
+  final int availableStock;
+
+  const AdminInventoryRow({
+    required this.rowId,
+    required this.productId,
+    required this.productTitle,
+    required this.category,
+    required this.productImageUrl,
+    required this.variantId,
+    required this.variantType,
+    required this.variantName,
+    required this.variantImageUrl,
+    required this.sku,
+    required this.price,
+    required this.stockQuantity,
+    required this.reservedQuantity,
+    required this.availableStock,
+  });
+
+  bool get hasVariant => variantId != null && variantId!.trim().isNotEmpty;
+  bool get outOfStock => availableStock <= 0;
+  bool get lowStock => availableStock > 0 && availableStock < 10;
+}
+
 class AdminSearchResultItem {
   final String type;
   final String id;
@@ -254,6 +293,7 @@ class AdminOrderRow {
 
 class AdminOrderItemRow {
   final String? orderItemId;
+  final String? variantId;
   final String productId;
   final String title;
   final int quantity;
@@ -263,6 +303,7 @@ class AdminOrderItemRow {
 
   const AdminOrderItemRow({
     this.orderItemId,
+    this.variantId,
     required this.productId,
     required this.title,
     required this.quantity,
@@ -492,6 +533,57 @@ class AdminUserDetails {
   });
 }
 
+class AdminVariantUpsert {
+  final String? id;
+  final String variantType;
+  final String variantName;
+  final double price;
+  final int stockQuantity;
+  final String imageUrl;
+  final String? sku;
+  final double? weight;
+  final String? dimensions;
+  final bool isDefault;
+
+  const AdminVariantUpsert({
+    this.id,
+    required this.variantType,
+    required this.variantName,
+    required this.price,
+    required this.stockQuantity,
+    required this.imageUrl,
+    this.sku,
+    this.weight,
+    this.dimensions,
+    required this.isDefault,
+  });
+
+  factory AdminVariantUpsert.fromJson(Map<String, dynamic> json) {
+    bool readBool(dynamic v) {
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      final s = v?.toString().trim().toLowerCase();
+      return s == 'true' || s == '1' || s == 'yes';
+    }
+
+    return AdminVariantUpsert(
+      id: json['id']?.toString(),
+      variantType: (json['variant_type'] ?? '').toString(),
+      variantName: (json['variant_name'] ?? '').toString(),
+      price: (json['price'] as num?)?.toDouble() ?? 0,
+      stockQuantity: (json['stock_quantity'] as num?)?.toInt() ?? 0,
+      imageUrl: (json['image_url'] ?? '').toString(),
+      sku: json['sku']?.toString(),
+      weight: (json['weight'] as num?)?.toDouble(),
+      dimensions: () {
+        final t = json['dimensions']?.toString().trim();
+        return t != null && t.isNotEmpty ? t : null;
+      }(),
+      isDefault: readBool(json['is_default']),
+    );
+  }
+}
+
 class ProductUpsertInput {
   final String title;
   final String description;
@@ -509,6 +601,7 @@ class ProductUpsertInput {
   final bool isPopular;
   final bool isRecommended;
   final bool isFestivalSpecial;
+  final List<AdminVariantUpsert> variants;
 
   const ProductUpsertInput({
     required this.title,
@@ -527,6 +620,7 @@ class ProductUpsertInput {
     this.isPopular = false,
     this.isRecommended = false,
     this.isFestivalSpecial = false,
+    this.variants = const [],
   });
 }
 
@@ -674,6 +768,7 @@ class AdminService {
   Future<void> removeAdmin(String userId) =>
       setUserRole(userId, role: 'customer');
   Future<List<AdminProduct>> getInventory() => fetchProducts();
+  Future<List<AdminInventoryRow>> getInventoryRows() => fetchInventoryRows();
 
   Future<bool> isCurrentUserAdmin() async {
     final user = client.auth.currentUser;
@@ -994,12 +1089,117 @@ class AdminService {
     };
     final created = await client.from('products').insert(row).select('id').single();
     final productId = (created['id'] ?? '').toString();
+    await replaceProductVariants(productId, input.variants);
     await _logAdminAction(
       action: 'product_created',
       entity: 'product',
       entityId: productId,
       message: 'Admin created product "${input.title}" ($productId)',
     );
+  }
+
+  Future<List<AdminVariantUpsert>> fetchProductVariants(String productId) async {
+    await _requireAdmin();
+    final data = await client
+        .from('product_variants')
+        .select()
+        .eq('product_id', productId)
+        .order('variant_name');
+    return (data as List)
+        .cast<Map<String, dynamic>>()
+        .map(AdminVariantUpsert.fromJson)
+        .toList();
+  }
+
+  Future<void> replaceProductVariants(String productId, List<AdminVariantUpsert> variants) async {
+    await _requireAdmin();
+    if (variants.isNotEmpty) {
+      final defaultCount = variants.where((v) => v.isDefault).length;
+      if (defaultCount != 1) {
+        throw const ValidationException('Exactly one default variant is required.');
+      }
+      final seenTypeAndName = <String>{};
+      for (final v in variants) {
+        final type = v.variantType.trim().toLowerCase();
+        if (type.isEmpty) {
+          throw const ValidationException('Variant type is required.');
+        }
+        final name = v.variantName.trim().toLowerCase();
+        if (name.isEmpty) {
+          throw const ValidationException('Variant name cannot be empty.');
+        }
+        final typeAndName = '$type::$name';
+        if (!seenTypeAndName.add(typeAndName)) {
+          throw ValidationException(
+            'Duplicate variant option "${v.variantType} - ${v.variantName}" is not allowed.',
+          );
+        }
+        if (v.price < 0) {
+          throw ValidationException(
+            'Variant "${v.variantName}" has invalid price.',
+          );
+        }
+        if (v.stockQuantity < 0) {
+          throw ValidationException(
+            'Variant "${v.variantName}" has invalid stock.',
+          );
+        }
+      }
+    }
+
+    final existingRows = await client
+        .from('product_variants')
+        .select('id')
+        .eq('product_id', productId);
+    final existingIds = (existingRows as List)
+        .map((e) => (e as Map<String, dynamic>)['id']?.toString().trim() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet();
+
+    if (variants.isEmpty) {
+      if (existingIds.isEmpty) return;
+      await client.from('cart_items').delete().inFilter('variant_id', existingIds.toList());
+      await client.from('product_variants').delete().eq('product_id', productId);
+      return;
+    }
+
+    final rows = variants
+        .map(
+          (v) => <String, dynamic>{
+            'id': (v.id != null && v.id!.trim().isNotEmpty)
+                ? v.id!.trim()
+                : const Uuid().v4(),
+            'product_id': productId,
+            'variant_type': v.variantType.trim(),
+            'variant_name': v.variantName.trim(),
+            'price': v.price,
+            'stock_quantity': v.stockQuantity,
+            'reserved_quantity': 0,
+            'image_url': v.imageUrl.trim(),
+            'sku': () {
+              final s = v.sku?.trim();
+              return s == null || s.isEmpty ? null : s;
+            }(),
+            'weight': v.weight,
+            'dimensions': () {
+              final t = v.dimensions?.trim();
+              return t == null || t.isEmpty ? null : t;
+            }(),
+            'is_default': v.isDefault,
+          },
+        )
+        .toList();
+    final incomingIds = rows
+        .map((e) => e['id']?.toString().trim() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet();
+    final removedIds = existingIds.difference(incomingIds).toList();
+
+    await client.from('product_variants').upsert(rows);
+    if (removedIds.isNotEmpty) {
+      await client.from('cart_items').delete().inFilter('variant_id', removedIds);
+      await client.from('product_variants').delete().inFilter('id', removedIds);
+    }
   }
 
   Future<void> updateProduct(String productId, ProductUpsertInput input) async {
@@ -1014,7 +1214,7 @@ class AdminService {
     } catch (_) {
       before = null;
     }
-    await client.from('products').update({
+    final updateRow = <String, dynamic>{
       'title': input.title,
       'description': input.description,
       'category': input.category,
@@ -1026,15 +1226,28 @@ class AdminService {
       'weight': input.weight,
       'dimensions': input.dimensions,
       'inventory_count': input.inventoryCount,
-      // Admin manual stock edits should reflect immediately in storefront stock.
-      // Reset reservation bucket to avoid stale pending holds distorting availability.
-      'reserved_quantity': 0,
       'image_urls': input.imageUrls,
       'display_discount_percent': input.displayDiscountPercent.clamp(0, 99),
       'is_popular': input.isPopular,
       'is_recommended': input.isRecommended,
       'is_festival_special': input.isFestivalSpecial,
-    }).eq('id', productId);
+    };
+    // Prevent accidental variant data loss when a caller submits an empty list
+    // without loading existing variants first.
+    final existingVariants = await fetchProductVariants(productId);
+    final shouldPreserveExistingVariants =
+        input.variants.isEmpty && existingVariants.isNotEmpty;
+    final variantsToPersist =
+        shouldPreserveExistingVariants ? existingVariants : input.variants;
+
+    if (variantsToPersist.isEmpty) {
+      // Admin manual stock edits should reflect immediately in storefront stock.
+      // Reset reservation bucket to avoid stale pending holds distorting availability.
+      updateRow['reserved_quantity'] = 0;
+    }
+    await client.from('products').update(updateRow).eq('id', productId);
+
+    await replaceProductVariants(productId, variantsToPersist);
 
     final title = (before?['title'] ?? input.title).toString();
     final oldPrice = (before?['price'] as num?)?.toDouble();
@@ -1159,6 +1372,21 @@ class AdminService {
     required int inventoryCount,
   }) async {
     await _requireAdmin();
+    try {
+      final anyVariants = await client
+          .from('product_variants')
+          .select('id')
+          .eq('product_id', productId)
+          .limit(1);
+      if (anyVariants.isNotEmpty) {
+        throw const ValidationException(
+          'This product uses variants. Update stock per variant only.',
+        );
+      }
+    } catch (e) {
+      if (e is ValidationException) rethrow;
+    }
+
     var title = productId;
     int? oldCount;
     try {
@@ -1192,6 +1420,126 @@ class AdminService {
       message:
           'Admin updated inventory: "$title" ${oldCount ?? '?'} → $inventoryCount ($productId)',
     );
+  }
+
+  Future<void> updateVariantInventory({
+    required String variantId,
+    required int stockQuantity,
+  }) async {
+    await _requireAdmin();
+    if (stockQuantity < 0) {
+      throw const ValidationException('Stock cannot be negative.');
+    }
+
+    final row = await client
+        .from('product_variants')
+        .select('id, product_id, variant_name, stock_quantity, reserved_quantity')
+        .eq('id', variantId)
+        .single();
+    final reserved = (row['reserved_quantity'] as num?)?.toInt() ?? 0;
+    if (stockQuantity < reserved) {
+      throw ValidationException(
+        'Stock cannot be less than reserved ($reserved).',
+      );
+    }
+
+    await client.from('product_variants').update({
+      'stock_quantity': stockQuantity,
+    }).eq('id', variantId);
+
+    await _logAdminAction(
+      action: 'variant_inventory_updated',
+      entity: 'product_variant',
+      entityId: variantId,
+      message:
+          'Admin updated variant stock: "${row['variant_name']}" ${(row['stock_quantity'] as num?)?.toInt() ?? 0} → $stockQuantity',
+    );
+  }
+
+  Future<List<AdminInventoryRow>> fetchInventoryRows() async {
+    await _requireAdmin();
+    final products = await fetchProducts();
+    List<Map<String, dynamic>> variantRows;
+    try {
+      final data = await client
+          .from('product_variants')
+          .select(
+            'id, product_id, variant_type, variant_name, price, stock_quantity, reserved_quantity, available_stock, image_url, sku',
+          );
+      variantRows = (data as List).cast<Map<String, dynamic>>();
+    } catch (_) {
+      variantRows = const [];
+    }
+
+    final byProduct = <String, List<Map<String, dynamic>>>{};
+    for (final v in variantRows) {
+      final pid = (v['product_id'] ?? '').toString();
+      if (pid.isEmpty) continue;
+      byProduct.putIfAbsent(pid, () => <Map<String, dynamic>>[]).add(v);
+    }
+
+    final rows = <AdminInventoryRow>[];
+    for (final product in products) {
+      final variants = byProduct[product.id] ?? const <Map<String, dynamic>>[];
+      final productImage = product.imageUrls.isNotEmpty ? product.imageUrls.first : '';
+      if (variants.isEmpty) {
+        rows.add(
+          AdminInventoryRow(
+            rowId: 'product:${product.id}',
+            productId: product.id,
+            productTitle: product.title,
+            category: product.category,
+            productImageUrl: productImage,
+            variantId: null,
+            variantType: null,
+            variantName: null,
+            variantImageUrl: productImage,
+            sku: product.sku,
+            price: product.price,
+            stockQuantity: product.inventoryCount,
+            reservedQuantity: product.reservedQuantity,
+            availableStock: product.sellableStock,
+          ),
+        );
+        continue;
+      }
+
+      for (final v in variants) {
+        final rawImg = (v['image_url'] ?? '').toString().trim();
+        final resolvedImg = rawImg.isNotEmpty ? rawImg : productImage;
+        final stock = (v['stock_quantity'] as num?)?.toInt() ?? 0;
+        final reserved = (v['reserved_quantity'] as num?)?.toInt() ?? 0;
+        final available = (v['available_stock'] as num?)?.toInt() ??
+            (stock - reserved).clamp(0, 1 << 30);
+        rows.add(
+          AdminInventoryRow(
+            rowId: 'variant:${(v['id'] ?? '').toString()}',
+            productId: product.id,
+            productTitle: product.title,
+            category: product.category,
+            productImageUrl: productImage,
+            variantId: (v['id'] ?? '').toString(),
+            variantType: (v['variant_type'] ?? '').toString(),
+            variantName: (v['variant_name'] ?? '').toString(),
+            variantImageUrl: resolvedImg,
+            sku: (v['sku'] ?? '').toString(),
+            price: (v['price'] as num?)?.toDouble() ?? product.price,
+            stockQuantity: stock,
+            reservedQuantity: reserved,
+            availableStock: available,
+          ),
+        );
+      }
+    }
+
+    rows.sort((a, b) {
+      final t = a.productTitle.toLowerCase().compareTo(b.productTitle.toLowerCase());
+      if (t != 0) return t;
+      final av = (a.variantName ?? '').toLowerCase();
+      final bv = (b.variantName ?? '').toLowerCase();
+      return av.compareTo(bv);
+    });
+    return rows;
   }
 
   Future<List<AdminOrderRow>> fetchOrders({int? limit, String? searchQuery}) async {
@@ -1544,14 +1892,18 @@ class AdminService {
 
     final itemsData = await client
         .from('order_items')
-        .select('id, order_id, product_id, title, image_urls, unit_price, currency, quantity')
+        .select(
+          'id, order_id, product_id, variant_id, title, image_urls, unit_price, currency, quantity',
+        )
         .eq('order_id', orderId);
     final items = (itemsData as List).cast<Map<String, dynamic>>().map((e) {
       final imageData = e['image_urls'];
       final rawUrls = imageData is List ? imageData.map((v) => v.toString()).toList() : const <String>[];
       final oid = e['id']?.toString().trim();
+      final vid = e['variant_id']?.toString().trim();
       return AdminOrderItemRow(
         orderItemId: oid != null && oid.isNotEmpty ? oid : null,
+        variantId: vid != null && vid.isNotEmpty ? vid : null,
         productId: (e['product_id'] ?? '').toString(),
         title: (e['title'] ?? '').toString(),
         quantity: (e['quantity'] as num?)?.toInt() ?? 0,

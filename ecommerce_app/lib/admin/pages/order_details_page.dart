@@ -266,6 +266,11 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
           .where((e) => e.isNotEmpty)
           .toSet()
           .toList();
+      final variantIds = details.items
+          .map((e) => (e.variantId ?? '').trim())
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList();
       if (ids.isEmpty) {
         if (!mounted) return;
         setState(() {
@@ -288,6 +293,19 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
         if (id == null || id.isEmpty) continue;
         byId[id] = row;
       }
+      final variantById = <String, Map<String, dynamic>>{};
+      if (variantIds.isNotEmpty) {
+        final variantRows = await ref
+            .read(supabaseClientProvider)
+            .from('product_variants')
+            .select('id, weight, dimensions')
+            .inFilter('id', variantIds);
+        for (final row in (variantRows as List).cast<Map<String, dynamic>>()) {
+          final id = row['id']?.toString().trim();
+          if (id == null || id.isEmpty) continue;
+          variantById[id] = row;
+        }
+      }
 
       var totalWeight = 0.0;
       var hasAnyWeight = false;
@@ -295,14 +313,14 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       final dimTexts = <String>[];
 
       for (final item in details.items) {
+        final variant = variantById[(item.variantId ?? '').trim()];
         final p = byId[item.productId.trim()];
-        if (p == null) continue;
-        final w = (p['weight'] as num?)?.toDouble();
+        final w = ((variant?['weight'] ?? p?['weight']) as num?)?.toDouble();
         if (w != null && w > 0) {
           totalWeight += (w * item.quantity);
           hasAnyWeight = true;
         }
-        final d = p['dimensions']?.toString().trim();
+        final d = (variant?['dimensions'] ?? p?['dimensions'])?.toString().trim();
         if (d != null && d.isNotEmpty) {
           dimTexts.add(d);
           final parsed = _parseDims3(d);
@@ -1021,6 +1039,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     final items = d.items
         .map(
           (i) => OrderItem(
+            variantId: i.variantId,
             productId: i.productId,
             title: i.title,
             imageUrls: i.imageUrls,

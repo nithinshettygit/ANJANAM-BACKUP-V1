@@ -7,6 +7,8 @@ class ProductReview {
   final DateTime updatedAt;
   final bool isVerifiedPurchase;
   final String authorDisplayName;
+  final String? adminReplyText;
+  final DateTime? adminReplyUpdatedAt;
 
   const ProductReview({
     required this.id,
@@ -17,6 +19,8 @@ class ProductReview {
     required this.updatedAt,
     required this.isVerifiedPurchase,
     required this.authorDisplayName,
+    required this.adminReplyText,
+    required this.adminReplyUpdatedAt,
   });
 
   factory ProductReview.fromRpcRow(Map<String, dynamic> json) {
@@ -25,6 +29,12 @@ class ProductReview {
       if (v is DateTime) return v.toUtc();
       return DateTime.tryParse(v.toString())?.toUtc() ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    }
+
+    DateTime? parseTsNullable(dynamic v) {
+      if (v == null) return null;
+      if (v is DateTime) return v.toUtc();
+      return DateTime.tryParse(v.toString())?.toUtc();
     }
 
     return ProductReview(
@@ -38,6 +48,10 @@ class ProductReview {
       authorDisplayName: (json['author_display_name'] as String?)?.trim().isNotEmpty == true
           ? (json['author_display_name'] as String).trim()
           : 'Customer',
+      adminReplyText: (json['admin_reply_text'] as String?)?.trim().isNotEmpty == true
+          ? (json['admin_reply_text'] as String).trim()
+          : null,
+      adminReplyUpdatedAt: parseTsNullable(json['admin_reply_updated_at']),
     );
   }
 }

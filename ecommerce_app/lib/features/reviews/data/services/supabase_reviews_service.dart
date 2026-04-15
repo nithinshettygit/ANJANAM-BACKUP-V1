@@ -138,7 +138,7 @@ class SupabaseReviewsService extends SupabaseServiceBase {
           .from('reviews')
           .select(
             'id, product_id, user_id, rating, review_text, is_verified_purchase, '
-            'is_visible, created_at, updated_at',
+            'is_visible, admin_reply_text, admin_reply_updated_at, created_at, updated_at',
           )
           .order('created_at', ascending: false)
           .range(offset, end),
@@ -153,6 +153,12 @@ class SupabaseReviewsService extends SupabaseServiceBase {
       if (v is DateTime) return v.toUtc();
       return DateTime.tryParse(v.toString())?.toUtc() ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    }
+
+    DateTime? parseTsNullable(dynamic v) {
+      if (v == null) return null;
+      if (v is DateTime) return v.toUtc();
+      return DateTime.tryParse(v.toString())?.toUtc();
     }
 
     final productIds = <String>{};
@@ -208,6 +214,10 @@ class SupabaseReviewsService extends SupabaseServiceBase {
         reviewText: text == null || text.trim().isEmpty ? null : text.trim(),
         isVerifiedPurchase: row['is_verified_purchase'] == true,
         isVisible: row['is_visible'] == true,
+        adminReplyText: (row['admin_reply_text'] as String?)?.trim().isNotEmpty == true
+            ? (row['admin_reply_text'] as String).trim()
+            : null,
+        adminReplyUpdatedAt: parseTsNullable(row['admin_reply_updated_at']),
         createdAt: parseTs(row['created_at']),
         updatedAt: parseTs(row['updated_at']),
       );
@@ -234,6 +244,39 @@ class SupabaseReviewsService extends SupabaseServiceBase {
       }
       throw RepositoryException(
         e.message.isNotEmpty ? e.message : 'Could not update review visibility.',
+      );
+    }
+  }
+
+  Future<void> setReviewAdminReply({
+    required String reviewId,
+    String? replyText,
+  }) async {
+    final id = reviewId.trim();
+    if (id.isEmpty) {
+      throw const ValidationException('Review id is required.');
+    }
+    final cleaned = replyText?.trim();
+    if (cleaned != null && cleaned.length > 1000) {
+      throw const ValidationException('Reply must be at most 1,000 characters.');
+    }
+    try {
+      await client
+          .from('reviews')
+          .update({
+            'admin_reply_text': (cleaned == null || cleaned.isEmpty) ? null : cleaned,
+            'admin_reply_updated_at':
+                (cleaned == null || cleaned.isEmpty) ? null : DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', id);
+    } on PostgrestException catch (e) {
+      final code = e.code;
+      final msg = e.message.toLowerCase();
+      if (code == '42501' || msg.contains('permission') || msg.contains('policy')) {
+        throw const AuthException('You do not have permission for this action.');
+      }
+      throw RepositoryException(
+        e.message.isNotEmpty ? e.message : 'Could not save review reply.',
       );
     }
   }

@@ -864,6 +864,7 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
     bool? isPopular,
     bool? isRecommended,
     bool? isFestivalSpecial,
+    List<AdminVariantUpsert> variants = const [],
   }) {
     return ProductUpsertInput(
       title: p.title,
@@ -882,6 +883,7 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
       isPopular: isPopular ?? p.isPopular,
       isRecommended: isRecommended ?? p.isRecommended,
       isFestivalSpecial: isFestivalSpecial ?? p.isFestivalSpecial,
+      variants: variants,
     );
   }
 
@@ -906,6 +908,10 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
 
     setState(() => _sectionOverrides[p.id] = next);
     try {
+      var initialVariants = const <AdminVariantUpsert>[];
+      try {
+        initialVariants = await ref.read(adminServiceProvider).fetchProductVariants(p.id);
+      } catch (_) {}
       await ref.read(adminServiceProvider).updateProduct(
             p.id,
             _copyAsInput(
@@ -913,6 +919,7 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
               isPopular: next.popular,
               isRecommended: next.recommended,
               isFestivalSpecial: next.festival,
+              variants: initialVariants,
             ),
           );
       ref.invalidate(adminProductsProvider);

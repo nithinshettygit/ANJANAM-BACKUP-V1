@@ -4,8 +4,9 @@ import { createClient } from "npm:@supabase/supabase-js";
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer, accept, accept-encoding, accept-language",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -46,8 +47,8 @@ async function verifyFirebaseToken({
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { status: 204, headers: corsHeaders });
+  if ((req.method ?? "").toUpperCase() === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {

@@ -20,22 +20,35 @@ class CartController extends AsyncNotifier<Cart> {
   Future<void> addItem({
     required String productId,
     required int quantity,
+    String? variantId,
   }) async {
     // No [AsyncLoading]: keep previous cart visible until success. On failure, state unchanged.
-    final updated = await _repo.addItem(productId: productId, quantity: quantity);
+    final updated = await _repo.addItem(
+      productId: productId,
+      quantity: quantity,
+      variantId: variantId,
+    );
     state = AsyncData(updated);
   }
 
   Future<void> updateQuantity({
     required String productId,
+    String? variantId,
     required int quantity,
   }) async {
-    final updated = await _repo.updateQuantity(productId: productId, quantity: quantity);
+    final updated = await _repo.updateQuantity(
+      productId: productId,
+      variantId: variantId,
+      quantity: quantity,
+    );
     state = AsyncData(updated);
   }
 
-  Future<void> removeItem({required String productId}) async {
-    final updated = await _repo.removeItem(productId: productId);
+  Future<void> removeItem({
+    required String productId,
+    String? variantId,
+  }) async {
+    final updated = await _repo.removeItem(productId: productId, variantId: variantId);
     state = AsyncData(updated);
   }
 

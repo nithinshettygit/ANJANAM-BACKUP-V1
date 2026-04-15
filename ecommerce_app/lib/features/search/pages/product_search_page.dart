@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
+import 'package:ecommerce_app/features/cart/domain/entities/cart_item.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/search/models/product_suggestion.dart';
 import 'package:ecommerce_app/features/search/providers/search_suggestions_provider.dart';
@@ -281,11 +282,19 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
                         (width - horizontalPadding * 2 - (crossAxisCount - 1) * spacing) /
                             crossAxisCount;
 
+                    List<CartItem> cartLinesFor(String productId) {
+                      return cart?.items.where((e) => e.productId == productId).toList() ?? const [];
+                    }
+
                     int? lineQty(String productId) {
-                      for (final e in cart?.items ?? []) {
-                        if (e.productId == productId) return e.quantity;
-                      }
+                      final lines = cartLinesFor(productId);
+                      if (lines.length == 1) return lines.first.quantity;
                       return null;
+                    }
+
+                    String? soleCartVariantId(String productId) {
+                      final lines = cartLinesFor(productId);
+                      return lines.length == 1 ? lines.first.variantId : null;
                     }
 
                     return RefreshIndicator(
@@ -325,13 +334,17 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
                                   .read(cartControllerProvider.notifier)
                                   .updateQuantity(
                                     productId: product.id,
+                                    variantId: soleCartVariantId(product.id),
                                     quantity: q,
                                   );
                             },
                             onRemoveFromCart: () async {
                               await ref
                                   .read(cartControllerProvider.notifier)
-                                  .removeItem(productId: product.id);
+                                  .removeItem(
+                                    productId: product.id,
+                                    variantId: soleCartVariantId(product.id),
+                                  );
                             },
                             onGoToCart: () => navigateToCartPage(ref, context),
                             onAddToCart: (qty) async {

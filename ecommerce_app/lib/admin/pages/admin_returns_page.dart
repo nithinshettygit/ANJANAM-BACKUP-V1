@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/features/notifications/data/services/fcm_edge_function_notification_sender.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
@@ -366,7 +367,7 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
         error: (e, _) => Center(child: Text('$e')),
         data: (rows) {
           final compact = kAdminAndroidCompactChrome;
-          final denseWeb = !compact;
+          final denseWeb = !compact && kIsWeb;
           final requestedCount = rows.where((r) => _statusOf(r) == 'requested').length;
           final approvedCount = rows.where((r) => _statusOf(r) == 'approved').length;
           final rejectedCount = rows.where((r) => _statusOf(r) == 'rejected').length;
@@ -378,7 +379,7 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
                 margin: compact ? EdgeInsets.zero : null,
                 child: Padding(
                   padding: denseWeb
-                      ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+                      ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
                       : const EdgeInsets.all(12),
                   child: Wrap(
                     spacing: denseWeb ? 8 : 12,
@@ -397,6 +398,13 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
                         onPressed: _reload,
                         icon: const Icon(Icons.refresh),
                         label: const Text('Refresh'),
+                        style: FilledButton.styleFrom(
+                          visualDensity: denseWeb ? VisualDensity.compact : VisualDensity.standard,
+                          minimumSize: denseWeb ? const Size(0, 34) : null,
+                          padding: denseWeb
+                              ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+                              : null,
+                        ),
                       ),
                       Text(
                         'Total: ${rows.length} | Pending: $requestedCount | Approved: $approvedCount | Rejected: $rejectedCount | Completed: $completedCount',
@@ -409,10 +417,11 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: denseWeb ? 6 : 12),
               Expanded(
                 child: AdminDataTable<AdminReturnRow>(
                   rows: rows,
+                  initialRowsPerPage: denseWeb ? 20 : 10,
                   emptyMessage: 'No return requests',
                   minTableWidth: 1680,
                   columns: [

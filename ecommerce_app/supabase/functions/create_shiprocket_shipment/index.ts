@@ -346,7 +346,7 @@ Deno.serve(async (req) => {
 
     const { data: items, error: itemsErr } = await adminClient
       .from("order_items")
-      .select("title, unit_price, quantity, product_id")
+      .select("title, unit_price, quantity, product_id, variant_id")
       .eq("order_id", orderId);
     if (itemsErr || !items?.length) {
       return json(400, { error: "order_items_missing" });
@@ -371,6 +371,9 @@ Deno.serve(async (req) => {
     const productIds = (items as Record<string, unknown>[])
       .map((r) => (r.product_id ?? "").toString().trim())
       .filter((id) => id.length > 0);
+    const variantIds = (items as Record<string, unknown>[])
+      .map((r) => (r.variant_id ?? "").toString().trim())
+      .filter((id) => id.length > 0);
     const weightByProductId = new Map<string, number>();
     const dimsByProductId = new Map<string, string>();
     if (productIds.length > 0) {
@@ -388,6 +391,23 @@ Deno.serve(async (req) => {
         if (d) dimsByProductId.set(id, d);
       }
     }
+    const weightByVariantId = new Map<string, number>();
+    const dimsByVariantId = new Map<string, string>();
+    if (variantIds.length > 0) {
+      const uniq = [...new Set(variantIds)];
+      const { data: variantRows } = await adminClient
+        .from("product_variants")
+        .select("id, weight, dimensions")
+        .in("id", uniq);
+      for (const v of (variantRows ?? []) as Record<string, unknown>[]) {
+        const id = (v.id ?? "").toString().trim();
+        if (!id) continue;
+        const w = Number(v.weight);
+        if (Number.isFinite(w) && w > 0) weightByVariantId.set(id, w);
+        const d = (v.dimensions ?? "").toString().trim();
+        if (d) dimsByVariantId.set(id, d);
+      }
+    }
 
     let subTotal = 0;
     let derivedWeight = 0;
@@ -398,11 +418,14 @@ Deno.serve(async (req) => {
       const price = Number(row.unit_price) || 0;
       subTotal += price * qty;
       const pid = (row.product_id ?? "").toString().trim();
+      const vid = (row.variant_id ?? "").toString().trim();
       const sku = pid.slice(0, 40) || "SKU";
-      const pw = weightByProductId.get(pid) ?? 0;
+      const pw = (vid ? weightByVariantId.get(vid) : undefined) ?? weightByProductId.get(pid) ?? 0;
       if (pw > 0) derivedWeight += pw * qty;
-      if (!derivedDimensions && (dimsByProductId.get(pid) ?? "").trim().length > 0) {
-        derivedDimensions = (dimsByProductId.get(pid) ?? "").trim();
+      const dims =
+        ((vid ? dimsByVariantId.get(vid) : undefined) ?? dimsByProductId.get(pid) ?? "").trim();
+      if (!derivedDimensions && dims.length > 0) {
+        derivedDimensions = dims;
       }
       return {
         name: title.slice(0, 200),

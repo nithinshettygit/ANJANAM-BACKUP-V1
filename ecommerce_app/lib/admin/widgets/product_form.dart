@@ -18,6 +18,79 @@ import '../services/admin_service.dart';
 import 'admin_cached_image.dart';
 import 'admin_new_category_dialog.dart';
 
+/// Mutable row for the admin variant editor.
+class _VariantLineEdit {
+  _VariantLineEdit.fromUpsert(AdminVariantUpsert v)
+      : id = v.id,
+        typeCtrl = TextEditingController(text: v.variantType),
+        nameCtrl = TextEditingController(text: v.variantName),
+        priceCtrl = TextEditingController(text: v.price.toStringAsFixed(2)),
+        stockCtrl = TextEditingController(text: v.stockQuantity.toString()),
+        weightCtrl = TextEditingController(
+          text: v.weight != null && v.weight! > 0 ? v.weight!.toStringAsFixed(3) : '',
+        ),
+        dimensionsCtrl = TextEditingController(text: v.dimensions ?? ''),
+        imageCtrl = TextEditingController(text: v.imageUrl),
+        skuCtrl = TextEditingController(text: v.sku ?? ''),
+        isDefault = v.isDefault;
+
+  _VariantLineEdit.emptyWithType(String type)
+      : id = null,
+        typeCtrl = TextEditingController(text: type.trim().isEmpty ? 'size' : type.trim().toLowerCase()),
+        nameCtrl = TextEditingController(),
+        priceCtrl = TextEditingController(text: '0'),
+        stockCtrl = TextEditingController(text: '0'),
+        weightCtrl = TextEditingController(),
+        dimensionsCtrl = TextEditingController(),
+        imageCtrl = TextEditingController(),
+        skuCtrl = TextEditingController(),
+        isDefault = false;
+
+  final String? id;
+  final TextEditingController typeCtrl;
+  final TextEditingController nameCtrl;
+  final TextEditingController priceCtrl;
+  final TextEditingController stockCtrl;
+  final TextEditingController weightCtrl;
+  final TextEditingController dimensionsCtrl;
+  final TextEditingController imageCtrl;
+  final TextEditingController skuCtrl;
+  bool isDefault;
+
+  void dispose() {
+    typeCtrl.dispose();
+    nameCtrl.dispose();
+    priceCtrl.dispose();
+    stockCtrl.dispose();
+    weightCtrl.dispose();
+    dimensionsCtrl.dispose();
+    imageCtrl.dispose();
+    skuCtrl.dispose();
+  }
+
+  AdminVariantUpsert toUpsert() {
+    final normalizedType = typeCtrl.text.trim().toLowerCase();
+    return AdminVariantUpsert(
+      id: id,
+      variantType: normalizedType,
+      variantName: nameCtrl.text.trim(),
+      price: double.tryParse(priceCtrl.text.trim()) ?? 0,
+      stockQuantity: int.tryParse(stockCtrl.text.trim()) ?? 0,
+      weight: () {
+        final w = double.tryParse(weightCtrl.text.trim());
+        return (w != null && w > 0) ? w : null;
+      }(),
+      dimensions: () {
+        final d = dimensionsCtrl.text.trim();
+        return d.isEmpty ? null : d;
+      }(),
+      imageUrl: imageCtrl.text.trim(),
+      sku: skuCtrl.text.trim().isEmpty ? null : skuCtrl.text.trim(),
+      isDefault: isDefault,
+    );
+  }
+}
+
 /// Max images stored on [products.image_urls] (first = primary / storefront thumbnail).
 const int kMaxProductImagesPerProduct = 8;
 
@@ -31,6 +104,8 @@ const int kMinimumProductImageSize = 800;
 
 class ProductForm extends ConsumerStatefulWidget {
   final AdminProduct? initialProduct;
+  /// Existing SKU rows when editing; preserved on save unless the variants editor is implemented.
+  final List<AdminVariantUpsert> initialVariants;
   /// Folder id for storage paths `products/{id}/…` — existing product id or pre-assigned UUID for new products.
   final String storageProductId;
   final Future<void> Function(ProductUpsertInput input) onSubmit;
@@ -38,6 +113,7 @@ class ProductForm extends ConsumerStatefulWidget {
   const ProductForm({
     super.key,
     this.initialProduct,
+    this.initialVariants = const [],
     required this.storageProductId,
     required this.onSubmit,
   });
@@ -48,6 +124,14 @@ class ProductForm extends ConsumerStatefulWidget {
 
 class _ProductFormState extends ConsumerState<ProductForm> {
   static const _kCustomCategory = '__custom_category__';
+  static const List<String> _kVariantTypePresets = <String>[
+    'size',
+    'color',
+    'flavor',
+    'weight',
+    'pack',
+    'material',
+  ];
 
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleCtrl;
@@ -68,6 +152,9 @@ class _ProductFormState extends ConsumerState<ProductForm> {
   late bool _isPopular;
   late bool _isRecommended;
   late bool _isFestivalSpecial;
+
+  late final TextEditingController _newVariantTypeCtrl;
+  final List<_VariantLineEdit> _variantLines = [];
 
   @override
   void initState() {
@@ -91,6 +178,13 @@ class _ProductFormState extends ConsumerState<ProductForm> {
     _isPopular = p?.isPopular ?? false;
     _isRecommended = p?.isRecommended ?? false;
     _isFestivalSpecial = p?.isFestivalSpecial ?? false;
+
+    _newVariantTypeCtrl = TextEditingController(
+      text: widget.initialVariants.isNotEmpty ? widget.initialVariants.first.variantType : 'size',
+    );
+    for (final v in widget.initialVariants) {
+      _variantLines.add(_VariantLineEdit.fromUpsert(v));
+    }
   }
 
   @override
@@ -106,6 +200,10 @@ class _ProductFormState extends ConsumerState<ProductForm> {
     _dimensionsCtrl.dispose();
     _inventoryCtrl.dispose();
     _discountPercentCtrl.dispose();
+    for (final l in _variantLines) {
+      l.dispose();
+    }
+    _newVariantTypeCtrl.dispose();
     super.dispose();
   }
 
@@ -262,14 +360,267 @@ class _ProductFormState extends ConsumerState<ProductForm> {
               const SizedBox(height: 10),
               TextFormField(
                 controller: _inventoryCtrl,
+                readOnly: _variantLines.isNotEmpty,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Inventory Count'),
+                decoration: InputDecoration(
+                  labelText: 'Inventory Count',
+                  helperText: _variantLines.isNotEmpty
+                      ? 'Locked when variants exist. Stock is managed per variant.'
+                      : null,
+                ),
                 validator: (v) {
                   final value = int.tryParse((v ?? '').trim());
                   if (value == null || value < 0) return 'Invalid count';
                   return null;
                 },
+              ),
+              const SizedBox(height: 12),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                initiallyExpanded: _variantLines.isNotEmpty,
+                title: Text(
+                  'Product variants (optional)',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                subtitle: const Text(
+                  'Each option has type + name (for example Size: M, Color: Red). '
+                  'Newly added options appear at the top.',
+                ),
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _kVariantTypePresets
+                        .map(
+                          (type) => ActionChip(
+                            label: Text(type),
+                            onPressed: () => setState(() => _newVariantTypeCtrl.text = type),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _newVariantTypeCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Type for next option',
+                            hintText: 'size, color, flavor, material...',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _variantLines.insert(
+                              0,
+                              _VariantLineEdit.emptyWithType(_newVariantTypeCtrl.text),
+                            );
+                          });
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add option'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _variantLines.insert(
+                            0,
+                            _VariantLineEdit.emptyWithType(_newVariantTypeCtrl.text),
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.vertical_align_top),
+                      label: const Text('Add option to top'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.45),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Quick guide: Add options -> mark one default -> optional image per option. '
+                      'If option image is empty, product primary image is used.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._variantLines.asMap().entries.map((e) {
+                    final i = e.key;
+                    final line = e.value;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Option ${i + 1}',
+                                    style: Theme.of(context).textTheme.titleSmall,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Remove',
+                                  onPressed: () {
+                                    setState(() {
+                                      line.dispose();
+                                      _variantLines.removeAt(i);
+                                    });
+                                  },
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
+                            ),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                SizedBox(
+                                  width: 180,
+                                  child: TextFormField(
+                                    controller: line.typeCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Type (e.g. size, color)',
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 210,
+                                  child: TextFormField(
+                                    controller: line.nameCtrl,
+                                    decoration:
+                                        const InputDecoration(labelText: 'Name (e.g. M, 250ml)'),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 140,
+                                  child: TextFormField(
+                                    controller: line.priceCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    decoration: const InputDecoration(labelText: 'Price (INR)'),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 140,
+                                  child: TextFormField(
+                                    controller: line.stockCtrl,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                    decoration: const InputDecoration(labelText: 'Stock'),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 170,
+                                  child: TextFormField(
+                                    controller: line.weightCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}$')),
+                                    ],
+                                    decoration: const InputDecoration(
+                                      labelText: 'Weight kg (optional)',
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 220,
+                                  child: TextFormField(
+                                    controller: line.dimensionsCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Dimensions cm (optional)',
+                                      hintText: 'LxWxH, e.g. 20x15x10',
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 200,
+                                  child: TextFormField(
+                                    controller: line.skuCtrl,
+                                    decoration: const InputDecoration(labelText: 'SKU (optional)'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            TextFormField(
+                              controller: line.imageCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Image URL or storage path',
+                                helperText:
+                                    'Optional. If empty, product primary image is used in storefront.',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: _saving
+                                      ? null
+                                      : () => _pickAndUploadVariantImage(line),
+                                  icon: const Icon(Icons.upload_file),
+                                  label: const Text('Upload variant image'),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: _saving
+                                      ? null
+                                      : () => setState(line.imageCtrl.clear),
+                                  child: const Text('Use product image'),
+                                ),
+                              ],
+                            ),
+                            if (line.imageCtrl.text.trim().isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: AdminCachedImage(
+                                  imageUrl: line.imageCtrl.text.trim(),
+                                  width: 72,
+                                  height: 72,
+                                ),
+                              ),
+                            ],
+                            CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Default option'),
+                              value: line.isDefault,
+                              onChanged: (v) {
+                                setState(() {
+                                  if (v == true) {
+                                    for (final o in _variantLines) {
+                                      o.isDefault = false;
+                                    }
+                                    line.isDefault = true;
+                                  } else {
+                                    line.isDefault = false;
+                                  }
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
               ),
               const SizedBox(height: 14),
               Text(
@@ -313,7 +664,7 @@ class _ProductFormState extends ConsumerState<ProductForm> {
               ),
               const SizedBox(height: 2),
               Text(
-                'Use square photos (1:1). Recommended: ${kRecommendedProductImageSize}×${kRecommendedProductImageSize}px · Minimum: ${kMinimumProductImageSize}×${kMinimumProductImageSize}px.',
+                'Use square photos (1:1). Recommended: $kRecommendedProductImageSize×$kRecommendedProductImageSize px · Minimum: $kMinimumProductImageSize×$kMinimumProductImageSize px.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -605,8 +956,138 @@ class _ProductFormState extends ConsumerState<ProductForm> {
     }
   }
 
+  Future<void> _pickAndUploadVariantImage(_VariantLineEdit line) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final id = widget.storageProductId.trim();
+    if (id.isEmpty) {
+      _snack('Missing storage id for uploads.');
+      return;
+    }
+
+    final file = result.files.first;
+    if (!_allowedProductImageFile(file)) {
+      _snack('Use JPG, PNG, or WebP image.');
+      return;
+    }
+    final raw = file.bytes;
+    if (raw == null || raw.isEmpty) {
+      _snack('Could not read ${file.name}.');
+      return;
+    }
+    if (raw.length > kMaxImagePickBytes) {
+      _snack(
+        '${file.name} is too large before processing '
+        '(max ${kMaxImagePickBytes ~/ (1024 * 1024)} MB).',
+      );
+      return;
+    }
+    final compressed = compressProductImageForUpload(Uint8List.fromList(raw));
+    if (compressed == null) {
+      _snack('Could not decode ${file.name}.');
+      return;
+    }
+    if (compressed.length > kMaxImageUploadBytes) {
+      _snack('${file.name} is still over 2 MB after compression.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final service = ref.read(adminServiceProvider);
+      final url = await service.uploadProductImage(
+        productId: id,
+        bytes: compressed,
+        fileName: file.name,
+      );
+      if (!mounted) return;
+      setState(() => line.imageCtrl.text = url);
+      _snack('Variant image uploaded.');
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Upload failed: ${userFacingErrorMessage(e)}');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    List<AdminVariantUpsert> variants;
+    if (_variantLines.isEmpty) {
+      variants = const [];
+    } else {
+      final built = <AdminVariantUpsert>[];
+      var defaults = 0;
+      final seenNames = <String>{};
+      for (final l in _variantLines) {
+        final u = l.toUpsert();
+        if (u.variantType.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Each option needs a variant type.')),
+          );
+          return;
+        }
+        if (u.variantName.trim().isEmpty) continue;
+        final normalized = '${u.variantType.trim().toLowerCase()}::${u.variantName.trim().toLowerCase()}';
+        if (!seenNames.add(normalized)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Duplicate option: ${u.variantType} - ${u.variantName}'),
+            ),
+          );
+          return;
+        }
+        if (u.stockQuantity < 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Invalid stock for variant: ${u.variantName}')),
+          );
+          return;
+        }
+        if (u.weight != null && u.weight! <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Invalid weight for variant: ${u.variantName}')),
+          );
+          return;
+        }
+        final dims = u.dimensions?.trim() ?? '';
+        if (dims.isNotEmpty) {
+          final hasShape = RegExp(r'^\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?$')
+              .hasMatch(dims);
+          if (!hasShape) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Use LxWxH format for variant dimensions: ${u.variantName}'),
+              ),
+            );
+            return;
+          }
+        }
+        if (u.isDefault) defaults++;
+        built.add(u);
+      }
+      if (built.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Each variant needs a name.')),
+        );
+        return;
+      }
+      if (defaults != 1) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mark exactly one variant as default.')),
+        );
+        return;
+      }
+      variants = built;
+    }
+
     final rawDiscount = _discountPercentCtrl.text.trim();
     final discountPercent = rawDiscount.isEmpty
         ? 0
@@ -632,6 +1113,7 @@ class _ProductFormState extends ConsumerState<ProductForm> {
       isPopular: _isPopular,
       isRecommended: _isRecommended,
       isFestivalSpecial: _isFestivalSpecial,
+      variants: variants,
     );
     setState(() => _saving = true);
     try {

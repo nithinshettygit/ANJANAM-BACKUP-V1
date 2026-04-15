@@ -197,6 +197,7 @@ class AdminDataTable<T> extends StatefulWidget {
 }
 
 class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
+  static const List<int> _pageSizeOptions = [5, 10, 20, 50];
   int? _sortColumnIndex;
   bool _sortAscending = true;
   late int _rowsPerPage;
@@ -207,9 +208,22 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
   @override
   void initState() {
     super.initState();
-    _rowsPerPage = widget.initialRowsPerPage;
+    _rowsPerPage = _pageSizeOptions.contains(widget.initialRowsPerPage)
+        ? widget.initialRowsPerPage
+        : 20;
     _horizontalController = ScrollController();
     _verticalController = ScrollController();
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminDataTable<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_pageSizeOptions.contains(_rowsPerPage)) {
+      setState(() {
+        _rowsPerPage = 20;
+        _page = 0;
+      });
+    }
   }
 
   @override
@@ -283,6 +297,9 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                     child: ConstrainedBox(
                       constraints: BoxConstraints(minWidth: widget.minTableWidth),
                       child: DataTable(
+                        dataRowMinHeight: 56,
+                        dataRowMaxHeight: 62,
+                        headingRowHeight: 52,
                         headingRowColor:
                             WidgetStateProperty.all(AppColors.deepGold.withOpacity(0.08)),
                         sortColumnIndex: _sortColumnIndex,
@@ -331,14 +348,13 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButton<int>(
-                        value: _rowsPerPage,
+                        value: _pageSizeOptions.contains(_rowsPerPage) ? _rowsPerPage : 20,
                         isDense: true,
-                        items: const [
-                          DropdownMenuItem(value: 5, child: Text('5 / page')),
-                          DropdownMenuItem(value: 10, child: Text('10 / page')),
-                          DropdownMenuItem(value: 20, child: Text('20 / page')),
-                          DropdownMenuItem(value: 50, child: Text('50 / page')),
-                        ],
+                        items: _pageSizeOptions
+                            .map(
+                              (v) => DropdownMenuItem(value: v, child: Text('$v / page')),
+                            )
+                            .toList(),
                         onChanged: (value) {
                           if (value == null) return;
                           setState(() {

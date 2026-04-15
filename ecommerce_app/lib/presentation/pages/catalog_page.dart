@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/features/cart/domain/entities/cart.dart';
+import 'package:ecommerce_app/features/cart/domain/entities/cart_item.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
 import 'package:ecommerce_app/features/catalog/domain/product_sort_option.dart';
@@ -389,11 +390,19 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
         final cardWidth =
             (width - hPad * 2 - (crossAxisCount - 1) * spacing) / crossAxisCount;
 
+        List<CartItem> cartLinesFor(String productId) {
+          return cart?.items.where((e) => e.productId == productId).toList() ?? const [];
+        }
+
         int? lineQty(String productId) {
-          for (final e in cart?.items ?? []) {
-            if (e.productId == productId) return e.quantity;
-          }
+          final lines = cartLinesFor(productId);
+          if (lines.length == 1) return lines.first.quantity;
           return null;
+        }
+
+        String? soleCartVariantId(String productId) {
+          final lines = cartLinesFor(productId);
+          return lines.length == 1 ? lines.first.variantId : null;
         }
 
         final footerCount = (_loadingMore && _hasMore) ? 1 : 0;
@@ -457,13 +466,17 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                               .read(cartControllerProvider.notifier)
                               .updateQuantity(
                                 productId: product.id,
+                                variantId: soleCartVariantId(product.id),
                                 quantity: q,
                               );
                         },
                         onRemoveFromCart: () async {
                           await ref
                               .read(cartControllerProvider.notifier)
-                              .removeItem(productId: product.id);
+                              .removeItem(
+                                productId: product.id,
+                                variantId: soleCartVariantId(product.id),
+                              );
                         },
                         onGoToCart: () => navigateToCartPage(ref, context),
                         onAddToCart: (qty) async {

@@ -178,10 +178,12 @@ class _CartItemTile extends ConsumerWidget {
                       if (q <= 0) {
                         ref.read(cartControllerProvider.notifier).removeItem(
                               productId: item.productId,
+                              variantId: item.variantId,
                             );
                       } else {
                         ref.read(cartControllerProvider.notifier).updateQuantity(
                               productId: item.productId,
+                              variantId: item.variantId,
                               quantity: q,
                             );
                       }
@@ -279,6 +281,7 @@ class _CartItemTile extends ConsumerWidget {
                           onPressed: () {
                             ref.read(cartControllerProvider.notifier).removeItem(
                                   productId: item.productId,
+                                  variantId: item.variantId,
                                 );
                           },
                           child: const Text('Remove'),
@@ -289,6 +292,8 @@ class _CartItemTile extends ConsumerWidget {
                               '/checkout',
                               arguments: <String, dynamic>{
                                 'productId': item.productId,
+                                if (item.variantId != null && item.variantId!.trim().isNotEmpty)
+                                  'variantId': item.variantId,
                                 'quantity': item.quantity,
                               },
                             );

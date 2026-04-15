@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
+import 'package:ecommerce_app/features/cart/domain/entities/cart_item.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/wishlist/state/wishlist_products_provider.dart';
 import 'package:ecommerce_app/features/wishlist/state/wishlist_provider.dart';
@@ -68,11 +69,19 @@ class WishlistPage extends ConsumerWidget {
             );
           }
 
+          List<CartItem> cartLinesFor(String productId) {
+            return cart?.items.where((e) => e.productId == productId).toList() ?? const [];
+          }
+
           int? lineQty(String productId) {
-            for (final e in cart?.items ?? []) {
-              if (e.productId == productId) return e.quantity;
-            }
+            final lines = cartLinesFor(productId);
+            if (lines.length == 1) return lines.first.quantity;
             return null;
+          }
+
+          String? soleCartVariantId(String productId) {
+            final lines = cartLinesFor(productId);
+            return lines.length == 1 ? lines.first.variantId : null;
           }
 
           final grid = RefreshIndicator(
@@ -121,12 +130,14 @@ class WishlistPage extends ConsumerWidget {
                             .read(cartControllerProvider.notifier)
                             .updateQuantity(
                               productId: product.id,
+                              variantId: soleCartVariantId(product.id),
                               quantity: q,
                             );
                       },
                       onRemoveFromCart: () async {
                         await ref.read(cartControllerProvider.notifier).removeItem(
                               productId: product.id,
+                              variantId: soleCartVariantId(product.id),
                             );
                       },
                       onGoToCart: () => navigateToCartPage(ref, context),

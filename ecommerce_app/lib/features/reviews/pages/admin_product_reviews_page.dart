@@ -102,6 +102,8 @@ class _AdminProductReviewsPageState extends ConsumerState<AdminProductReviewsPag
             reviewText: row.reviewText,
             isVerifiedPurchase: row.isVerifiedPurchase,
             isVisible: nextVisible,
+            adminReplyText: row.adminReplyText,
+            adminReplyUpdatedAt: row.adminReplyUpdatedAt,
             createdAt: row.createdAt,
             updatedAt: DateTime.now().toUtc(),
           );
@@ -112,6 +114,160 @@ class _AdminProductReviewsPageState extends ConsumerState<AdminProductReviewsPag
           content: Text(nextVisible ? 'Review is now visible.' : 'Review hidden from storefront.'),
         ),
       );
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e is AppException ? e.message : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) {
+        setState(() => _pendingReviewIds.remove(row.id));
+      }
+    }
+  }
+
+  Future<void> _reply(AdminProductReviewRow row) async {
+    if (_pendingReviewIds.contains(row.id)) return;
+    final controller = TextEditingController(text: row.adminReplyText ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(row.adminReplyText == null ? 'Reply to review' : 'Edit reply'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                row.reviewText == null || row.reviewText!.trim().isEmpty
+                    ? 'Rating only (no written review).'
+                    : row.reviewText!,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 4,
+                maxLength: 1000,
+                decoration: const InputDecoration(
+                  labelText: 'Seller reply',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) {
+      controller.dispose();
+      return;
+    }
+    setState(() => _pendingReviewIds.add(row.id));
+    final svc = ref.read(reviewsServiceProvider);
+    try {
+      final nextReply = controller.text.trim();
+      await svc.setReviewAdminReply(
+        reviewId: row.id,
+        replyText: nextReply.isEmpty ? null : nextReply,
+      );
+      controller.dispose();
+      if (!mounted) return;
+      setState(() {
+        final i = _items.indexWhere((e) => e.id == row.id);
+        if (i >= 0) {
+          _items[i] = AdminProductReviewRow(
+            id: row.id,
+            productId: row.productId,
+            productTitle: row.productTitle,
+            userId: row.userId,
+            reviewerName: row.reviewerName,
+            rating: row.rating,
+            reviewText: row.reviewText,
+            isVerifiedPurchase: row.isVerifiedPurchase,
+            isVisible: row.isVisible,
+            adminReplyText: nextReply.isEmpty ? null : nextReply,
+            adminReplyUpdatedAt: nextReply.isEmpty ? null : DateTime.now().toUtc(),
+            createdAt: row.createdAt,
+            updatedAt: DateTime.now().toUtc(),
+          );
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            (nextReply.isEmpty ? row.adminReplyText == null : false)
+                ? 'No reply added.'
+                : nextReply.isEmpty
+                    ? 'Reply removed.'
+                    : 'Reply saved.',
+          ),
+        ),
+      );
+    } catch (e) {
+      controller.dispose();
+      if (!mounted) return;
+      final msg = e is AppException ? e.message : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) {
+        setState(() => _pendingReviewIds.remove(row.id));
+      }
+    }
+  }
+
+  Future<void> _deleteReply(AdminProductReviewRow row) async {
+    if (_pendingReviewIds.contains(row.id) || row.adminReplyText == null) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete reply?'),
+        content: Text(
+          row.adminReplyText!.length > 200
+              ? '${row.adminReplyText!.substring(0, 200)}...'
+              : row.adminReplyText!,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _pendingReviewIds.add(row.id));
+    try {
+      await ref.read(reviewsServiceProvider).setReviewAdminReply(
+            reviewId: row.id,
+            replyText: null,
+          );
+      if (!mounted) return;
+      setState(() {
+        final i = _items.indexWhere((e) => e.id == row.id);
+        if (i >= 0) {
+          _items[i] = AdminProductReviewRow(
+            id: row.id,
+            productId: row.productId,
+            productTitle: row.productTitle,
+            userId: row.userId,
+            reviewerName: row.reviewerName,
+            rating: row.rating,
+            reviewText: row.reviewText,
+            isVerifiedPurchase: row.isVerifiedPurchase,
+            isVisible: row.isVisible,
+            adminReplyText: null,
+            adminReplyUpdatedAt: null,
+            createdAt: row.createdAt,
+            updatedAt: DateTime.now().toUtc(),
+          );
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reply removed.')));
     } catch (e) {
       if (!mounted) return;
       final msg = e is AppException ? e.message : e.toString();
@@ -180,6 +336,8 @@ class _AdminProductReviewsPageState extends ConsumerState<AdminProductReviewsPag
                               row: row,
                               isPending: _pendingReviewIds.contains(row.id),
                               onToggleVisibility: () => _toggleVisibility(row),
+                              onReply: () => _reply(row),
+                              onDeleteReply: () => _deleteReply(row),
                             );
                           },
                         ),
@@ -193,11 +351,15 @@ class _AdminReviewTile extends StatelessWidget {
   final AdminProductReviewRow row;
   final bool isPending;
   final VoidCallback onToggleVisibility;
+  final VoidCallback onReply;
+  final VoidCallback onDeleteReply;
 
   const _AdminReviewTile({
     required this.row,
     required this.isPending,
     required this.onToggleVisibility,
+    required this.onReply,
+    required this.onDeleteReply,
   });
 
   @override
@@ -261,6 +423,33 @@ class _AdminReviewTile extends StatelessWidget {
             reviewText == null || reviewText.isEmpty ? 'Rating only (no written review).' : reviewText,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
+          if (row.adminReplyText != null && row.adminReplyText!.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Seller reply',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    row.adminReplyText!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (row.isVerifiedPurchase) ...[
             const SizedBox(height: 6),
             Text(
@@ -272,15 +461,32 @@ class _AdminReviewTile extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: isPending ? null : onToggleVisibility,
-            icon: Icon(
-              row.isVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              size: 18,
-            ),
-            label: Text(
-              isPending ? 'Please wait...' : (row.isVisible ? 'Hide review' : 'Show review'),
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: isPending ? null : onReply,
+                icon: const Icon(Icons.reply_outlined, size: 18),
+                label: Text(isPending ? 'Please wait...' : (row.adminReplyText == null ? 'Reply' : 'Edit reply')),
+              ),
+              if (row.adminReplyText != null)
+                OutlinedButton.icon(
+                  onPressed: isPending ? null : onDeleteReply,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete reply'),
+                ),
+              FilledButton.tonalIcon(
+                onPressed: isPending ? null : onToggleVisibility,
+                icon: Icon(
+                  row.isVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  isPending ? 'Please wait...' : (row.isVisible ? 'Hide review' : 'Show review'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

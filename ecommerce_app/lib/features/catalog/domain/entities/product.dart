@@ -1,3 +1,5 @@
+import 'product_variant.dart';
+
 class Product {
   final String id;
   final String title;
@@ -22,6 +24,9 @@ class Product {
   /// Default package dimensions in cm (LxWxH), e.g. `20x15x10`.
   final String? shippingDimensionsCm;
 
+  /// Phase 1: at most one [variantType] across all variants (enforced in DB).
+  final List<ProductVariant> variants;
+
   const Product({
     required this.id,
     required this.title,
@@ -40,8 +45,50 @@ class Product {
     this.totalWrittenReviews = 0,
     this.shippingWeightKg,
     this.shippingDimensionsCm,
+    this.variants = const [],
   });
 
   int? get sellableStock => availableStock ?? inventoryCount;
+
+  bool get hasVariants => variants.isNotEmpty;
+
+  String? get variantTypeLabel =>
+      variants.isEmpty ? null : variants.first.variantType.trim();
+
+  ProductVariant? get defaultVariant {
+    if (variants.isEmpty) return null;
+    for (final v in variants) {
+      if (v.isDefault) return v;
+    }
+    return variants.first;
+  }
+
+  Product copyWith({
+    double? price,
+    List<String>? imageUrls,
+    int? availableStock,
+    int? inventoryCount,
+  }) {
+    return Product(
+      id: id,
+      title: title,
+      description: description,
+      price: price ?? this.price,
+      currency: currency,
+      imageUrls: imageUrls ?? this.imageUrls,
+      category: category,
+      tags: tags,
+      inventoryCount: inventoryCount ?? this.inventoryCount,
+      availableStock: availableStock ?? this.availableStock,
+      createdAt: createdAt,
+      displayDiscountPercent: displayDiscountPercent,
+      averageRating: averageRating,
+      totalReviews: totalReviews,
+      totalWrittenReviews: totalWrittenReviews,
+      shippingWeightKg: shippingWeightKg,
+      shippingDimensionsCm: shippingDimensionsCm,
+      variants: variants,
+    );
+  }
 }
 

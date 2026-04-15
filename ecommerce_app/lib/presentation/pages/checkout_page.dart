@@ -39,11 +39,13 @@ enum _CheckoutPhase {
 
 class CheckoutPage extends ConsumerStatefulWidget {
   final String? buyNowProductId;
+  final String? buyNowVariantId;
   final int buyNowQuantity;
 
   const CheckoutPage({
     super.key,
     this.buyNowProductId,
+    this.buyNowVariantId,
     this.buyNowQuantity = 1,
   });
 
@@ -275,6 +277,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       order = await ref.read(checkoutActionsProvider.notifier).placeOrder(
             shipping: ship,
             buyNowProductId: widget.buyNowProductId,
+            buyNowVariantId: widget.buyNowVariantId,
             buyNowQuantity: widget.buyNowQuantity,
           );
     } catch (e) {
@@ -1211,6 +1214,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   @override
   Widget build(BuildContext context) {
     final buyNowId = widget.buyNowProductId;
+    final buyNowVariantId = widget.buyNowVariantId;
     final accountEmail = ref.watch(authSessionProvider).when(
           data: (user) => user?.email ?? 'Not signed in',
           loading: () => 'Loading…',
@@ -1246,7 +1250,13 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       appBar: AppBar(title: const Text('Buy now')),
       body: cartAsync.when(
         data: (cart) {
-          final fromCart = cart.items.where((e) => e.productId == buyNowId).toList();
+          var fromCart = cart.items.where((e) => e.productId == buyNowId).toList();
+          final vFilter = buyNowVariantId?.trim();
+          if (vFilter != null && vFilter.isNotEmpty) {
+            fromCart = fromCart.where((e) => e.variantId == vFilter).toList();
+          } else if (fromCart.length > 1) {
+            fromCart = [fromCart.first];
+          }
           if (fromCart.isNotEmpty) {
             return _checkoutBody(
               items: fromCart,
@@ -1259,13 +1269,37 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           return detailAsync.when(
             data: (detail) {
               final p = detail.product;
-              final maxQ = maxSelectableQuantity(p);
+              final sv = () {
+                if (!p.hasVariants) return null;
+                final want = buyNowVariantId?.trim();
+                if (want != null && want.isNotEmpty) {
+                  for (final v in p.variants) {
+                    if (v.id == want) return v;
+                  }
+                }
+                return p.defaultVariant;
+              }();
+              final display = sv == null
+                  ? p
+                  : p.copyWith(
+                      price: sv.price,
+                      availableStock: sv.sellableStock,
+                      inventoryCount: sv.stockQuantity,
+                      imageUrls: sv.imageUrl.trim().isNotEmpty
+                          ? [sv.imageUrl, ...p.imageUrls.where((u) => u != sv.imageUrl)]
+                          : p.imageUrls,
+                    );
+              final maxQ = maxSelectableQuantity(display);
               final q = widget.buyNowQuantity.clamp(1, maxQ);
               final synthetic = CartItem(
                 productId: p.id,
-                title: p.title,
-                imageUrls: p.imageUrls,
-                unitPrice: p.price,
+                variantId: sv?.id,
+                variantName: sv?.variantName,
+                title: sv != null
+                    ? '${p.title} · ${sv.variantType.trim().isNotEmpty ? '${sv.variantType}: ' : ''}${sv.variantName}'
+                    : p.title,
+                imageUrls: display.imageUrls,
+                unitPrice: sv?.price ?? p.price,
                 currency: p.currency,
                 quantity: q,
               );

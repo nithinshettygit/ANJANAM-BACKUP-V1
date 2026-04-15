@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -183,7 +184,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
       child: usersAsync.when(
       data: (users) {
         final compact = kAdminAndroidCompactChrome;
-        final denseWeb = !compact;
+        final denseWeb = !compact && kIsWeb;
         final filtered = users.where((u) {
           final q = _query.trim().toLowerCase();
           if (q.isEmpty) return true;
@@ -202,7 +203,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
               margin: compact ? EdgeInsets.zero : null,
               child: Padding(
                 padding: denseWeb
-                    ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+                    ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
                     : const EdgeInsets.all(12),
                 child: Wrap(
                   spacing: denseWeb ? 8 : 10,
@@ -242,15 +243,23 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                       onPressed: () => ref.invalidate(adminUsersProvider),
                       icon: const Icon(Icons.refresh),
                       label: const Text('Refresh'),
+                      style: FilledButton.styleFrom(
+                        visualDensity: denseWeb ? VisualDensity.compact : VisualDensity.standard,
+                        minimumSize: denseWeb ? const Size(0, 34) : null,
+                        padding: denseWeb
+                            ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+                            : null,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: denseWeb ? 6 : 12),
             Expanded(
               child: AdminDataTable<AdminUserRow>(
                 rows: filtered,
+                initialRowsPerPage: denseWeb ? 20 : 10,
                 emptyMessage: 'No users found',
                 columns: [
                   AdminTableColumn<AdminUserRow>(

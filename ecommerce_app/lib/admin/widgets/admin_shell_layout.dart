@@ -107,9 +107,9 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(56),
+          preferredSize: Size.fromHeight(48),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: AdminSearchBar(),
           ),
         ),
@@ -220,10 +220,13 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
             ),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.all(
+              padding: EdgeInsets.fromLTRB(
+                isCompact ? 10 : (kIsWeb ? 18 : 14),
+                isCompact ? 8 : (kIsWeb ? 12 : 10),
                 isCompact
-                    ? 12
-                    : (kIsWeb ? 24 : 16),
+                    ? 10
+                    : (kIsWeb ? 18 : 14),
+                isCompact ? 10 : (kIsWeb ? 16 : 12),
               ),
               child: widget.body,
             ),

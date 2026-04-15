@@ -3,6 +3,7 @@ import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
 import 'package:ecommerce_app/features/catalog/domain/product_sort_option.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
+import 'package:ecommerce_app/features/catalog/domain/entities/product_variant.dart';
 import 'package:ecommerce_app/features/product_details/state/product_details_providers.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/wishlist/state/wishlist_provider.dart';
@@ -80,12 +81,29 @@ class ProductDetailsPage extends ConsumerStatefulWidget {
 
 class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
   int _pendingQty = 1;
+  /// When [null], [Product.defaultVariant] is used for multi-SKU products.
+  String? _selectedVariantId;
+
+  String? _resolveShareImageUrl(Product product, ProductVariant? sv, Product displayProduct) {
+    final variantImage = sv?.imageUrl.trim();
+    if (variantImage != null && variantImage.isNotEmpty) return variantImage;
+    for (final url in displayProduct.imageUrls) {
+      final t = url.trim();
+      if (t.isNotEmpty) return t;
+    }
+    for (final url in product.imageUrls) {
+      final t = url.trim();
+      if (t.isNotEmpty) return t;
+    }
+    return null;
+  }
 
   Future<void> _shareProductFrom(
     BuildContext triggerContext,
     Product product,
-    ProductPriceDisplay pricing,
-  ) async {
+    ProductPriceDisplay pricing, {
+    String? heroImageUrl,
+  }) async {
     final box = triggerContext.findRenderObject() as RenderBox?;
     Rect? origin;
     if (box != null && box.hasSize) {
@@ -102,7 +120,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
           idOrSlug: product.id,
           title: product.title,
           description: formatRupee(pricing.salePrice),
-          imageUrl: product.imageUrls.isNotEmpty ? product.imageUrls.first : null,
+          imageUrl: heroImageUrl ??
+              (product.imageUrls.isNotEmpty ? product.imageUrls.first : null),
         ),
         sharePositionOrigin: origin,
       );
@@ -170,7 +189,33 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.productId != widget.productId) {
       _pendingQty = 1;
+      _selectedVariantId = null;
     }
+  }
+
+  ProductVariant? _selectedVariant(Product product) {
+    if (!product.hasVariants) return null;
+    final id = _selectedVariantId;
+    if (id != null) {
+      for (final v in product.variants) {
+        if (v.id == id) return v;
+      }
+    }
+    return product.defaultVariant;
+  }
+
+  Product _displayProduct(Product product, ProductVariant? sv) {
+    if (sv == null) return product;
+    final vi = sv.imageUrl.trim();
+    final imgs = vi.isNotEmpty
+        ? [vi, ...product.imageUrls.where((u) => u != vi)]
+        : product.imageUrls;
+    return product.copyWith(
+      price: sv.price,
+      availableStock: sv.sellableStock,
+      inventoryCount: sv.stockQuantity,
+      imageUrls: imgs,
+    );
   }
 
   @override
@@ -179,22 +224,37 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
     return detailAsync.when(
       data: (detail) {
         final product = detail.product;
+        final sv = _selectedVariant(product);
+        final displayProduct = _displayProduct(product, sv);
         final isWishlisted = ref.watch(wishlistProvider).contains(product.id);
         final cart = ref.watch(
           cartControllerProvider.select((async) => async.value),
         );
-        final inCart = cart?.items.any((e) => e.productId == product.id) ?? false;
-        final outOfStock = productIsOutOfStock(product);
-        final stockBanner = productStockBannerText(product);
+        final inCart = cart?.items.any((e) {
+              if (e.productId != product.id) return false;
+              if (!product.hasVariants) return e.variantId == null;
+              return e.variantId == sv?.id;
+            }) ??
+            false;
+        final outOfStock = productIsOutOfStock(displayProduct);
+        final stockBanner = productStockBannerText(displayProduct);
+        final shareImageUrl = _resolveShareImageUrl(product, sv, displayProduct);
         final pricing = ProductPriceDisplay.forProduct(
           product,
           hidePromoWhenOutOfStock: true,
           outOfStock: outOfStock,
+          salePriceOverride: sv?.price,
         );
-        final maxQ = maxSelectableQuantity(product);
+        final maxQ = maxSelectableQuantity(displayProduct);
         int? lineQty;
         for (final e in cart?.items ?? []) {
-          if (e.productId == product.id) {
+          if (e.productId != product.id) continue;
+          if (product.hasVariants) {
+            if (e.variantId == sv?.id) {
+              lineQty = e.quantity;
+              break;
+            }
+          } else if (e.variantId == null) {
             lineQty = e.quantity;
             break;
           }
@@ -219,10 +279,16 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
 
                 final gallery = Stack(
                   children: [
-                    ProductImageCarousel(
-                      imageUrls: product.imageUrls,
-                      height: galleryH,
-                      borderRadius: BorderRadius.circular(12),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: ProductImageCarousel(
+                        key: ValueKey<String>('${product.id}_${sv?.id ?? 'base'}'),
+                        imageUrls: displayProduct.imageUrls,
+                        height: galleryH,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     if (pricing.showPromo)
                       Positioned(
@@ -271,7 +337,12 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                               alignment: Alignment.center,
                               visualDensity: VisualDensity.standard,
                             ),
-                            onPressed: () => _shareProductFrom(btnContext, product, pricing),
+                            onPressed: () => _shareProductFrom(
+                              btnContext,
+                              product,
+                              pricing,
+                              heroImageUrl: shareImageUrl,
+                            ),
                             icon: const Icon(
                               Icons.share_outlined,
                               color: Colors.white,
@@ -288,6 +359,130 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         product.title,
                         style: storefrontProductNameStyle(context),
                       ),
+                      if (product.hasVariants) ...[
+                        const SizedBox(height: 14),
+                        Text(
+                          'Options',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...(() {
+                          final byType = <String, List<ProductVariant>>{};
+                          for (final option in product.variants) {
+                            final key = option.variantType.trim().isEmpty
+                                ? 'option'
+                                : option.variantType.trim().toLowerCase();
+                            byType.putIfAbsent(key, () => <ProductVariant>[]).add(option);
+                          }
+                          final widgets = <Widget>[];
+                          for (final entry in byType.entries) {
+                            final typeLabel = entry.key;
+                            final typeOptions = entry.value;
+                            if (widgets.isNotEmpty) {
+                              widgets.add(const SizedBox(height: 10));
+                            }
+                            widgets.add(
+                              Text(
+                                typeLabel[0].toUpperCase() + typeLabel.substring(1),
+                                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            );
+                            widgets.add(const SizedBox(height: 6));
+                            widgets.add(
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final v in typeOptions)
+                                    Builder(
+                                      builder: (context) {
+                                        final oosV = (v.sellableStock ?? 0) <= 0;
+                                        final sel = sv?.id == v.id;
+                                        return ChoiceChip(
+                                          label: Text(
+                                            oosV
+                                                ? '${v.variantName} · Out of stock'
+                                                : v.variantName,
+                                            style: TextStyle(
+                                              fontWeight: sel ? FontWeight.w800 : FontWeight.w500,
+                                            ),
+                                          ),
+                                          selected: sel,
+                                          onSelected: oosV
+                                              ? null
+                                              : (_) => setState(() => _selectedVariantId = v.id),
+                                          selectedColor: AppColors.marigoldOrange.withOpacity(0.35),
+                                          disabledColor:
+                                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        );
+                                      },
+                                    ),
+                                ],
+                              ),
+                            );
+                          }
+                          return widgets;
+                        })(),
+                        if (sv != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest
+                                  .withOpacity(0.45),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                if (displayProduct.imageUrls.isNotEmpty)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      displayProduct.imageUrls.first,
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        width: 52,
+                                        height: 52,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                        alignment: Alignment.center,
+                                        child: const Icon(Icons.image_not_supported_outlined, size: 18),
+                                      ),
+                                    ),
+                                  ),
+                                if (displayProduct.imageUrls.isNotEmpty) const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Selected: ${sv.variantType.trim().isNotEmpty ? '${sv.variantType}: ' : ''}${sv.variantName}',
+                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        formatRupee(sv.price),
+                                        style: Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                       const SizedBox(height: 8),
                       if (pricing.showPromo) ...[
                         Text(
@@ -384,14 +579,14 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                             onChanged: (q) async {
                               if (lineQty != null) {
                                 if (q <= 0) {
-                                  await ref
-                                      .read(cartControllerProvider.notifier)
-                                      .removeItem(productId: product.id);
-                                } else {
-                                  await ref
-                                      .read(cartControllerProvider.notifier)
-                                      .updateQuantity(
+                                  await ref.read(cartControllerProvider.notifier).removeItem(
                                         productId: product.id,
+                                        variantId: sv?.id,
+                                      );
+                                } else {
+                                  await ref.read(cartControllerProvider.notifier).updateQuantity(
+                                        productId: product.id,
+                                        variantId: sv?.id,
                                         quantity: q,
                                       );
                                 }
@@ -427,6 +622,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                 ];
 
                 final webDirectProductVisit = kIsWeb && !Navigator.of(context).canPop();
+                final shippingWeight = sv?.shippingWeightKg ?? product.shippingWeightKg;
+                final shippingDimensions = sv?.shippingDimensionsCm ?? product.shippingDimensionsCm;
 
                 final top = <Widget>[
                   if (webDirectProductVisit) _webStoreEngagementBanner(context),
@@ -478,10 +675,10 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Weight: ${product.shippingWeightKg != null && product.shippingWeightKg! > 0 ? '${product.shippingWeightKg!.toStringAsFixed(3)} kg' : '—'}',
+                            'Weight: ${shippingWeight != null && shippingWeight > 0 ? '${shippingWeight.toStringAsFixed(3)} kg' : '—'}',
                           ),
                           Text(
-                            'Package: ${(product.shippingDimensionsCm != null && product.shippingDimensionsCm!.trim().isNotEmpty) ? '${product.shippingDimensionsCm} cm' : '—'}',
+                            'Package: ${(shippingDimensions != null && shippingDimensions.trim().isNotEmpty) ? '$shippingDimensions cm' : '—'}',
                           ),
                         ],
                       ),
@@ -518,7 +715,12 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                     foregroundColor: Colors.white,
                   ),
                   icon: const Icon(Icons.share_outlined),
-                  onPressed: () => _shareProductFrom(appBarBtnContext, product, pricing),
+                  onPressed: () => _shareProductFrom(
+                    appBarBtnContext,
+                    product,
+                    pricing,
+                    heroImageUrl: shareImageUrl,
+                  ),
                 ),
               ),
             ],
@@ -559,6 +761,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                   try {
                                     await ref.read(cartControllerProvider.notifier).addItem(
                                           productId: product.id,
+                                          variantId: sv?.id,
                                           quantity: displayQty,
                                         );
                                     if (!context.mounted) return;
@@ -598,6 +801,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                 context,
                                 ref,
                                 productId: product.id,
+                                variantId: sv?.id,
                                 quantity: displayQty,
                               ),
                       icon: const Icon(Icons.flash_on),

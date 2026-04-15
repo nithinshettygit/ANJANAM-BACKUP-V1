@@ -149,161 +149,287 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
         final theme = Theme.of(context);
         final compact = kAdminAndroidCompactChrome;
         final denseWeb = !compact && kIsWeb;
+        final showInlineTopBar = denseWeb;
 
         return Column(
           children: [
-            Padding(
-              padding: EdgeInsets.only(bottom: compact ? 6 : 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: denseWeb ? 760 : double.infinity,
-                    minHeight: compact || denseWeb ? 40 : 52,
-                    maxHeight: compact || denseWeb ? 44 : 56,
-                  ),
-                  child: SearchBar(
-                    controller: _searchCtrl,
-                    hintText: compact
-                        ? 'Search orders…'
-                        : 'Search order id, customer, email, status, product title…',
-                    leading: Icon(Icons.search, size: denseWeb ? 20 : 22),
-                    trailing: [
-                      if (_searchCtrl.text.isNotEmpty)
-                        IconButton(
-                          icon: Icon(Icons.clear, size: denseWeb ? 20 : 22),
-                          visualDensity: VisualDensity.compact,
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            _searchDebounce?.cancel();
-                            ref.read(adminOrderSearchQueryProvider.notifier).set('');
-                            setState(() {});
-                          },
-                        ),
-                    ],
-                    onChanged: (v) {
-                      _scheduleAdminSearch(v);
-                      setState(() {});
-                    },
-                    onSubmitted: (v) {
-                      _searchDebounce?.cancel();
-                      ref.read(adminOrderSearchQueryProvider.notifier).set(v.trim());
-                    },
-                  ),
-                ),
-              ),
-            ),
             Card(
               margin: compact ? EdgeInsets.zero : null,
               child: Padding(
                 padding: denseWeb
-                    ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+                    ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
                     : adminFilterCardPadding,
-                child: Wrap(
-                  spacing: compact ? 6 : (denseWeb ? 8 : 10),
-                  runSpacing: compact ? 6 : (denseWeb ? 8 : 10),
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    DropdownButton<String>(
-                      isDense: compact,
-                      value: _kOrderStatusFilters.any((e) => e.$1 == _statusFilter)
-                          ? _statusFilter
-                          : 'all',
-                      items: _kOrderStatusFilters
-                          .map(
-                            (e) => DropdownMenuItem<String>(
-                              value: e.$1,
-                              child: Text(
-                                compact ? e.$2 : 'Status: ${e.$2}',
+                child: showInlineTopBar
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minHeight: 40, maxHeight: 44),
+                              child: SearchBar(
+                                controller: _searchCtrl,
+                                hintText:
+                                    'Search order id, customer, email, status, product title…',
+                                leading: const Icon(Icons.search, size: 20),
+                                trailing: [
+                                  if (_searchCtrl.text.isNotEmpty)
+                                    IconButton(
+                                      icon: const Icon(Icons.clear, size: 20),
+                                      visualDensity: VisualDensity.compact,
+                                      constraints:
+                                          const BoxConstraints(minWidth: 36, minHeight: 36),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () {
+                                        _searchCtrl.clear();
+                                        _searchDebounce?.cancel();
+                                        ref.read(adminOrderSearchQueryProvider.notifier).set('');
+                                        setState(() {});
+                                      },
+                                    ),
+                                ],
+                                onChanged: (v) {
+                                  _scheduleAdminSearch(v);
+                                  setState(() {});
+                                },
+                                onSubmitted: (v) {
+                                  _searchDebounce?.cancel();
+                                  ref.read(adminOrderSearchQueryProvider.notifier).set(v.trim());
+                                },
                               ),
                             ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _statusFilter = v ?? 'all'),
-                    ),
-                    if (compact)
-                      IconButton(
-                        tooltip: _dateRange == null
-                            ? 'Date range'
-                            : '${_dateRange!.start.toLocal().toString().split(' ').first} – '
-                                '${_dateRange!.end.toLocal().toString().split(' ').first}',
-                        icon: Icon(
-                          Icons.date_range_outlined,
-                          color: _dateRange != null ? theme.colorScheme.primary : null,
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                        style: IconButton.styleFrom(
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        onPressed: () async {
-                          final selected = await showDateRangePicker(
-                            context: context,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
-                            initialDateRange: _dateRange,
-                          );
-                          if (selected != null) {
-                            setState(() => _dateRange = selected);
-                          }
-                        },
+                          ),
+                          const SizedBox(width: 10),
+                          DropdownButton<String>(
+                            isDense: true,
+                            value: _kOrderStatusFilters.any((e) => e.$1 == _statusFilter)
+                                ? _statusFilter
+                                : 'all',
+                            items: _kOrderStatusFilters
+                                .map(
+                                  (e) => DropdownMenuItem<String>(
+                                    value: e.$1,
+                                    child: Text('Status: ${e.$2}'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) => setState(() => _statusFilter = v ?? 'all'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final selected = await showDateRangePicker(
+                                context: context,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now().add(const Duration(days: 365)),
+                                initialDateRange: _dateRange,
+                              );
+                              if (selected != null) {
+                                setState(() => _dateRange = selected);
+                              }
+                            },
+                            icon: const Icon(Icons.date_range_outlined),
+                            label: Text(
+                              _dateRange == null
+                                  ? 'Date Range'
+                                  : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
+                                      '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              minimumSize: const Size(0, 34),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            ),
+                          ),
+                          if (_dateRange != null) ...[
+                            const SizedBox(width: 4),
+                            TextButton(
+                              onPressed: () => setState(() => _dateRange = null),
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                          const SizedBox(width: 4),
+                          FilledButton.tonalIcon(
+                            onPressed: () => ref.invalidate(adminOrdersProvider),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Refresh'),
+                            style: FilledButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              minimumSize: const Size(0, 34),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            ),
+                          ),
+                        ],
                       )
-                    else
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          final selected = await showDateRangePicker(
-                            context: context,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
-                            initialDateRange: _dateRange,
-                          );
-                          if (selected != null) {
-                            setState(() => _dateRange = selected);
-                          }
-                        },
-                        icon: const Icon(Icons.date_range_outlined),
-                        label: Text(
-                          _dateRange == null
-                              ? 'Date Range'
-                              : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
-                                  '${_dateRange!.end.toLocal().toString().split(' ').first}',
-                        ),
+                    : Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: denseWeb ? 760 : double.infinity,
+                                minHeight: compact || denseWeb ? 40 : 52,
+                                maxHeight: compact || denseWeb ? 44 : 56,
+                              ),
+                              child: SearchBar(
+                                controller: _searchCtrl,
+                                hintText: compact
+                                    ? 'Search orders…'
+                                    : 'Search order id, customer, email, status, product title…',
+                                leading: Icon(Icons.search, size: denseWeb ? 20 : 22),
+                                trailing: [
+                                  if (_searchCtrl.text.isNotEmpty)
+                                    IconButton(
+                                      icon: Icon(Icons.clear, size: denseWeb ? 20 : 22),
+                                      visualDensity: VisualDensity.compact,
+                                      constraints:
+                                          const BoxConstraints(minWidth: 36, minHeight: 36),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () {
+                                        _searchCtrl.clear();
+                                        _searchDebounce?.cancel();
+                                        ref.read(adminOrderSearchQueryProvider.notifier).set('');
+                                        setState(() {});
+                                      },
+                                    ),
+                                ],
+                                onChanged: (v) {
+                                  _scheduleAdminSearch(v);
+                                  setState(() {});
+                                },
+                                onSubmitted: (v) {
+                                  _searchDebounce?.cancel();
+                                  ref.read(adminOrderSearchQueryProvider.notifier).set(v.trim());
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: compact ? 6 : (denseWeb ? 8 : 10),
+                            runSpacing: compact ? 6 : (denseWeb ? 8 : 10),
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              DropdownButton<String>(
+                                isDense: compact,
+                                value: _kOrderStatusFilters.any((e) => e.$1 == _statusFilter)
+                                    ? _statusFilter
+                                    : 'all',
+                                items: _kOrderStatusFilters
+                                    .map(
+                                      (e) => DropdownMenuItem<String>(
+                                        value: e.$1,
+                                        child: Text(
+                                          compact ? e.$2 : 'Status: ${e.$2}',
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) => setState(() => _statusFilter = v ?? 'all'),
+                              ),
+                              if (compact)
+                                IconButton(
+                                  tooltip: _dateRange == null
+                                      ? 'Date range'
+                                      : '${_dateRange!.start.toLocal().toString().split(' ').first} – '
+                                          '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                                  icon: Icon(
+                                    Icons.date_range_outlined,
+                                    color: _dateRange != null ? theme.colorScheme.primary : null,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                  style: IconButton.styleFrom(
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: () async {
+                                    final selected = await showDateRangePicker(
+                                      context: context,
+                                      firstDate: DateTime(2020),
+                                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                                      initialDateRange: _dateRange,
+                                    );
+                                    if (selected != null) {
+                                      setState(() => _dateRange = selected);
+                                    }
+                                  },
+                                )
+                              else
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final selected = await showDateRangePicker(
+                                      context: context,
+                                      firstDate: DateTime(2020),
+                                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                                      initialDateRange: _dateRange,
+                                    );
+                                    if (selected != null) {
+                                      setState(() => _dateRange = selected);
+                                    }
+                                  },
+                                  icon: const Icon(Icons.date_range_outlined),
+                                  label: Text(
+                                    _dateRange == null
+                                        ? 'Date Range'
+                                        : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
+                                            '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    visualDensity:
+                                        denseWeb ? VisualDensity.compact : VisualDensity.standard,
+                                    minimumSize: denseWeb ? const Size(0, 34) : null,
+                                    padding: denseWeb
+                                        ? const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                              if (_dateRange != null)
+                                TextButton(
+                                  style: TextButton.styleFrom(
+                                    visualDensity:
+                                        compact ? VisualDensity.compact : VisualDensity.standard,
+                                    padding: compact
+                                        ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
+                                        : null,
+                                    tapTargetSize: compact
+                                        ? MaterialTapTargetSize.shrinkWrap
+                                        : null,
+                                  ),
+                                  onPressed: () => setState(() => _dateRange = null),
+                                  child: Text(compact ? 'Clear' : 'Clear Date'),
+                                ),
+                              if (compact)
+                                adminAndroidToolbarIconButton(
+                                  icon: Icons.refresh,
+                                  tooltip: 'Refresh',
+                                  onPressed: () => ref.invalidate(adminOrdersProvider),
+                                )
+                              else
+                                FilledButton.tonalIcon(
+                                  onPressed: () => ref.invalidate(adminOrdersProvider),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Refresh'),
+                                  style: FilledButton.styleFrom(
+                                    visualDensity:
+                                        denseWeb ? VisualDensity.compact : VisualDensity.standard,
+                                    minimumSize: denseWeb ? const Size(0, 34) : null,
+                                    padding: denseWeb
+                                        ? const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
-                    if (_dateRange != null)
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          visualDensity:
-                              compact ? VisualDensity.compact : VisualDensity.standard,
-                          padding: compact
-                              ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
-                              : null,
-                          tapTargetSize: compact
-                              ? MaterialTapTargetSize.shrinkWrap
-                              : null,
-                        ),
-                        onPressed: () => setState(() => _dateRange = null),
-                        child: Text(compact ? 'Clear' : 'Clear Date'),
-                      ),
-                    if (compact)
-                      adminAndroidToolbarIconButton(
-                        icon: Icons.refresh,
-                        tooltip: 'Refresh',
-                        onPressed: () => ref.invalidate(adminOrdersProvider),
-                      )
-                    else
-                      FilledButton.tonalIcon(
-                        onPressed: () => ref.invalidate(adminOrdersProvider),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Refresh'),
-                      ),
-                  ],
-                ),
               ),
             ),
-            SizedBox(height: adminChromeGapBeforeList),
+            SizedBox(height: denseWeb ? 4 : 6),
             if (!compact)
               const Align(
                 alignment: Alignment.centerLeft,
@@ -318,6 +444,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
             Expanded(
               child: AdminDataTable<AdminOrderRow>(
                 rows: filtered,
+                initialRowsPerPage: denseWeb ? 20 : 10,
                 emptyMessage: 'No orders found',
                 minTableWidth: 1560,
                 columns: [

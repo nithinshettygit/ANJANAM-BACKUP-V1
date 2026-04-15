@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
 
 import '../../domain/entities/product.dart';
+import '../../domain/entities/product_variant.dart';
 
 /// Data model mapped directly to the `products` table.
 ///
@@ -24,6 +25,7 @@ class ProductModel {
   final int totalWrittenReviews;
   final double? shippingWeightKg;
   final String? shippingDimensionsCm;
+  final List<ProductVariant> variants;
 
   const ProductModel({
     required this.id,
@@ -43,7 +45,26 @@ class ProductModel {
     this.totalWrittenReviews = 0,
     this.shippingWeightKg,
     this.shippingDimensionsCm,
+    this.variants = const [],
   });
+
+  static List<ProductVariant> _variantsFromJson(
+    Map<String, dynamic> json,
+    String productId,
+  ) {
+    final raw = json['product_variants'];
+    if (raw is! List) return const [];
+    final out = <ProductVariant>[];
+    for (final e in raw) {
+      if (e is Map<String, dynamic>) {
+        out.add(ProductVariant.fromRow(e, productId: productId));
+      } else if (e is Map) {
+        out.add(ProductVariant.fromRow(Map<String, dynamic>.from(e), productId: productId));
+      }
+    }
+    out.sort((a, b) => a.variantName.toLowerCase().compareTo(b.variantName.toLowerCase()));
+    return out;
+  }
 
   /// PostgREST / JSON may send counts as int, double, or (rarely) string.
   static int? inventoryCountFromJson(dynamic v) {
@@ -91,8 +112,9 @@ class ProductModel {
         ? tagsDynamic.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList()
         : <String>[];
 
+    final id = (json['id'] ?? '').toString();
     return ProductModel(
-      id: (json['id'] ?? '').toString(),
+      id: id,
       title: (json['title'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
@@ -114,6 +136,7 @@ class ProductModel {
         final t = json['dimensions']?.toString().trim();
         return t != null && t.isNotEmpty ? t : null;
       }(),
+      variants: _variantsFromJson(json, id),
     );
   }
 
@@ -136,6 +159,22 @@ class ProductModel {
       'total_written_reviews': totalWrittenReviews,
       'weight': shippingWeightKg,
       'dimensions': shippingDimensionsCm,
+      'product_variants': variants
+          .map(
+            (v) => {
+              'id': v.id,
+              'product_id': v.productId,
+              'variant_type': v.variantType,
+              'variant_name': v.variantName,
+              'price': v.price,
+              'stock_quantity': v.stockQuantity,
+              'available_stock': v.availableStock,
+              'image_url': v.imageUrl,
+              'sku': v.sku,
+              'is_default': v.isDefault,
+            },
+          )
+          .toList(),
     };
   }
 
@@ -158,6 +197,7 @@ class ProductModel {
       totalWrittenReviews: totalWrittenReviews,
       shippingWeightKg: shippingWeightKg,
       shippingDimensionsCm: shippingDimensionsCm,
+      variants: variants,
     );
   }
 }

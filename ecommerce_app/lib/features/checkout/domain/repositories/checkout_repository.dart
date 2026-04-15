@@ -10,6 +10,7 @@ abstract class CheckoutRepository {
   Future<Order> placeOrder({
     required ShippingDetails shipping,
     String? buyNowProductId,
+    String? buyNowVariantId,
     int buyNowQuantity = 1,
   });
 }
