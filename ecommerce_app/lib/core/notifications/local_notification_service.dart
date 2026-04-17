@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
 
 class LocalNotificationService {
   LocalNotificationService._();
@@ -48,14 +49,15 @@ class LocalNotificationService {
         message.notification?.title ?? message.data['title']?.toString() ?? 'Notification';
     final body =
         message.notification?.body ?? message.data['message']?.toString() ?? '';
+    final imageUrl =
+        message.data['image_url']?.toString().trim().isNotEmpty == true
+            ? message.data['image_url']!.toString().trim()
+            : null;
 
-    final androidDetails = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: _channelDescription,
-      importance: Importance.max,
-      priority: Priority.high,
-      ticker: 'ticker',
+    final androidDetails = await _androidDetailsForImage(
+      title: title,
+      body: body,
+      imageUrl: imageUrl,
     );
 
     final dedupKey = [
@@ -72,6 +74,54 @@ class LocalNotificationService {
       dedupKey: dedupKey.isEmpty ? null : dedupKey,
       androidDetails: androidDetails,
     );
+  }
+
+  static Future<AndroidNotificationDetails> _androidDetailsForImage({
+    required String title,
+    required String body,
+    String? imageUrl,
+  }) async {
+    final image = await _tryFetchImageBitmap(imageUrl);
+    if (image == null) {
+      return const AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDescription,
+        importance: Importance.max,
+        priority: Priority.high,
+        ticker: 'ticker',
+      );
+    }
+    return AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      ticker: 'ticker',
+      styleInformation: BigPictureStyleInformation(
+        image,
+        contentTitle: title.trim(),
+        summaryText: body.trim(),
+        hideExpandedLargeIcon: true,
+      ),
+    );
+  }
+
+  static Future<ByteArrayAndroidBitmap?> _tryFetchImageBitmap(String? imageUrl) async {
+    final raw = imageUrl?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    final uri = Uri.tryParse(raw);
+    if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) return null;
+    try {
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode < 200 || res.statusCode >= 300 || res.bodyBytes.isEmpty) {
+        return null;
+      }
+      return ByteArrayAndroidBitmap(res.bodyBytes);
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<void> show({

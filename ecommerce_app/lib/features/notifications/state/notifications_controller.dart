@@ -61,7 +61,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
       final data = await _client
           .from('user_notifications')
           .select(
-            'id,title,body,kind,order_id,redirect_type,redirect_value,read_at,created_at',
+            'id,title,body,kind,order_id,redirect_type,redirect_value,image_url,read_at,created_at',
           )
           .eq('user_id', authUserId.trim().toLowerCase())
           .order('created_at', ascending: false)
@@ -97,6 +97,7 @@ class NotificationsController extends AsyncNotifier<NotificationsListState> {
         redirectType: r['redirect_type']?.toString(),
         redirectValue: r['redirect_value']?.toString(),
         orderId: r['order_id']?.toString(),
+        imageUrl: r['image_url']?.toString(),
         createdAt: createdAt,
         readAt: readAt,
       );

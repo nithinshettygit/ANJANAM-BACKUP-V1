@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/notifications/notification_navigation.dart';
 import '../../features/auth/state/auth_session_provider.dart';
 
 /// Indices match [MainShell] bottom [NavigationBar] destinations.
@@ -46,6 +48,16 @@ class MainShellTabIndexNotifier extends Notifier<int> {
 
 void requestStorefrontScrollToTop(WidgetRef ref, StorefrontTab tab) {
   ref.read(storefrontScrollToTopSignalProvider.notifier).notify(tab);
+}
+
+/// Clears the stack to [MainShell] (home tab) and pushes the full product catalog.
+/// Ensures system back / iOS edge swipe and the catalog app bar can return to home.
+void navigateToCatalogAfterOrder(WidgetRef ref, BuildContext context) {
+  ref.read(mainShellTabIndexProvider.notifier).goToTab(StorefrontTab.home.shellIndex);
+  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+  SchedulerBinding.instance.addPostFrameCallback((_) {
+    notificationNavigatorKey.currentState?.pushNamed('/catalog');
+  });
 }
 
 /// Selects a main storefront tab and pops back to the root route so the shell is visible.

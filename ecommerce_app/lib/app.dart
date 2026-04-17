@@ -260,42 +260,31 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
       builder: (context, child) {
         final body = child ?? const SizedBox.shrink();
         if (!_isOffline) return body;
-        final top = MediaQuery.paddingOf(context).top;
         return Stack(
           children: [
             body,
             Positioned(
               left: 12,
               right: 12,
-              top: top + 10,
-              child: Material(
-                elevation: 3,
-                borderRadius: BorderRadius.circular(10),
-                color: Colors.red.shade700,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Row(
-                    children: [
-                      Icon(Icons.wifi_off_rounded, color: Colors.white, size: 18),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'You are offline. Please check your internet connection.',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              top: MediaQuery.paddingOf(context).top + 8,
+              child: _OfflineBanner(onRetry: _checkConnectivityNow),
             ),
           ],
         );
       },
     );
+  }
+
+  Future<void> _checkConnectivityNow() async {
+    final connectivity = Connectivity();
+    try {
+      final current = await connectivity.checkConnectivity();
+      final offline = !current.any((r) => r != ConnectivityResult.none);
+      if (!mounted) return;
+      if (_isOffline != offline) {
+        setState(() => _isOffline = offline);
+      }
+    } catch (_) {}
   }
 
   Future<void> _initConnectivityIndicator() async {
@@ -412,6 +401,93 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
       default:
         return 'unknown';
     }
+  }
+}
+
+class _OfflineBanner extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _OfflineBanner({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      elevation: 6,
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: const LinearGradient(
+            colors: [Color(0xFFD84315), Color(0xFFB71C1C)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: Colors.white24),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.16),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 19),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'No internet connection',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Some features may be unavailable until connection is restored.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Color(0xFFFDECEC),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: onRetry,
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                minimumSize: const Size(64, 34),
+                backgroundColor: Colors.white.withOpacity(0.95),
+                foregroundColor: scheme.error,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

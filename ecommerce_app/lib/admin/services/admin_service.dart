@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:convert';
 
 import 'package:ecommerce_app/core/config/app_env.dart';
+import 'package:ecommerce_app/core/constants/stock_constants.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/search/order_search_utils.dart';
 import 'package:ecommerce_app/core/formatting/estimated_delivery_format.dart';
@@ -217,7 +218,7 @@ class AdminInventoryRow {
 
   bool get hasVariant => variantId != null && variantId!.trim().isNotEmpty;
   bool get outOfStock => availableStock <= 0;
-  bool get lowStock => availableStock > 0 && availableStock < 10;
+  bool get lowStock => sellableStockIsLow(availableStock);
 }
 
 class AdminSearchResultItem {

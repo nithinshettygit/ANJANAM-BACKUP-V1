@@ -5,8 +5,10 @@ import 'package:ecommerce_app/features/order_history/domain/entities/order.dart'
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_shipping_info.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 export 'invoice_preview.dart';
 
 /// Builds a single-page invoice PDF for an [Order] and its line items.
@@ -20,6 +22,8 @@ class InvoiceGenerator {
     OrderShippingInfo? shipping,
   }) async {
     final doc = pw.Document();
+    final theme = await _buildInvoicePdfTheme();
+    final logo = await _loadInvoiceLogo();
     // Use shared formatter (no intl locale init; DateFormat('…', 'en_IN') throws otherwise).
     final dateStr = formatOrderDetailsDateTime(order.createdAt);
     final invoiceNo = formatOrderIdDisplay(order.id);
@@ -28,8 +32,9 @@ class InvoiceGenerator {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
+        theme: theme,
         build: (context) => [
-          _header(invoiceNo, order.id, dateStr),
+          _header(invoiceNo, order.id, dateStr, logo: logo),
           pw.SizedBox(height: 20),
           _sectionTitle('CUSTOMER DETAILS'),
           _customerBlock(shipping),
@@ -51,32 +56,139 @@ class InvoiceGenerator {
     return doc.save();
   }
 
-  pw.Widget _header(String invoiceShort, String orderId, String orderDate) {
+  Future<pw.MemoryImage?> _loadInvoiceLogo() async {
+    try {
+      final bytes = await rootBundle.load('assets/branding/app_icon.png');
+      return pw.MemoryImage(bytes.buffer.asUint8List());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Load Unicode-capable fonts so invoice text renders for Kannada/Hindi/etc.
+  /// Falls back to default PDF fonts if font download/loading fails.
+  Future<pw.ThemeData?> _buildInvoicePdfTheme() async {
+    try {
+      final base = await PdfGoogleFonts.notoSansRegular();
+      final bold = await PdfGoogleFonts.notoSansBold();
+      final italic = await PdfGoogleFonts.notoSansItalic();
+      final boldItalic = await PdfGoogleFonts.notoSansBoldItalic();
+      final devanagari = await PdfGoogleFonts.notoSansDevanagariRegular();
+      final devanagariBold = await PdfGoogleFonts.notoSansDevanagariBold();
+      final kannada = await PdfGoogleFonts.notoSansKannadaRegular();
+      final kannadaBold = await PdfGoogleFonts.notoSansKannadaBold();
+
+      return pw.ThemeData.withFont(
+        base: base,
+        bold: bold,
+        italic: italic,
+        boldItalic: boldItalic,
+        fontFallback: [
+          devanagari,
+          devanagariBold,
+          kannada,
+          kannadaBold,
+        ],
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  pw.Widget _header(
+    String invoiceShort,
+    String orderId,
+    String orderDate, {
+    pw.MemoryImage? logo,
+  }) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(
-          'ANJANAM',
-          style: pw.TextStyle(
-            fontSize: 22,
-            fontWeight: pw.FontWeight.bold,
-            color: PdfColors.teal800,
-          ),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (logo != null)
+              pw.Container(
+                width: 52,
+                height: 52,
+                padding: const pw.EdgeInsets.all(4),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.white,
+                  borderRadius: pw.BorderRadius.circular(10),
+                  border: pw.Border.all(color: PdfColors.teal200, width: 0.7),
+                ),
+                child: pw.ClipRRect(
+                  horizontalRadius: 6,
+                  verticalRadius: 6,
+                  child: pw.Image(logo, fit: pw.BoxFit.contain),
+                ),
+              )
+            else
+              pw.Container(
+                width: 52,
+                height: 52,
+                alignment: pw.Alignment.center,
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.teal50,
+                  borderRadius: pw.BorderRadius.circular(10),
+                ),
+                child: pw.Text(
+                  'A',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.teal800,
+                  ),
+                ),
+              ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'ANJANAM',
+                    style: pw.TextStyle(
+                      fontSize: 22,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.teal800,
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    'Tax Invoice',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      color: PdfColors.teal700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         pw.SizedBox(height: 14),
-        pw.Divider(thickness: 1, color: PdfColors.teal700),
-        pw.SizedBox(height: 8),
-        pw.Text(
-          'Invoice #: INV-$invoiceShort',
-          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.teal50,
+            borderRadius: pw.BorderRadius.circular(8),
+            border: pw.Border.all(color: PdfColors.teal200, width: 0.6),
+          ),
         ),
-        pw.SizedBox(height: 6),
+        pw.SizedBox(height: 4),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
+                pw.Text(
+                  'Invoice #: INV-$invoiceShort',
+                  style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 6),
                 pw.Text('Order ID', style: _labelStyle()),
                 pw.Text(orderId, style: _valueStyle()),
               ],

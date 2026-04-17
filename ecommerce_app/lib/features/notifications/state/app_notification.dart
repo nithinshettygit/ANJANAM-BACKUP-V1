@@ -12,6 +12,7 @@ class AppNotification {
   final String? redirectType;
   final String? redirectValue;
   final String? orderId;
+  final String? imageUrl;
   final DateTime createdAt;
   final DateTime? readAt;
 
@@ -25,6 +26,7 @@ class AppNotification {
     this.redirectType,
     this.redirectValue,
     this.orderId,
+    this.imageUrl,
   });
 
   bool get isRead => readAt != null;
@@ -37,6 +39,7 @@ class AppNotification {
     String? redirectType,
     String? redirectValue,
     String? orderId,
+    String? imageUrl,
     DateTime? createdAt,
     DateTime? readAt,
   }) {
@@ -48,6 +51,7 @@ class AppNotification {
       redirectType: redirectType ?? this.redirectType,
       redirectValue: redirectValue ?? this.redirectValue,
       orderId: orderId ?? this.orderId,
+      imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
       readAt: readAt ?? this.readAt,
     );

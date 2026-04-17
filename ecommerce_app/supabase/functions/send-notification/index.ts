@@ -76,6 +76,7 @@ async function sendFcm({
   title,
   message,
   data,
+  imageUrl,
 }: {
   fcmAccessToken: string;
   firebaseProjectId: string;
@@ -83,6 +84,7 @@ async function sendFcm({
   title: string;
   message: string;
   data: Record<string, string>;
+  imageUrl?: string;
 }): Promise<FcmSendSummary> {
   if (registrationIds.length === 0) {
     return { attempted: 0, success: 0, failure: 0, failures: [] };
@@ -106,6 +108,7 @@ async function sendFcm({
           notification: {
             title,
             body: message,
+            ...(imageUrl ? { image: imageUrl } : {}),
           },
           data: Object.fromEntries(
             Object.entries(data).map(([k, v]) => [k, String(v ?? "")]),
@@ -116,8 +119,16 @@ async function sendFcm({
               // Must match Flutter [LocalNotificationService] channel id (Android 8+).
               channel_id: "high_importance_channel",
               sound: "default",
+              ...(imageUrl ? { image: imageUrl } : {}),
             },
           },
+          webpush: imageUrl
+            ? {
+                notification: {
+                  image: imageUrl,
+                },
+              }
+            : undefined,
         },
       }),
     });
@@ -284,6 +295,7 @@ serve(async (req) => {
       const kind = requireString(body["kind"] ?? "promotion", "kind");
       const redirectType = requireString(body["redirect_type"] ?? "none", "redirect_type");
       const redirectValue = (typeof body["redirect_value"] === "string" ? body["redirect_value"] : null) ?? "";
+      const imageUrl = (typeof body["image_url"] === "string" ? body["image_url"] : null) ?? "";
 
       const broadcast = Boolean(body["broadcast"] ?? false);
       const targetUserId = typeof body["user_id"] === "string" ? body["user_id"] : "";
@@ -342,6 +354,7 @@ serve(async (req) => {
           body: message,
           redirect_type: redirectType,
           redirect_value: redirectValue || null,
+          image_url: imageUrl || null,
           order_id: null,
           read_at: null,
           created_at: nowIso,
@@ -378,10 +391,12 @@ serve(async (req) => {
                 kind,
                 redirect_type: redirectType,
                 redirect_value: redirectValue || "",
+                image_url: imageUrl || "",
               },
               title,
               message,
             ),
+            imageUrl: imageUrl || undefined,
           });
           sendSummaries.push(summary);
         }
@@ -430,6 +445,7 @@ serve(async (req) => {
           body: message,
           redirect_type: redirectType,
           redirect_value: redirectValue || null,
+          image_url: imageUrl || null,
           order_id: null,
           read_at: null,
           created_at: nowIso,
@@ -461,10 +477,12 @@ serve(async (req) => {
             kind,
             redirect_type: redirectType,
             redirect_value: redirectValue || "",
+            image_url: imageUrl || "",
           },
           title,
           message,
         ),
+        imageUrl: imageUrl || undefined,
       });
 
       return jsonRes(200, { ok: true, fcm: summary });
@@ -560,6 +578,7 @@ serve(async (req) => {
         title,
         message,
         data,
+        imageUrl: undefined,
       });
 
       if (summary.failure > 0) {
@@ -649,6 +668,7 @@ serve(async (req) => {
           n.title,
           n.message,
         ),
+        imageUrl: undefined,
       });
 
       return jsonRes(200, { ok: true, fcm: summary });

@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ecommerce_app/features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/features/notifications/state/notifications_controller.dart';
+import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 
 class OrderSuccessPage extends ConsumerStatefulWidget {
@@ -167,10 +168,7 @@ class _OrderSuccessPageState extends ConsumerState<OrderSuccessPage> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/catalog',
-                      (route) => false,
-                    ),
+                    onPressed: () => navigateToCatalogAfterOrder(ref, context),
                     child: const Text('Continue shopping'),
                   ),
                 ),

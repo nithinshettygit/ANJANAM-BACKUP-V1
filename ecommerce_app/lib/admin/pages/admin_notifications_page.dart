@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/notifications/data/services/fcm_edge_function_notification_sender.dart';
+import '../../presentation/widgets/app_network_image.dart';
+import '../utils/homepage_image_upload.dart';
 
 class _RedirectPreset {
   const _RedirectPreset({
@@ -79,11 +81,15 @@ class _AdminNotificationsPageState extends ConsumerState<AdminNotificationsPage>
   final _messageCtrl = TextEditingController();
   final _manualCtrl = TextEditingController();
   final _userIdCtrl = TextEditingController();
+  final _imageUrlCtrl = TextEditingController();
 
   String _kind = 'promotion';
   String _presetId = 'none';
   bool _broadcastAll = true;
+  bool _fullScreenOnly = false;
   bool _busy = false;
+  bool _uploadingImage = false;
+  String? _uploadedImageUrl;
 
   _RedirectPreset get _preset => _kRedirectPresets.firstWhere(
         (e) => e.id == _presetId,
@@ -96,6 +102,7 @@ class _AdminNotificationsPageState extends ConsumerState<AdminNotificationsPage>
     _messageCtrl.dispose();
     _manualCtrl.dispose();
     _userIdCtrl.dispose();
+    _imageUrlCtrl.dispose();
     super.dispose();
   }
 
@@ -104,18 +111,25 @@ class _AdminNotificationsPageState extends ConsumerState<AdminNotificationsPage>
     final message = _messageCtrl.text.trim();
     if (title.isEmpty || message.isEmpty) return;
     if (!_broadcastAll && _userIdCtrl.text.trim().isEmpty) return;
-    if (_preset.needsManualValue && _manualCtrl.text.trim().isEmpty) return;
+    if (!_fullScreenOnly && _preset.needsManualValue && _manualCtrl.text.trim().isEmpty) return;
 
     setState(() => _busy = true);
     try {
+      final imageUrl = _uploadedImageUrl?.trim().isNotEmpty == true
+          ? _uploadedImageUrl!.trim()
+          : _imageUrlCtrl.text.trim();
+      final redirectType = _fullScreenOnly ? 'none' : _preset.apiRedirectType;
+      final redirectValue =
+          (_fullScreenOnly || !_preset.needsManualValue) ? '' : _manualCtrl.text.trim();
       final result = await ref.read(fcmNotificationSenderProvider).sendUserNotification(
             title: title,
             message: message,
             kind: _kind,
-            redirectType: _preset.apiRedirectType,
-            redirectValue: _preset.needsManualValue ? _manualCtrl.text.trim() : '',
+            redirectType: redirectType,
+            redirectValue: redirectValue,
             broadcast: _broadcastAll,
             userId: _broadcastAll ? null : _userIdCtrl.text.trim(),
+            imageUrl: imageUrl.isEmpty ? null : imageUrl,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -195,6 +209,68 @@ class _AdminNotificationsPageState extends ConsumerState<AdminNotificationsPage>
                 ),
               ),
               const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _fullScreenOnly,
+                title: const Text('Open as full-screen notification only'),
+                subtitle: const Text('When enabled, tapping opens notification detail screen.'),
+                onChanged: (v) => setState(() => _fullScreenOnly = v),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: (_busy || _uploadingImage)
+                    ? null
+                    : () {
+                        pickAndUploadHomepageImage(
+                          context: context,
+                          ref: ref,
+                          storageFolder: 'notifications',
+                          setUploading: (v) {
+                            if (!mounted) return;
+                            setState(() => _uploadingImage = v);
+                          },
+                          onUploaded: (url) {
+                            if (!mounted) return;
+                            setState(() => _uploadedImageUrl = url);
+                          },
+                        );
+                      },
+                icon: _uploadingImage
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.upload_rounded),
+                label: Text(_uploadingImage
+                    ? 'Uploading image...'
+                    : 'Upload notification image (optional)'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _imageUrlCtrl,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Notification image URL (optional)',
+                  border: OutlineInputBorder(),
+                  helperText: 'Uploaded image takes priority over pasted URL.',
+                ),
+              ),
+              if ((_uploadedImageUrl?.trim().isNotEmpty == true) ||
+                  _imageUrlCtrl.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                AppNetworkImage(
+                  imageUrl: (_uploadedImageUrl?.trim().isNotEmpty == true)
+                      ? _uploadedImageUrl
+                      : _imageUrlCtrl.text.trim(),
+                  width: double.infinity,
+                  height: 170,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ],
+              const SizedBox(height: 12),
+              if (!_fullScreenOnly)
               DropdownButtonFormField<String>(
                 value: _presetId,
                 decoration: const InputDecoration(
@@ -209,7 +285,7 @@ class _AdminNotificationsPageState extends ConsumerState<AdminNotificationsPage>
                   if (!_preset.needsManualValue) _manualCtrl.clear();
                 }),
               ),
-              if (_preset.needsManualValue) ...[
+              if (!_fullScreenOnly && _preset.needsManualValue) ...[
                 const SizedBox(height: 12),
                 TextField(
                   controller: _manualCtrl,

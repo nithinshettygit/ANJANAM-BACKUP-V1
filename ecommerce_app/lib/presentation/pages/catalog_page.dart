@@ -215,19 +215,18 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
         centerTitle: true,
         titleSpacing: 0,
         leadingWidth: 48,
-        leading: canPop
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                  } else {
-                    Navigator.of(context).pushReplacementNamed('/');
-                  }
-                },
-              )
-            : null,
-        automaticallyImplyLeading: canPop,
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: Icon(canPop ? Icons.arrow_back : Icons.home_outlined),
+          tooltip: canPop ? 'Back' : 'Home',
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+            }
+          },
+        ),
         title: Text(
           widget.title,
           maxLines: 1,

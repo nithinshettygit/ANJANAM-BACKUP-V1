@@ -16,6 +16,35 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+Future<void> _confirmRemoveCartLine(
+  BuildContext context,
+  WidgetRef ref,
+  CartItem item,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Remove from cart?'),
+      content: const Text('This item will be removed from your cart.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Remove'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  await ref.read(cartControllerProvider.notifier).removeItem(
+        productId: item.productId,
+        variantId: item.variantId,
+      );
+}
+
 class CartPage extends ConsumerWidget {
   const CartPage({super.key});
 
@@ -176,10 +205,7 @@ class _CartItemTile extends ConsumerWidget {
                     allowZeroOnDecrement: true,
                     onChanged: (q) {
                       if (q <= 0) {
-                        ref.read(cartControllerProvider.notifier).removeItem(
-                              productId: item.productId,
-                              variantId: item.variantId,
-                            );
+                        _confirmRemoveCartLine(context, ref, item);
                       } else {
                         ref.read(cartControllerProvider.notifier).updateQuantity(
                               productId: item.productId,
@@ -278,12 +304,7 @@ class _CartItemTile extends ConsumerWidget {
                       runSpacing: 4,
                       children: [
                         TextButton(
-                          onPressed: () {
-                            ref.read(cartControllerProvider.notifier).removeItem(
-                                  productId: item.productId,
-                                  variantId: item.variantId,
-                                );
-                          },
+                          onPressed: () => _confirmRemoveCartLine(context, ref, item),
                           child: const Text('Remove'),
                         ),
                         TextButton(

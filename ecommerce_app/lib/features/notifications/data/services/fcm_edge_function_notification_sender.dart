@@ -160,6 +160,7 @@ class FcmEdgeFunctionNotificationSender {
     required String redirectValue,
     required bool broadcast,
     String? userId,
+    String? imageUrl,
   }) async {
     return _invokeSendNotification({
       'action': 'user_notification',
@@ -168,6 +169,7 @@ class FcmEdgeFunctionNotificationSender {
       'kind': kind,
       'redirect_type': redirectType,
       'redirect_value': redirectValue,
+      if (imageUrl != null && imageUrl.trim().isNotEmpty) 'image_url': imageUrl.trim(),
       'broadcast': broadcast,
       if (!broadcast) 'user_id': userId ?? '',
     });

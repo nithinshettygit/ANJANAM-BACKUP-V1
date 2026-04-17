@@ -1,5 +1,6 @@
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
 
 /// Full-screen read view for a single notification (no deep link).
 class NotificationDetailPage extends StatelessWidget {
@@ -10,6 +11,7 @@ class NotificationDetailPage extends StatelessWidget {
     required this.message,
     this.createdAt,
     this.kindLabel,
+    this.imageUrl,
   });
 
   final String notificationId;
@@ -17,6 +19,7 @@ class NotificationDetailPage extends StatelessWidget {
   final String message;
   final DateTime? createdAt;
   final String? kindLabel;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +103,29 @@ class NotificationDetailPage extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
+                  ],
+                  if (imageUrl != null && imageUrl!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.borderSubtle),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 18,
+                            offset: const Offset(0, 7),
+                          ),
+                        ],
+                      ),
+                      child: AppNetworkImage(
+                        imageUrl: imageUrl!.trim(),
+                        width: double.infinity,
+                        height: 220,
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 24),

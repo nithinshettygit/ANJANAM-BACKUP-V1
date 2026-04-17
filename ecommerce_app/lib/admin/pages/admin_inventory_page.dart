@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:ecommerce_app/core/constants/stock_constants.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import '../utils/admin_android_ui.dart';
 import '../providers/admin_providers.dart';
@@ -476,10 +477,10 @@ class _AdminInventoryPageState extends ConsumerState<AdminInventoryPage> {
                           backgroundColor: Color(0x22F44336),
                         );
                       }
-                      if (p.availableStock < 10) {
-                        return const Chip(
-                          label: Text('Low stock (<10)'),
-                          backgroundColor: Color(0x22FF9800),
+                      if (p.lowStock) {
+                        return Chip(
+                          label: Text('Low stock (<$kHealthyStockMin)'),
+                          backgroundColor: const Color(0x22FF9800),
                         );
                       }
                       return const Chip(

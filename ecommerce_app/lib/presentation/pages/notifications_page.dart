@@ -7,6 +7,7 @@ import 'package:ecommerce_app/features/notifications/state/app_notification.dart
 import 'package:ecommerce_app/features/notifications/state/notifications_controller.dart';
 import 'package:ecommerce_app/features/wishlist/state/wishlist_provider.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
+import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,6 +56,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       'message': n.message,
       'redirect_type': n.redirectType ?? '',
       'redirect_value': n.redirectValue ?? '',
+      'image_url': n.imageUrl ?? '',
       if (n.orderId != null && n.orderId!.isNotEmpty) 'order_id': n.orderId!,
       'created_at': n.createdAt.toUtc().toIso8601String(),
     };
@@ -234,15 +236,31 @@ class _NotificationListTile extends StatelessWidget {
                 ),
             ],
           ),
-          subtitle: Text(
-            notification.message,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant.withValues(
-                    alpha: isUnread ? 0.95 : 0.72,
-                  ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                notification.message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant.withValues(
+                        alpha: isUnread ? 0.95 : 0.72,
+                      ),
+                    ),
+              ),
+              if (notification.imageUrl != null &&
+                  notification.imageUrl!.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                AppNetworkImage(
+                  imageUrl: notification.imageUrl!.trim(),
+                  width: double.infinity,
+                  height: 110,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(10),
                 ),
+              ],
+            ],
           ),
           trailing: Text(
             _formatTimeAgo(notification.createdAt),

@@ -1,7 +1,5 @@
+import 'package:ecommerce_app/core/constants/stock_constants.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
-
-/// Above this count, stock is not shown as "low" on cards.
-const int kLowStockMaxExclusive = 10;
 
 /// [inventoryCount] null = not tracked in UI; treat as available.
 bool productIsOutOfStock(Product product) {
@@ -11,15 +9,13 @@ bool productIsOutOfStock(Product product) {
 }
 
 bool productIsLowStock(Product product) {
-  final n = product.sellableStock;
-  if (n == null || n <= 0) return false;
-  return n <= kLowStockMaxExclusive;
+  return sellableStockIsLow(product.sellableStock);
 }
 
 /// Short label for chips / detail row (null = no extra banner).
 String? productStockBannerText(Product product) {
   if (productIsOutOfStock(product)) return 'Out of stock';
-  if (productIsLowStock(product)) return 'Low stock';
+  if (productIsLowStock(product)) return 'Only a few left';
   return null;
 }
 

@@ -147,6 +147,20 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     return _showShipmentAwaitingAfterCancel;
   }
 
+  /// Manual partner / phone / delivery status: hide until the order reaches
+  /// out-for-delivery (or delivered). Shiprocket + courier-rebook messaging unchanged.
+  bool get _showDualDeliveryCard {
+    if (!_showDualDeliverySection) return false;
+    if (_showShipmentAwaitingAfterCancel) return true;
+    final m = order.deliveryMethod?.toLowerCase().trim() ?? '';
+    if (m == 'manual_delivery') {
+      return order.status == OrderStatus.outForDelivery ||
+          order.status == OrderStatus.delivered;
+    }
+    if (m == 'shiprocket_delivery') return true;
+    return false;
+  }
+
   String _humanDeliveryStatusLabel(String? raw) {
     switch ((raw ?? '').toLowerCase().trim()) {
       case 'created':
@@ -239,6 +253,12 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     _orderRealtimeChannel = channel;
   }
 
+  Future<void> _refreshOrderDetails() async {
+    ref.invalidate(orderDetailBundleProvider(widget.orderId));
+    ref.invalidate(orderHistoryControllerProvider);
+    await ref.read(orderDetailBundleProvider(widget.orderId).future);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -257,7 +277,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     final showShiprocketTrack = dm == 'shiprocket_delivery' &&
         order.trackingUrl != null &&
         order.trackingUrl!.trim().isNotEmpty;
-    final hasShipmentSection = _showDualDeliverySection || _legacyShipmentVisible;
+    final hasShipmentSection = _showDualDeliveryCard || _legacyShipmentVisible;
     final showReorderReview = order.status == OrderStatus.delivered;
     final first = _firstLine;
 
@@ -266,9 +286,11 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              children: [
+            child: RefreshIndicator(
+              onRefresh: _refreshOrderDetails,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                children: [
                 _OrderHeaderCard(
                   orderId: order.id,
                   status: order.status,
@@ -395,7 +417,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                   ...widget.bundle.statusHistory.map(
                     (e) => _TimelineEntry(entry: e),
                   ),
-                if (_showDualDeliverySection) ...[
+                if (_showDualDeliveryCard) ...[
                   const SizedBox(height: 16),
                   Card(
                     key: _shipmentSectionKey,
@@ -741,7 +763,8 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                   ),
                 ],
                 const SizedBox(height: 24),
-              ],
+                ],
+              ),
             ),
           ),
           SafeArea(

@@ -13,6 +13,7 @@ class NotificationTapNavigator {
     required String message,
     DateTime? createdAt,
     String? kindLabel,
+    String? imageUrl,
   }) {
     nav.push(
       MaterialPageRoute<void>(
@@ -22,6 +23,7 @@ class NotificationTapNavigator {
           message: message,
           createdAt: createdAt,
           kindLabel: kindLabel,
+          imageUrl: imageUrl,
         ),
       ),
     );
@@ -52,6 +54,7 @@ class NotificationTapNavigator {
     final type = data['type']?.toString().trim().toLowerCase();
     final referenceId = data['reference_id']?.toString().trim();
     final adminNotificationId = data['admin_notification_id']?.toString().trim();
+    final imageUrl = data['image_url']?.toString().trim();
     final notificationId = data['notification_id']?.toString().trim() ?? '';
     final resolvedRedirect = (redirectType == null || redirectType.isEmpty)
         ? (orderId != null && orderId.isNotEmpty ? 'order' : 'none')
@@ -114,6 +117,7 @@ class NotificationTapNavigator {
           message: message,
           createdAt: resolvedCreated,
           kindLabel: _kindDisplayLabel(kind),
+          imageUrl: imageUrl,
         );
       } else {
         nav.pushNamed('/notifications');
@@ -134,6 +138,7 @@ class NotificationTapNavigator {
         message: message,
         createdAt: resolvedCreated,
         kindLabel: _kindDisplayLabel(kind),
+        imageUrl: imageUrl,
       );
     } else {
       nav.pushNamed('/notifications');

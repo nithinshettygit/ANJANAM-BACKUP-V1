@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:ecommerce_app/core/constants/stock_constants.dart';
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 
@@ -62,8 +63,8 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
           final matchesCategory = _category == 'All' || (p.category ?? '') == _category;
           final matchesStock = switch (_stockFilter) {
             _StockFilter.all => true,
-            _StockFilter.inStock => p.sellableStock > 5,
-            _StockFilter.lowStock => p.sellableStock > 0 && p.sellableStock <= 5,
+            _StockFilter.inStock => p.sellableStock >= kHealthyStockMin,
+            _StockFilter.lowStock => sellableStockIsLow(p.sellableStock),
             _StockFilter.outOfStock => p.sellableStock <= 0,
           };
           return matchesSearch && matchesCategory && matchesStock;

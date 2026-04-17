@@ -28,6 +28,8 @@ class AdminOrdersPage extends ConsumerStatefulWidget {
 }
 
 class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
+  static const _kSearchDebounce = Duration(milliseconds: 500);
+
   static const _kOrderStatusFilters = <(String value, String label)>[
     ('all', 'All'),
     ('pending_payment', 'Pending payment'),
@@ -119,7 +121,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
 
   void _scheduleAdminSearch(String value) {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+    _searchDebounce = Timer(_kSearchDebounce, () {
       final next = value.trim();
       final cur = ref.read(adminOrderSearchQueryProvider).trim();
       if (next == cur) return;
@@ -127,15 +129,60 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     });
   }
 
+  /// Same pattern as products/inventory: [TextField] + debounced server query; no full-page reload on each keystroke.
+  Widget _ordersSearchTextField({
+    required bool compact,
+    required bool denseWeb,
+  }) {
+    return ListenableBuilder(
+      listenable: _searchCtrl,
+      builder: (context, _) {
+        final hasText = _searchCtrl.text.isNotEmpty;
+        return TextField(
+          controller: _searchCtrl,
+          onChanged: _scheduleAdminSearch,
+          onSubmitted: (v) {
+            _searchDebounce?.cancel();
+            ref.read(adminOrderSearchQueryProvider.notifier).set(v.trim());
+          },
+          decoration: InputDecoration(
+            labelText: compact ? null : 'Search orders',
+            hintText: compact
+                ? 'Search orders…'
+                : 'order id, customer, email, status, product title…',
+            prefixIcon: Icon(Icons.search, size: denseWeb ? 20 : 22),
+            suffixIcon: hasText
+                ? IconButton(
+                    icon: Icon(Icons.clear, size: denseWeb ? 20 : 22),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: EdgeInsets.zero,
+                    tooltip: 'Clear search',
+                    onPressed: () {
+                      _searchCtrl.clear();
+                      _searchDebounce?.cancel();
+                      ref.read(adminOrderSearchQueryProvider.notifier).set('');
+                    },
+                  )
+                : null,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(adminOrdersProvider);
     return AdminStateView(
-      isLoading: ordersAsync.isLoading,
-      error: ordersAsync.asError?.error,
+      isLoading: ordersAsync.isLoading && !ordersAsync.hasValue,
+      error: ordersAsync.hasError && !ordersAsync.hasValue ? ordersAsync.error : null,
       isEmpty: false,
       emptyMessage: 'No orders found',
       child: ordersAsync.when(
+      skipLoadingOnReload: true,
       data: (orders) {
         final filtered = orders.where((o) {
           final statusOk = _statusFilter == 'all' ||
@@ -165,36 +212,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                           Expanded(
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(minHeight: 40, maxHeight: 44),
-                              child: SearchBar(
-                                controller: _searchCtrl,
-                                hintText:
-                                    'Search order id, customer, email, status, product title…',
-                                leading: const Icon(Icons.search, size: 20),
-                                trailing: [
-                                  if (_searchCtrl.text.isNotEmpty)
-                                    IconButton(
-                                      icon: const Icon(Icons.clear, size: 20),
-                                      visualDensity: VisualDensity.compact,
-                                      constraints:
-                                          const BoxConstraints(minWidth: 36, minHeight: 36),
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () {
-                                        _searchCtrl.clear();
-                                        _searchDebounce?.cancel();
-                                        ref.read(adminOrderSearchQueryProvider.notifier).set('');
-                                        setState(() {});
-                                      },
-                                    ),
-                                ],
-                                onChanged: (v) {
-                                  _scheduleAdminSearch(v);
-                                  setState(() {});
-                                },
-                                onSubmitted: (v) {
-                                  _searchDebounce?.cancel();
-                                  ref.read(adminOrderSearchQueryProvider.notifier).set(v.trim());
-                                },
-                              ),
+                              child: _ordersSearchTextField(compact: false, denseWeb: true),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -269,37 +287,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                                 minHeight: compact || denseWeb ? 40 : 52,
                                 maxHeight: compact || denseWeb ? 44 : 56,
                               ),
-                              child: SearchBar(
-                                controller: _searchCtrl,
-                                hintText: compact
-                                    ? 'Search orders…'
-                                    : 'Search order id, customer, email, status, product title…',
-                                leading: Icon(Icons.search, size: denseWeb ? 20 : 22),
-                                trailing: [
-                                  if (_searchCtrl.text.isNotEmpty)
-                                    IconButton(
-                                      icon: Icon(Icons.clear, size: denseWeb ? 20 : 22),
-                                      visualDensity: VisualDensity.compact,
-                                      constraints:
-                                          const BoxConstraints(minWidth: 36, minHeight: 36),
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () {
-                                        _searchCtrl.clear();
-                                        _searchDebounce?.cancel();
-                                        ref.read(adminOrderSearchQueryProvider.notifier).set('');
-                                        setState(() {});
-                                      },
-                                    ),
-                                ],
-                                onChanged: (v) {
-                                  _scheduleAdminSearch(v);
-                                  setState(() {});
-                                },
-                                onSubmitted: (v) {
-                                  _searchDebounce?.cancel();
-                                  ref.read(adminOrderSearchQueryProvider.notifier).set(v.trim());
-                                },
-                              ),
+                              child: _ordersSearchTextField(compact: compact, denseWeb: denseWeb),
                             ),
                           ),
                           const SizedBox(height: 6),
