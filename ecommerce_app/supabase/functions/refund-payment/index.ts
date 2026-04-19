@@ -1,11 +1,14 @@
 // @ts-nocheck
 import { createClient } from "npm:@supabase/supabase-js";
+import { resolveRequesterIdentity } from "../_shared/auth.ts";
+import { devLog } from "../_shared/dev_log.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -50,7 +53,7 @@ async function parseBody(req: Request): Promise<Record<string, unknown>> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
   if (req.method !== "POST") {
     return json(405, { error: "method_not_allowed" });
@@ -72,28 +75,13 @@ Deno.serve(async (req) => {
 
     const body = await parseBody(req);
     const orderId = reqString(body["order_id"], "order_id");
-    const accessTokenFromBody =
-      typeof body["access_token"] === "string" ? body["access_token"].trim() : "";
-    const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
-    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const accessToken = bearer || accessTokenFromBody;
-    if (!accessToken || !accessToken.includes(".")) {
-      return json(401, { error: "missing_auth" });
-    }
-
-    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          apikey: SUPABASE_ANON_KEY,
-        },
-      },
+    const authData = await resolveRequesterIdentity(req, {
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY,
     });
-    const { data: authData, error: authErr } = await supabaseAuth.auth.getUser();
-    if (authErr || !authData?.user) {
-      return json(401, { error: "invalid_auth", detail: authErr?.message ?? "invalid_token" });
-    }
-    const requesterId = authData.user.id;
+    if (!authData.ok) return json(authData.code, { error: authData.error });
+    const requesterId = authData.userId;
+    devLog(`auth_ok user_id=${requesterId}`);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: { headers: { "Content-Type": "application/json" } },
@@ -259,7 +247,7 @@ Deno.serve(async (req) => {
       })
       .eq("id", orderId);
     if (upErr) {
-      return json(500, { error: "order_update_failed", detail: upErr.message ?? String(upErr) });
+      return json(500, { error: "order_update_failed" });
     }
     await supabase.from("order_status_history").insert({
       order_id: orderId,
@@ -288,8 +276,7 @@ Deno.serve(async (req) => {
       refund_id: refundId,
       status: gatewayStatus || "processed",
     });
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
-    return json(500, { error: "refund_payment_failed", detail });
+  } catch (_) {
+    return json(500, { error: "refund_payment_failed" });
   }
 });

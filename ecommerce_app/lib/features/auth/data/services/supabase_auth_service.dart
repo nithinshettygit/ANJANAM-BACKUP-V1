@@ -226,8 +226,8 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
           .from('profiles')
           .select('id, full_name, avatar_url, status, blocked_reason')
           .eq('id', userId)
-          .single();
-
+          .maybeSingle();
+      if (data == null) return null;
       return ProfileModel.fromJson(data);
     } catch (_) {
       return null;
@@ -238,6 +238,25 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
     final email = authUser.email;
     final Map<String, dynamic> emailField =
         (email != null && email.isNotEmpty) ? <String, dynamic>{'email': email} : <String, dynamic>{};
+    // [handle_new_user] inserts profiles. Do not send [role] on UPDATE — trigger
+    // trg_profiles_enforce_role_update only allows role changes by super_admin.
+    final updatePayload = <String, dynamic>{
+      'full_name': _deriveDisplayName(authUser),
+      ...emailField,
+    };
+    try {
+      final updated = await client
+          .from('profiles')
+          .update(updatePayload)
+          .eq('id', authUser.id)
+          .select('id');
+      if (updated.isNotEmpty) return;
+    } catch (_) {}
+
+    final existing =
+        await client.from('profiles').select('id').eq('id', authUser.id).maybeSingle();
+    if (existing != null) return;
+
     try {
       await client.from('profiles').insert({
         'id': authUser.id,
@@ -247,19 +266,11 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
         ...emailField,
       });
     } catch (_) {
-      try {
-        await client.from('profiles').insert({
-          'id': authUser.id,
-          'full_name': _deriveDisplayName(authUser),
-          'avatar_url': null,
-          ...emailField,
-        });
-      } catch (_) {}
-    }
-    if (email != null && email.isNotEmpty) {
-      try {
-        await client.from('profiles').update({'email': email}).eq('id', authUser.id);
-      } catch (_) {}
+      if (email != null && email.isNotEmpty) {
+        try {
+          await client.from('profiles').update({'email': email}).eq('id', authUser.id);
+        } catch (_) {}
+      }
     }
   }
 

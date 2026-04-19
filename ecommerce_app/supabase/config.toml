@@ -2,6 +2,8 @@
 # (sb_publishable_…) / ES256 are often rejected at the gateway with 401 before this
 # function runs (execution_id null in logs). We authenticate inside the function.
 [functions.send-notification]
+# Keep gateway verification off because this endpoint also supports internal
+# webhook triggers via INTERNAL_FUNCTION_SECRET header and validates auth inside.
 verify_jwt = false
 
 [functions.create_payment_order]
@@ -16,10 +18,10 @@ verify_jwt = false
 [functions.verify-razorpay-payment]
 verify_jwt = false
 
-[functions.razorpay-webhook]
+[functions.check-payment-status]
 verify_jwt = false
 
-[functions.razorpay_webhook]
+[functions.razorpay-webhook]
 verify_jwt = false
 
 [functions.create_shiprocket_shipment]
@@ -38,6 +40,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.refund-payment]
+verify_jwt = false
+
+[functions.capture-razorpay-payment]
 verify_jwt = false
 
 [functions.google-auth-bridge]

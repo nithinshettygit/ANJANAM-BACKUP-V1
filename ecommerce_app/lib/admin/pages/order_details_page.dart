@@ -116,13 +116,21 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
           final nr = (payload as dynamic).newRecord;
           if (nr is Map && nr['id']?.toString() == widget.orderId) {
             ref.invalidate(adminOrderDetailsProvider(widget.orderId));
-            ref.invalidate(adminOrdersProvider);
+            _syncAdminOrdersListCache();
           }
         } catch (_) {}
       },
     );
     channel.subscribe();
     _orderRealtimeChannel = channel;
+  }
+
+  /// Ensures the admin orders list refetches so table chips match this page after updates.
+  Future<void> _syncAdminOrdersListCache() async {
+    ref.invalidate(adminOrdersProvider);
+    try {
+      await ref.read(adminOrdersProvider.future);
+    } catch (_) {}
   }
 
   bool _shipmentEditableForStatus(String rawStatus) {
@@ -498,10 +506,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   }
 
   /// After Shiprocket cancels a shipment, IDs are cleared — admin must be able to book again.
+  /// Also treat stale rows where `delivery_status` is cancelled but `delivery_method` was not cleared.
   bool _shiprocketShipmentCancelledAwaitingChoice(AdminOrderDetails d) {
     final ds = (d.deliveryStatus ?? '').toLowerCase().trim();
-    final dm = (d.deliveryMethod ?? '').trim();
-    return ds == 'cancelled' && dm.isEmpty;
+    if (ds != 'cancelled') return false;
+    final dm = (d.deliveryMethod ?? '').trim().toLowerCase();
+    return dm.isEmpty || dm == 'shiprocket_delivery';
   }
 
   bool _blocksNewShiprocketShipment(AdminOrderDetails d) {
@@ -573,7 +583,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
           );
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(orderId));
-      ref.invalidate(adminOrdersProvider);
+      await _syncAdminOrdersListCache();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Manual delivery saved')),
       );
@@ -648,7 +658,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       );
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(orderId));
-      ref.invalidate(adminOrdersProvider);
+      await _syncAdminOrdersListCache();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Delivery status: ${_humanManualDeliveryStatus(status)}')),
       );
@@ -772,7 +782,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
           );
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(orderId));
-      ref.invalidate(adminOrdersProvider);
+      await _syncAdminOrdersListCache();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Shiprocket shipment created')),
       );
@@ -895,7 +905,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       await ref.read(adminServiceProvider).approveRefundForOrder(orderId: details.order.id);
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(details.order.id));
-      ref.invalidate(adminOrdersProvider);
+      await _syncAdminOrdersListCache();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Refund approved and submitted to Razorpay.')),
       );
@@ -939,7 +949,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       );
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(orderId));
-      ref.invalidate(adminOrdersProvider);
+      await _syncAdminOrdersListCache();
       ref.invalidate(adminDashboardProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cancellation approved. Order is cancelled.')),
@@ -984,7 +994,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       );
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(orderId));
-      ref.invalidate(adminOrdersProvider);
+      await _syncAdminOrdersListCache();
       ref.invalidate(adminDashboardProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cancellation request rejected.')),
@@ -1466,12 +1476,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                 _AdminShipmentReadOnlyLine(
                                   label: 'Current method',
                                   value: () {
+                                    if (_shiprocketShipmentCancelledAwaitingChoice(details)) {
+                                      return 'Not set (Shiprocket shipment cancelled — choose again)';
+                                    }
                                     final m = (details.deliveryMethod ?? '').toLowerCase().trim();
                                     if (m == 'manual_delivery') return 'Manual delivery';
                                     if (m == 'shiprocket_delivery') return 'Shiprocket';
-                                    if (_shiprocketShipmentCancelledAwaitingChoice(details)) {
-                                      return 'Not set (previous Shiprocket shipment cancelled)';
-                                    }
                                     return 'Not set';
                                   }(),
                                 ),
@@ -1556,67 +1566,144 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                   const SizedBox(height: 8),
                                   Align(
                                     alignment: Alignment.centerLeft,
-                                    child: OutlinedButton.icon(
-                                      onPressed: _shiprocketBusy
-                                          ? null
-                                          : () async {
-                                              setState(() => _shiprocketBusy = true);
-                                              try {
-                                                final out = await ref
-                                                    .read(adminServiceProvider)
-                                                    .syncShiprocketShipmentStatus(orderId: order.id);
-                                                if (!context.mounted) return;
-                                                ref.invalidate(adminOrderDetailsProvider(orderId));
-                                                ref.invalidate(adminOrdersProvider);
-                                                final synced = out['synced'] == true;
-                                                final detail = out['detail']?.toString();
-                                                if (synced) {
-                                                  final deliveryStatus =
-                                                      out['delivery_status']?.toString().trim();
-                                                  final shipmentStatus =
-                                                      out['shipment_status']?.toString().trim();
-                                                  String? targetStatusTitleCase;
-                                                  if (deliveryStatus == 'delivered') {
-                                                    targetStatusTitleCase = 'Delivered';
-                                                  } else if (deliveryStatus ==
-                                                      'out_for_delivery') {
-                                                    targetStatusTitleCase = 'Out for delivery';
-                                                  } else if (shipmentStatus == 'in_transit') {
-                                                    targetStatusTitleCase = 'Shipped';
-                                                  }
-                                                  if (targetStatusTitleCase != null) {
-                                                    await trySendOrderStatusFcmForTarget(
-                                                      ref.read(fcmNotificationSenderProvider),
-                                                      userId: order.userId,
-                                                      orderId: order.id,
-                                                      targetStatusTitleCase:
-                                                          targetStatusTitleCase,
+                                    child: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: _shiprocketBusy
+                                              ? null
+                                              : () async {
+                                                  setState(() => _shiprocketBusy = true);
+                                                  try {
+                                                    final out = await ref
+                                                        .read(adminServiceProvider)
+                                                        .syncShiprocketShipmentStatus(
+                                                          orderId: order.id,
+                                                        );
+                                                    if (!context.mounted) return;
+                                                    ref.invalidate(adminOrderDetailsProvider(orderId));
+                                                    await _syncAdminOrdersListCache();
+                                                    final synced = out['synced'] == true;
+                                                    final detail = out['detail']?.toString();
+                                                    if (synced) {
+                                                      final deliveryStatus =
+                                                          out['delivery_status']?.toString().trim();
+                                                      final shipmentStatus =
+                                                          out['shipment_status']?.toString().trim();
+                                                      String? targetStatusTitleCase;
+                                                      if (deliveryStatus == 'delivered') {
+                                                        targetStatusTitleCase = 'Delivered';
+                                                      } else if (deliveryStatus ==
+                                                          'out_for_delivery') {
+                                                        targetStatusTitleCase = 'Out for delivery';
+                                                      } else if (shipmentStatus == 'in_transit') {
+                                                        targetStatusTitleCase = 'Shipped';
+                                                      }
+                                                      if (targetStatusTitleCase != null) {
+                                                        await trySendOrderStatusFcmForTarget(
+                                                          ref.read(fcmNotificationSenderProvider),
+                                                          userId: order.userId,
+                                                          orderId: order.id,
+                                                          targetStatusTitleCase:
+                                                              targetStatusTitleCase,
+                                                        );
+                                                      }
+                                                    }
+                                                    final dsOut =
+                                                        out['delivery_status']?.toString().trim();
+                                                    final clearedBooking =
+                                                        out['force_cleared'] == true ||
+                                                            dsOut == 'cancelled';
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          clearedBooking
+                                                              ? 'Shiprocket booking cleared. Choose Manual delivery or create a new shipment.'
+                                                              : synced
+                                                                  ? 'Shiprocket status synced'
+                                                                  : (detail != null && detail.isNotEmpty
+                                                                      ? detail
+                                                                      : 'No new status yet'),
+                                                        ),
+                                                      ),
                                                     );
+                                                  } catch (e) {
+                                                    if (context.mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(content: Text('Sync failed: $e')),
+                                                      );
+                                                    }
+                                                  } finally {
+                                                    if (mounted) setState(() => _shiprocketBusy = false);
                                                   }
-                                                }
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      synced
-                                                          ? 'Shiprocket status synced'
-                                                          : (detail != null && detail.isNotEmpty
-                                                              ? detail
-                                                              : 'No new status yet'),
+                                                },
+                                          icon: const Icon(Icons.sync, size: 18),
+                                          label: const Text('Sync Shiprocket status'),
+                                        ),
+                                        OutlinedButton.icon(
+                                          onPressed: _shiprocketBusy
+                                              ? null
+                                              : () async {
+                                                  final confirmed = await showDialog<bool>(
+                                                    context: context,
+                                                    builder: (ctx) => AlertDialog(
+                                                      title: const Text('Clear Shiprocket booking?'),
+                                                      content: const Text(
+                                                        'Use this only if you already cancelled the shipment '
+                                                        'in Shiprocket (or it was removed) and Anjanam still '
+                                                        'shows Shiprocket as the method.\n\n'
+                                                        'This clears shipment IDs and lets you choose Manual '
+                                                        'delivery or create a new Shiprocket shipment.',
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () => Navigator.pop(ctx, false),
+                                                          child: const Text('Back'),
+                                                        ),
+                                                        FilledButton(
+                                                          onPressed: () => Navigator.pop(ctx, true),
+                                                          child: const Text('Clear booking'),
+                                                        ),
+                                                      ],
                                                     ),
-                                                  ),
-                                                );
-                                              } catch (e) {
-                                                if (context.mounted) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(content: Text('Sync failed: $e')),
                                                   );
-                                                }
-                                              } finally {
-                                                if (mounted) setState(() => _shiprocketBusy = false);
-                                              }
-                                            },
-                                      icon: const Icon(Icons.sync, size: 18),
-                                      label: const Text('Sync Shiprocket status'),
+                                                  if (confirmed != true || !context.mounted) return;
+                                                  setState(() => _shiprocketBusy = true);
+                                                  try {
+                                                    final out = await ref
+                                                        .read(adminServiceProvider)
+                                                        .syncShiprocketShipmentStatus(
+                                                          orderId: order.id,
+                                                          forceClearShiprocketBooking: true,
+                                                        );
+                                                    if (!context.mounted) return;
+                                                    ref.invalidate(adminOrderDetailsProvider(orderId));
+                                                    await _syncAdminOrdersListCache();
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          out['synced'] == true
+                                                              ? 'Shiprocket booking cleared.'
+                                                              : 'Request completed.',
+                                                        ),
+                                                      ),
+                                                    );
+                                                  } catch (e) {
+                                                    if (context.mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(content: Text('Clear failed: $e')),
+                                                      );
+                                                    }
+                                                  } finally {
+                                                    if (mounted) setState(() => _shiprocketBusy = false);
+                                                  }
+                                                },
+                                          icon: const Icon(Icons.link_off_outlined, size: 18),
+                                          label: const Text('Clear SR booking'),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],

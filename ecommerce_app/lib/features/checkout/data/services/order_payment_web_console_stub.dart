@@ -1,0 +1,1 @@
+void orderPaymentWebConsoleLog(String message) {}

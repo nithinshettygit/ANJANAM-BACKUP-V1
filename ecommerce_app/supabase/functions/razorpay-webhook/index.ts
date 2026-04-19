@@ -42,11 +42,16 @@ Deno.serve(async (req) => {
 
     const payload = await req.text();
     const incomingSig = (req.headers.get("x-razorpay-signature") ?? "").trim();
-    if (!incomingSig) return json(401, { error: "missing_signature" });
+    if (!incomingSig) return json(400, { error: "missing_signature" });
     const expectedSig = await hmacSha256Hex(RAZORPAY_WEBHOOK_SECRET, payload);
-    if (!timingSafeEqualHex(expectedSig, incomingSig)) return json(401, { error: "invalid_signature" });
+    if (!timingSafeEqualHex(expectedSig, incomingSig)) return json(400, { error: "invalid_signature" });
 
-    const body = JSON.parse(payload) as any;
+    let body: any = {};
+    try {
+      body = JSON.parse(payload) as any;
+    } catch (_) {
+      return json(400, { error: "invalid_payload" });
+    }
     const event = (body?.event ?? "").toString().trim();
     const entity = body?.payload?.payment?.entity ?? body?.payload?.refund?.entity ?? {};
     const notes = entity?.notes ?? {};
@@ -68,6 +73,7 @@ Deno.serve(async (req) => {
         })
         .eq("id", orderId);
     } else if (event === "payment.failed") {
+      // Do not overwrite orders already marked paid by a successful attempt.
       await supabase
         .from("orders")
         .update({
@@ -76,7 +82,8 @@ Deno.serve(async (req) => {
           razorpay_payment_id: entity?.id?.toString() ?? null,
           updated_at: nowIso,
         })
-        .eq("id", orderId);
+        .eq("id", orderId)
+        .neq("payment_status", "paid");
     } else if (event === "refund.processed") {
       await supabase
         .from("orders")
@@ -88,7 +95,7 @@ Deno.serve(async (req) => {
     }
 
     return json(200, { ok: true, event });
-  } catch (e) {
-    return json(500, { error: "webhook_failed", detail: e instanceof Error ? e.message : String(e) });
+  } catch (_) {
+    return json(500, { error: "webhook_failed" });
   }
 });

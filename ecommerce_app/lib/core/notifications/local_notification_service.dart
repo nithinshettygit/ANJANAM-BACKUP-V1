@@ -1,6 +1,8 @@
+import 'dart:convert';
+
+import 'package:ecommerce_app/core/network/http_resilience.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:http/http.dart' as http;
 
 class LocalNotificationService {
   LocalNotificationService._();
@@ -15,13 +17,41 @@ class LocalNotificationService {
 
   static bool _initialized = false;
   static final Map<String, DateTime> _recentDedupKeys = <String, DateTime>{};
+  static Future<void> Function(Map<String, dynamic> data)? _onTapData;
+
+  static void setOnTapHandler(Future<void> Function(Map<String, dynamic> data)? handler) {
+    _onTapData = handler;
+  }
 
   static Future<void> initialize() async {
     if (_initialized) return;
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: androidInit);
-    await _plugin.initialize(settings: settings);
+    await _plugin.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: (response) async {
+        final raw = response.payload?.trim();
+        if (raw == null || raw.isEmpty) return;
+        Map<String, dynamic> payload;
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map<String, dynamic>) {
+            payload = decoded;
+          } else if (decoded is Map) {
+            payload = Map<String, dynamic>.from(decoded);
+          } else {
+            return;
+          }
+        } catch (_) {
+          return;
+        }
+        final handler = _onTapData;
+        if (handler != null) {
+          await handler(payload);
+        }
+      },
+    );
 
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -70,7 +100,7 @@ class LocalNotificationService {
     await show(
       title: title,
       body: body,
-      payload: message.data.toString(),
+      payload: jsonEncode(message.data),
       dedupKey: dedupKey.isEmpty ? null : dedupKey,
       androidDetails: androidDetails,
     );
@@ -114,7 +144,7 @@ class LocalNotificationService {
     final uri = Uri.tryParse(raw);
     if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) return null;
     try {
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      final res = await HttpResilience.get(uri, timeout: const Duration(seconds: 8));
       if (res.statusCode < 200 || res.statusCode >= 300 || res.bodyBytes.isEmpty) {
         return null;
       }

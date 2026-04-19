@@ -182,7 +182,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       isEmpty: false,
       emptyMessage: 'No orders found',
       child: ordersAsync.when(
-      skipLoadingOnReload: true,
+      skipLoadingOnReload: false,
       data: (orders) {
         final filtered = orders.where((o) {
           final statusOk = _statusFilter == 'all' ||

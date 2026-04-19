@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:ecommerce_app/core/invoice/invoice_generator.dart';
+import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/core/payments/razorpay_service.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/auth/state/auth_session_provider.dart';
 import 'package:ecommerce_app/features/checkout/state/order_payment_provider.dart';
+import 'package:ecommerce_app/features/checkout/data/services/order_payment_web_console_stub.dart'
+    if (dart.library.html) 'package:ecommerce_app/features/checkout/data/services/order_payment_web_console_web.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_payment.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_detail_bundle.dart';
@@ -808,6 +811,35 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     );
   }
 
+  Future<String> _pollRetryPaymentStatus({
+    required String orderId,
+    Duration timeout = const Duration(minutes: 3),
+  }) async {
+    final paymentSvc = ref.read(orderPaymentServiceProvider);
+    final started = DateTime.now();
+    while (DateTime.now().difference(started) < timeout) {
+      if (!mounted) return 'pending';
+      try {
+        if (kIsWeb) {
+          orderPaymentWebConsoleLog('Retry polling payment status for: $orderId');
+        }
+        final status = await paymentSvc.getPaymentStatus(orderId: orderId);
+        if (kIsWeb) {
+          orderPaymentWebConsoleLog('Retry payment status: $status');
+        }
+        if (status == 'paid' || status == 'failed') {
+          return status;
+        }
+      } on AuthException {
+        rethrow;
+      } catch (_) {
+        // Keep retry polling active through transient network/edge failures.
+      }
+      await Future<void>.delayed(const Duration(seconds: 4));
+    }
+    return 'timeout';
+  }
+
   Future<void> _onRetryPayment(BuildContext context) async {
     if (_retryPaymentBusy) return;
     final env = ref.read(appEnvProvider);
@@ -827,6 +859,28 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     final svc = RazorpayService(keyId: env.razorpayKeyId);
     final completer = Completer<void>();
     final paymentSvc = ref.read(orderPaymentServiceProvider);
+    final supabase = ref.read(supabaseClientProvider);
+    var session = supabase.auth.currentSession;
+    if (session == null) {
+      try {
+        final refreshed = await supabase.auth.refreshSession();
+        session = refreshed.session ?? supabase.auth.currentSession;
+      } catch (_) {
+        session = supabase.auth.currentSession;
+      }
+    }
+    if (session == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            content: Text('Session expired, please login again'),
+          ),
+        );
+        Navigator.of(context).pushNamed('/login');
+      }
+      return;
+    }
     final ship = widget.bundle.shipping;
     final userEmail = ref.read(authSessionProvider).maybeWhen(
           data: (u) => u == null ? '' : u.email.trim(),
@@ -839,9 +893,43 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
 
     try {
       String? rzpCheckoutOrderId;
+      var paymentResolved = false;
+      Future<void> markPaidUi({String? paymentId}) async {
+        if (!context.mounted || paymentResolved) return;
+        paymentResolved = true;
+        ref.invalidate(orderDetailBundleProvider(widget.orderId));
+        ref.invalidate(orderHistoryControllerProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            content: Text('Payment successful.'),
+          ),
+        );
+        if (!completer.isCompleted) completer.complete();
+      }
+
+      Future<void> markFailedUi(String message) async {
+        if (!context.mounted || paymentResolved) return;
+        paymentResolved = true;
+        ref.invalidate(orderDetailBundleProvider(widget.orderId));
+        ref.invalidate(orderHistoryControllerProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            content: Text(message),
+          ),
+        );
+        if (!completer.isCompleted) completer.complete();
+      }
+
       try {
         rzpCheckoutOrderId =
             await paymentSvc.tryCreateRazorpayServerOrder(orderId: widget.orderId);
+        if (kIsWeb && (rzpCheckoutOrderId == null || rzpCheckoutOrderId.trim().isEmpty)) {
+          throw const RepositoryException(
+            'Could not start secure payment session. Please try again.',
+          );
+        }
         if (rzpCheckoutOrderId != null) {
           try {
             await paymentSvc.setRazorpayCheckoutOrderId(
@@ -862,6 +950,47 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
         return;
       }
 
+      if (kIsWeb) {
+        unawaited(() async {
+          try {
+            final status = await _pollRetryPaymentStatus(orderId: widget.orderId);
+            if (paymentResolved) return;
+            if (status == 'paid') {
+              await markPaidUi();
+              return;
+            }
+            if (status == 'failed') {
+              await markFailedUi('Payment failed. Please try again.');
+              return;
+            }
+            if (status == 'timeout') {
+              if (!context.mounted || paymentResolved) return;
+              paymentResolved = true;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  behavior: SnackBarBehavior.fixed,
+                  content: Text('Payment pending, we will update shortly'),
+                ),
+              );
+              if (!completer.isCompleted) completer.complete();
+            }
+          } on AuthException {
+            if (!context.mounted || paymentResolved) return;
+            paymentResolved = true;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                behavior: SnackBarBehavior.fixed,
+                content: Text('Session expired, please login again'),
+              ),
+            );
+            Navigator.of(context).pushNamed('/login');
+            if (!completer.isCompleted) completer.complete();
+          } catch (_) {
+            // Poll loop already tolerates transient failures.
+          }
+        }());
+      }
+
       svc.openCheckout(
         amountPaise: (order.grandTotal * 100).round(),
         customerName: name,
@@ -869,6 +998,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
         customerContact: phone,
         razorpayOrderId: rzpCheckoutOrderId,
         onPaymentSuccess: (paymentId, razorpayOrderId, razorpaySignature) async {
+          if (paymentResolved) return;
           try {
             await paymentSvc.verifyRazorpayPaymentAndMarkPaid(
               orderId: widget.orderId,
@@ -876,50 +1006,60 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
               razorpayOrderId: razorpayOrderId,
               razorpaySignature: razorpaySignature,
             );
-            if (context.mounted) {
-              ref.invalidate(orderDetailBundleProvider(widget.orderId));
-              ref.invalidate(orderHistoryControllerProvider);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  behavior: SnackBarBehavior.fixed,
-                  content: Text('Payment successful.'),
-                ),
-              );
-            }
+            await markPaidUi(paymentId: paymentId);
           } catch (e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  behavior: SnackBarBehavior.fixed,
-                  content: Text(
-                    'Payment succeeded but we could not update the order. '
-                    'Save this id for support: $paymentId. ($e)',
+              if (e is AuthException) {
+                paymentResolved = true;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    behavior: SnackBarBehavior.fixed,
+                    content: Text('Session expired, please login again'),
                   ),
-                ),
-              );
+                );
+                Navigator.of(context).pushNamed('/login');
+              } else if (!kIsWeb) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    behavior: SnackBarBehavior.fixed,
+                    content: Text(
+                      'Payment succeeded but we could not update the order. '
+                      'Save this id for support: $paymentId. ($e)',
+                    ),
+                  ),
+                );
+              }
             }
           } finally {
-            if (!completer.isCompleted) completer.complete();
+            if (!kIsWeb && !completer.isCompleted) completer.complete();
           }
         },
         onPaymentError: (message) async {
+          if (paymentResolved) return;
+          if (kIsWeb) {
+            final lower = message.toLowerCase();
+            final userCancelled = lower.contains('cancel') ||
+                lower.contains('dismiss') ||
+                lower.contains('closed');
+            if (userCancelled) {
+              try {
+                await paymentSvc.updatePaymentStatus(
+                  orderId: widget.orderId,
+                  paymentStatus: 'failed',
+                );
+              } catch (_) {}
+              await markFailedUi('Payment cancelled by user.');
+            }
+            // On web, non-cancel callbacks can be early while UPI collect continues.
+            return;
+          }
           try {
             await paymentSvc.updatePaymentStatus(
               orderId: widget.orderId,
               paymentStatus: 'failed',
             );
           } catch (_) {}
-          if (context.mounted) {
-            ref.invalidate(orderDetailBundleProvider(widget.orderId));
-            ref.invalidate(orderHistoryControllerProvider);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                behavior: SnackBarBehavior.fixed,
-                  content: const Text('Payment failed. Please try again.'),
-              ),
-            );
-          }
-          if (!completer.isCompleted) completer.complete();
+          await markFailedUi('Payment failed. Please try again.');
         },
         onExternalWallet: (_) {},
       );

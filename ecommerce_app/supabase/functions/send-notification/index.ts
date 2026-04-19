@@ -2,6 +2,8 @@
 import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js";
 import { JWT } from "npm:google-auth-library";
+import { resolveRequesterIdentity } from "../_shared/auth.ts";
+import { devLog } from "../_shared/dev_log.ts";
 
 type Json = Record<string, unknown>;
 type FcmFailure = { token: string; status: number; detail: string };
@@ -20,16 +22,14 @@ type AdminNotificationRow = {
   reference_id: string | null;
 };
 
-function getAuthHeader(req: Request): string | null {
-  const h = req.headers.get("authorization") ?? req.headers.get("Authorization");
-  if (!h) return null;
-  return h;
+function getInternalHeader(req: Request): string {
+  return req.headers.get("x-internal-secret")?.trim() ?? "";
 }
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer, x-internal-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -210,45 +210,13 @@ serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const INTERNAL_FUNCTION_SECRET = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return jsonRes(500, { error: "Missing secrets." });
     }
-    const serviceAccount = getServiceAccountFromEnv();
-    const fcmAccessToken = await getFcmAccessToken(serviceAccount);
-
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     if (!SUPABASE_ANON_KEY) {
       return jsonRes(500, { error: "Missing SUPABASE_ANON_KEY (needed for JWT verification)." });
-    }
-
-    const authHeader = getAuthHeader(req);
-    if (!authHeader?.trim()) {
-      return jsonRes(401, { error: "Missing Authorization header." });
-    }
-    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const isServiceRoleRequest = bearer === SUPABASE_SERVICE_ROLE_KEY;
-
-    // Anon client + forwarded Authorization header (Supabase Edge pattern).
-    // service_role + auth.getUser(jwt) often returns 401 for user access tokens
-    // (e.g. publishable key / ES256 sessions from supabase-flutter).
-    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: authHeader,
-          apikey: SUPABASE_ANON_KEY,
-        },
-      },
-    });
-    let requesterId = "";
-    if (!isServiceRoleRequest) {
-      const { data: userData, error: authErr } = await supabaseAuth.auth.getUser();
-      if (authErr || !userData?.user) {
-        return jsonRes(401, {
-          error: "Unauthorized.",
-          detail: authErr?.message ?? "getUser_failed",
-        });
-      }
-      requesterId = userData.user.id;
     }
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -256,6 +224,32 @@ serve(async (req) => {
     });
 
     const body: Json = await req.json();
+    // Backward-compatible internal shorthand payload:
+    // { user_id, title, body|message, type, order_id? }
+    // -> mapped to action=user_notification
+    const simpleUserId = typeof body["user_id"] === "string" ? body["user_id"].trim() : "";
+    const simpleTitle = typeof body["title"] === "string" ? body["title"].trim() : "";
+    const simpleMessage =
+      typeof body["body"] === "string"
+        ? body["body"].trim()
+        : typeof body["message"] === "string"
+        ? body["message"].trim()
+        : "";
+    if (
+      (!body["action"] || String(body["action"]).trim().length === 0) &&
+      simpleUserId &&
+      simpleTitle &&
+      simpleMessage
+    ) {
+      const type = typeof body["type"] === "string" ? body["type"].trim() : "";
+      const orderId = typeof body["order_id"] === "string" ? body["order_id"].trim() : "";
+      body["action"] = "user_notification";
+      body["broadcast"] = false;
+      body["kind"] = type || "system";
+      body["message"] = simpleMessage;
+      body["redirect_type"] = orderId ? "order" : "none";
+      body["redirect_value"] = orderId || "";
+    }
     // Supports both direct app calls and Supabase DB webhook payloads.
     // DB webhook payload shape includes: {type, table, schema, record, old_record}.
     let action = typeof body["action"] === "string" ? body["action"].trim().toLowerCase() : "";
@@ -277,13 +271,48 @@ serve(async (req) => {
       return jsonRes(400, { error: "Missing/invalid 'action'." });
     }
 
+    // Authenticate: trusted internal secret (server-to-server) OR verified Supabase user JWT.
+    // Anonymous calls are never allowed.
+    const internalHeader = getInternalHeader(req);
+    const isInternalRequest =
+      INTERNAL_FUNCTION_SECRET.length > 0 &&
+      internalHeader.length > 0 &&
+      internalHeader === INTERNAL_FUNCTION_SECRET;
+
+    let requesterId = "";
     let isAdmin = false;
-    if (isServiceRoleRequest) {
+    if (isInternalRequest) {
       isAdmin = true;
     } else {
-      const { data: isAdminData, error: isAdminErr } = await supabaseAdmin.rpc("is_admin", { uid: requesterId });
-      isAdmin = !isAdminErr && Boolean(isAdminData);
+      const jwtAuth = await resolveRequesterIdentity(req, {
+        supabaseUrl: SUPABASE_URL,
+        supabaseAnonKey: SUPABASE_ANON_KEY,
+      });
+      if (!jwtAuth.ok) {
+        return jsonRes(jwtAuth.code, { error: jwtAuth.error });
+      }
+      requesterId = jwtAuth.userId;
+      let adminFromRpc = false;
+      try {
+        const { data: rpcAdmin } = await supabaseAdmin.rpc("is_admin", { uid: requesterId });
+        adminFromRpc = Boolean(rpcAdmin);
+      } catch (_) {
+        // Optional RPC; fall back to profiles.role.
+      }
+      let role = "";
+      if (!adminFromRpc) {
+        const { data: prof } = await supabaseAdmin
+          .from("profiles")
+          .select("role")
+          .eq("id", normUserId(requesterId))
+          .maybeSingle();
+        role = (prof?.role ?? "").toString().toLowerCase().trim();
+      }
+      isAdmin = adminFromRpc || role === "admin" || role === "super_admin";
     }
+
+    const serviceAccount = getServiceAccountFromEnv();
+    const fcmAccessToken = await getFcmAccessToken(serviceAccount);
 
     if (action === "user_notification") {
       if (!isAdmin) {
@@ -425,6 +454,7 @@ serve(async (req) => {
       }
 
       const targetNorm = normUserId(targetUserId);
+      devLog("send-notification triggered for user:", targetNorm);
 
       const { data: tokensRows } = await supabaseAdmin
         .from("user_devices")
@@ -435,6 +465,29 @@ serve(async (req) => {
       const tokens = (tokensRows ?? [])
         .map((r: any) => r.fcm_token?.toString())
         .filter((t: string | undefined) => !!t);
+
+      // Fallback for deployments still writing token in users/profiles table.
+      if (tokens.length === 0) {
+        try {
+          const { data: usersRow } = await supabaseAdmin
+            .from("users")
+            .select("fcm_token")
+            .eq("id", targetNorm)
+            .maybeSingle();
+          const usersToken = (usersRow as any)?.fcm_token?.toString()?.trim();
+          if (usersToken) tokens.push(usersToken);
+        } catch (_) {}
+      }
+      if (tokens.length === 0) {
+        const { data: profileRow } = await supabaseAdmin
+          .from("profiles")
+          .select("fcm_token")
+          .eq("id", targetNorm)
+          .maybeSingle();
+        const profileToken = (profileRow as any)?.fcm_token?.toString()?.trim();
+        if (profileToken) tokens.push(profileToken);
+      }
+      devLog("FCM token count for user:", targetNorm, tokens.length);
 
       const { data: inserted, error: insErr } = await supabaseAdmin
         .from("user_notifications")
@@ -458,6 +511,7 @@ serve(async (req) => {
       if (!notificationId) return jsonRes(200, { ok: true });
 
       if (tokens.length === 0) {
+        devLog("No FCM token for user:", targetNorm);
         return jsonRes(200, {
           ok: true,
           fcm: { attempted: 0, success: 0, failure: 0, failures: [] },

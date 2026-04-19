@@ -72,6 +72,19 @@ class NotificationMessageRouter {
     );
   }
 
+  static Future<void> onLocalNotificationTapData(Map<String, dynamic> data) async {
+    await _markAsReadFromData(data);
+    onNotificationsChanged?.call();
+
+    final nav = notificationNavigatorKey.currentState;
+    await NotificationTapNavigator.handlePushData(
+      nav,
+      data: data,
+      titleFallback: data['title']?.toString(),
+      bodyFallback: data['message']?.toString(),
+    );
+  }
+
   static Future<void> onInitialMessageIfAny() async {
     final pending = consumePendingInitialMessage();
     if (pending == null) return;
@@ -79,12 +92,14 @@ class NotificationMessageRouter {
   }
 
   static Future<void> _markAsReadFromMessage(RemoteMessage message) async {
+    await _markAsReadFromData(message.data);
+  }
+
+  static Future<void> _markAsReadFromData(Map<String, dynamic> data) async {
     try {
       final client = Supabase.instance.client;
       final currentUser = client.auth.currentUser;
       if (currentUser == null) return;
-
-      final data = message.data;
       final notificationId = data['notification_id']?.toString().trim();
       final adminNotificationId = data['admin_notification_id']?.toString().trim();
       final orderId = data['order_id']?.toString().trim();

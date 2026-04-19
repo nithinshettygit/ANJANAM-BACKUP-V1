@@ -110,6 +110,30 @@ class RazorpayService {
     }
   }
 
+  /// Same as [openCheckout]; exists so checkout can `await` before polling on web.
+  Future<void> openCheckoutAfterScriptReady({
+    required int amountPaise,
+    required String customerName,
+    required String customerEmail,
+    required String customerContact,
+    String? razorpayOrderId,
+    void Function(String razorpayPaymentId, String? razorpayOrderId, String? razorpaySignature)?
+        onPaymentSuccess,
+    void Function(String message)? onPaymentError,
+    void Function(String walletName)? onExternalWallet,
+  }) async {
+    openCheckout(
+      amountPaise: amountPaise,
+      customerName: customerName,
+      customerEmail: customerEmail,
+      customerContact: customerContact,
+      razorpayOrderId: razorpayOrderId,
+      onPaymentSuccess: onPaymentSuccess,
+      onPaymentError: onPaymentError,
+      onExternalWallet: onExternalWallet,
+    );
+  }
+
   static String _friendlyPaymentError(PaymentFailureResponse response) {
     final code = response.code;
     final raw = response.message?.trim();

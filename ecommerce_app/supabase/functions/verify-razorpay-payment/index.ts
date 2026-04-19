@@ -6,12 +6,15 @@
  * Body: { order_id, razorpay_payment_id, razorpay_order_id?, razorpay_signature? }
  */
 import { createClient } from "npm:@supabase/supabase-js";
+import { resolveRequesterIdentity } from "../_shared/auth.ts";
+import { devLog } from "../_shared/dev_log.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -19,33 +22,6 @@ function json(status: number, body: Record<string, unknown>) {
     status,
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
-}
-
-function authHeader(req: Request): string | null {
-  return req.headers.get("authorization") ?? req.headers.get("Authorization");
-}
-
-function requesterIdFromAuthHeader(req: Request): string | null {
-  const directUser =
-    req.headers.get("x-supabase-auth-user") ??
-    req.headers.get("x-supabase-user-id") ??
-    req.headers.get("x-sb-auth-user");
-  if (directUser && directUser.trim().length > 0) return directUser.trim();
-
-  const h = authHeader(req)?.trim() ?? "";
-  const token = h.replace(/^Bearer\s+/i, "").trim();
-  if (!token || !token.includes(".")) return null;
-  const parts = token.split(".");
-  if (parts.length < 2) return null;
-  const payloadB64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-  const padded = payloadB64 + "=".repeat((4 - (payloadB64.length % 4)) % 4);
-  try {
-    const payload = JSON.parse(atob(padded)) as { sub?: unknown };
-    const sub = typeof payload.sub === "string" ? payload.sub.trim() : "";
-    return sub.length > 0 ? sub : null;
-  } catch {
-    return null;
-  }
 }
 
 function basicAuthHeader(keyId: string, keySecret: string): string {
@@ -63,6 +39,34 @@ function optionalString(v: unknown): string {
   if (v == null) return "";
   if (typeof v !== "string") return "";
   return v.trim();
+}
+
+async function triggerOrderConfirmedNotification(params: {
+  supabaseUrl: string;
+  internalSecret: string;
+  userId: string;
+  orderId: string;
+}) {
+  const { supabaseUrl, internalSecret, userId, orderId } = params;
+  if (!internalSecret.trim()) return;
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": internalSecret,
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        order_id: orderId,
+        title: "Order Confirmed",
+        body: "Your order has been placed successfully",
+        type: "order",
+      }),
+    });
+  } catch (_) {
+    // Notification failures must not fail payment verification.
+  }
 }
 
 async function hmacSha256Hex(secret: string, message: string): Promise<string> {
@@ -103,16 +107,18 @@ type RzpPayment = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
   try {
     if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID") ?? "";
     const RAZORPAY_KEY_SECRET = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    const INTERNAL_FUNCTION_SECRET = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
       return json(500, { error: "missing_supabase_secrets" });
     }
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
@@ -124,8 +130,13 @@ Deno.serve(async (req) => {
     });
 
     const body = await req.json();
-    const requesterId = requesterIdFromAuthHeader(req);
-    const userIdInput = optionalString(body["user_id"]);
+    const authResult = await resolveRequesterIdentity(req, {
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY,
+    });
+    if (!authResult.ok) return json(authResult.code, { error: authResult.error });
+    const requesterId = authResult.userId;
+    devLog(`auth_ok user_id=${requesterId}`);
     const orderId = reqString(body["order_id"], "order_id");
     const paymentId = reqString(body["razorpay_payment_id"], "razorpay_payment_id");
     const rzOrderIdInput = optionalString(body["razorpay_order_id"]);
@@ -138,11 +149,8 @@ Deno.serve(async (req) => {
       .single();
     if (orderErr || !order) return json(404, { error: "order_not_found" });
 
-    const orderUserId = order.user_id?.toString() ?? "";
-    if (requesterId && orderUserId !== requesterId) {
-      return json(403, { error: "forbidden" });
-    }
-    if (!requesterId && userIdInput && orderUserId !== userIdInput) {
+    const orderUserId = order.user_id?.toString().trim() ?? "";
+    if (orderUserId !== requesterId) {
       return json(403, { error: "forbidden" });
     }
     const pm = (order.payment_method ?? "").toString().toLowerCase().trim();
@@ -174,10 +182,10 @@ Deno.serve(async (req) => {
       return json(400, { error: "invalid_order_amount", detail: "minimum_one_inr" });
     }
 
-    const auth = basicAuthHeader(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET);
+    const razorpayAuth = basicAuthHeader(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET);
     const getRes = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
       method: "GET",
-      headers: { Authorization: auth },
+      headers: { Authorization: razorpayAuth },
     });
     const payText = await getRes.text().catch(() => "");
     if (!getRes.ok) {
@@ -207,17 +215,12 @@ Deno.serve(async (req) => {
     const payStatus = (payment.status ?? "").toString().toLowerCase().trim();
     const captured = payment.captured === true || payStatus === "captured";
     if (!captured) {
-      await supabase
-        .from("orders")
-        .update({
-          payment_status: "failed",
-          status: "payment_failed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", orderId)
-        .eq("user_id", requesterId);
-      return json(400, {
-        error: "payment_not_captured",
+      // UPI collect / QR can complete capture asynchronously after checkout callback.
+      // Keep order pending; polling + webhook will finalize to paid/failed.
+      return json(202, {
+        ok: false,
+        status: "pending",
+        error: "payment_not_captured_yet",
         detail: payStatus || "unknown",
       });
     }
@@ -254,12 +257,11 @@ Deno.serve(async (req) => {
     // Legacy: no Razorpay order id on payment path — amount + capture verified via API only.
 
     const nowIso = new Date().toISOString();
-    const guardUserId = requesterId || userIdInput;
-    let upQuery = supabase
+    const upQuery = supabase
       .from("orders")
       .update({
         payment_status: "paid",
-        status: "processing",
+        status: "paid",
         razorpay_payment_id: paymentId,
         razorpay_order_id: rzOrderId.length > 0 ? rzOrderId : null,
         razorpay_signature: signature.length > 0 ? signature : null,
@@ -268,19 +270,22 @@ Deno.serve(async (req) => {
         paid_at: nowIso,
         updated_at: nowIso,
       })
-      .eq("id", orderId);
-    if (guardUserId) {
-      upQuery = upQuery.eq("user_id", guardUserId);
-    }
+      .eq("id", orderId)
+      .eq("user_id", orderUserId);
     const { error: upErr } = await upQuery;
 
     if (upErr) {
       return json(500, { error: "update_failed", detail: upErr.message ?? String(upErr) });
     }
+    await triggerOrderConfirmedNotification({
+      supabaseUrl: SUPABASE_URL,
+      internalSecret: INTERNAL_FUNCTION_SECRET,
+      userId: requesterId,
+      orderId,
+    });
 
     return json(200, { ok: true, razorpay_payment_id: paymentId });
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
-    return json(500, { error: "verify_razorpay_payment_failed", detail });
+  } catch (_) {
+    return json(500, { error: "verify_razorpay_payment_failed" });
   }
 });

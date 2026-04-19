@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
@@ -36,7 +37,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await LocalNotificationService.show(
       title: title,
       body: body,
-      payload: message.data.toString(),
+      payload: jsonEncode(message.data),
       dedupKey: dedupKey.isEmpty ? null : dedupKey,
     );
   }
@@ -110,6 +111,9 @@ Future<void> _runMobileApp() async {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     await FirebaseMessaging.instance.setAutoInitEnabled(true);
     await LocalNotificationService.initialize();
+    LocalNotificationService.setOnTapHandler(
+      NotificationMessageRouter.onLocalNotificationTapData,
+    );
     FirebaseMessaging.onMessage.listen((message) {
       NotificationMessageRouter.onMessage(message);
     });

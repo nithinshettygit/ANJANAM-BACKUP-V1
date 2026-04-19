@@ -5,6 +5,8 @@
  * Optional: SHIPROCKET_PICKUP_LOCATION default used only when client omits pickup_location.
  */
 import { createClient } from "npm:@supabase/supabase-js";
+import { resolveRequesterIdentity } from "../_shared/auth.ts";
+import { devLog } from "../_shared/dev_log.ts";
 
 const SHIPROCKET_BASE = "https://apiv2.shiprocket.in";
 
@@ -13,6 +15,8 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  /** Browsers cache preflight; 204 must have no body (RFC 7231) or some stacks strip CORS. */
+  "Access-Control-Max-Age": "86400",
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -20,12 +24,6 @@ function json(status: number, body: Record<string, unknown>) {
     status,
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
-}
-
-function authBearer(req: Request): string {
-  const h = req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
-  const t = h.replace(/^Bearer\s+/i, "").trim();
-  return t;
 }
 
 function sanitizeChannelOrderId(uuid: string): string {
@@ -244,7 +242,7 @@ function pickAwbAndCourier(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
   try {
     if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
@@ -265,21 +263,17 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
 
-    const jwtFromBody =
-      typeof body?.access_token === "string" ? body.access_token.trim() : "";
-    const jwt = authBearer(req) || jwtFromBody;
-    if (!jwt) return json(401, { error: "missing_authorization" });
-
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    const auth = await resolveRequesterIdentity(req, {
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY,
     });
-    const { data: userData, error: userErr } = await userClient.auth.getUser(jwt);
-    if (userErr || !userData?.user?.id) {
-      return json(401, { error: "invalid_token" });
-    }
-    const uid = userData.user.id as string;
+    if (!auth.ok) return json(auth.code, { error: auth.error });
+    const uid = auth.userId;
+    devLog(`auth_ok user_id=${uid}`);
 
-    const { data: prof, error: profErr } = await userClient
+    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const { data: prof, error: profErr } = await adminClient
       .from("profiles")
       .select("role")
       .eq("id", uid)
@@ -297,8 +291,6 @@ Deno.serve(async (req) => {
 
     let pickupLocation = typeof body?.pickup_location === "string" ? body.pickup_location.trim() : "";
     if (!pickupLocation) pickupLocation = DEFAULT_PICKUP;
-
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { data: order, error: orderErr } = await adminClient
       .from("orders")
@@ -487,7 +479,7 @@ Deno.serve(async (req) => {
           const createdRetry = await shiprocketCreateAdhoc(srToken, retryPayload);
           const sid = pickShipmentId(createdRetry);
           if (sid != null) {
-            console.log("shiprocket_pickup_retry_ok", {
+            devLog("shiprocket_pickup_retry_ok", {
               previous_pickup: pickupLocation,
               used_pickup: alt,
             });

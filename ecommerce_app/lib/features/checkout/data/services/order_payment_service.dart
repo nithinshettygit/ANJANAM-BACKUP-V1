@@ -3,10 +3,13 @@ import 'dart:convert';
 
 import 'package:ecommerce_app/core/config/app_env.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:ecommerce_app/core/network/http_resilience.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
+
+import 'order_payment_web_console_stub.dart'
+    if (dart.library.html) 'order_payment_web_console_web.dart';
 
 /// Persists Razorpay outcome: successful checkouts use
 /// [verifyRazorpayPaymentAndMarkPaid] (Edge Function: signature + payment API).
@@ -20,20 +23,29 @@ class OrderPaymentService extends SupabaseServiceBase {
   static const String _friendlyVerifyFallbackMessage =
       'We received your payment but could not confirm the order immediately. Our system will resolve this automatically. If the order is not created, the payment will be refunded.';
 
-  Future<({int status, dynamic data})> _invokeVerifyPaymentNoPreflightWeb({
+  Future<({int status, dynamic data})> _postEdgeFunctionJsonWeb({
+    required String functionName,
     required Map<String, dynamic> body,
+    required String accessToken,
   }) async {
     final base = AppEnv.resolve().supabaseFunctionsBaseUrl.trim();
     if (base.isEmpty) {
       throw const RepositoryException('Missing Supabase functions base URL.');
     }
-    final uri = Uri.parse('$base/verify_payment');
-    // Keep this as a CORS-safelisted request (text/plain, no custom headers)
-    // so web clients can bypass broken OPTIONS preflight at the gateway.
-    final res = await http.post(
+    final uri = Uri.parse('$base/$functionName');
+    if (kDebugMode && kIsWeb) {
+      print('Web session token: ${accessToken.isNotEmpty}');
+      orderPaymentWebConsoleLog('Calling $functionName with auth');
+    }
+    final res = await HttpResilience.post(
       uri,
-      headers: const <String, String>{'Content-Type': 'text/plain'},
+      headers: <String, String>{
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
       body: jsonEncode(body),
+      retries: 2,
+      timeout: const Duration(seconds: 18),
     );
     dynamic data;
     try {
@@ -44,18 +56,30 @@ class OrderPaymentService extends SupabaseServiceBase {
     return (status: res.statusCode, data: data);
   }
 
-  Future<({int status, dynamic data})> _invokeCreatePaymentOrderNoPreflightWeb({
-    required Map<String, dynamic> body,
+  Future<({int status, dynamic data})> _getEdgeFunctionJsonWeb({
+    required String functionName,
+    required Map<String, String> queryParameters,
+    required String accessToken,
   }) async {
     final base = AppEnv.resolve().supabaseFunctionsBaseUrl.trim();
     if (base.isEmpty) {
       throw const RepositoryException('Missing Supabase functions base URL.');
     }
-    final uri = Uri.parse('$base/create_payment_order');
-    final res = await http.post(
+    final uri = Uri.parse('$base/$functionName').replace(
+      queryParameters: queryParameters,
+    );
+    if (kDebugMode && kIsWeb) {
+      print('Web session token: ${accessToken.isNotEmpty}');
+      orderPaymentWebConsoleLog('Calling $functionName with auth');
+    }
+    final res = await HttpResilience.get(
       uri,
-      headers: const <String, String>{'Content-Type': 'text/plain'},
-      body: jsonEncode(body),
+      headers: <String, String>{
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+      retries: 2,
+      timeout: const Duration(seconds: 18),
     );
     dynamic data;
     try {
@@ -78,23 +102,37 @@ class OrderPaymentService extends SupabaseServiceBase {
   /// Uses `create_payment_order` (production name), and transparently falls back to
   /// `create-razorpay-order` for backward compatibility.
   Future<String?> tryCreateRazorpayServerOrder({required String orderId}) async {
+    String refreshedToken = '';
     try {
-      await client.auth.refreshSession();
+      final refreshed = await client.auth.refreshSession();
+      refreshedToken = refreshed.session?.accessToken.trim() ?? '';
     } catch (_) {}
-    final accessToken = client.auth.currentSession?.accessToken.trim() ?? '';
+    final accessToken = refreshedToken.isNotEmpty
+        ? refreshedToken
+        : client.auth.currentSession?.accessToken.trim() ?? '';
     final userId = client.auth.currentUser?.id.trim() ?? '';
     if (accessToken.isEmpty) {
-      throw const AuthException('Sign in required.');
+      throw const AuthException(
+        'Session expired, please login again',
+        kind: AuthFailureKind.sessionExpired,
+      );
     }
     if (userId.isEmpty) {
-      throw const AuthException('Sign in required.');
+      throw const AuthException(
+        'Session expired, please login again',
+        kind: AuthFailureKind.sessionExpired,
+      );
     }
     try {
       final body = <String, dynamic>{'order_id': orderId, 'user_id': userId};
       late final int status;
       late final dynamic data;
       if (kIsWeb) {
-        final res = await _invokeCreatePaymentOrderNoPreflightWeb(body: body);
+        final res = await _postEdgeFunctionJsonWeb(
+          functionName: 'create_payment_order',
+          body: body,
+          accessToken: accessToken,
+        );
         status = res.status;
         data = res.data;
       } else {
@@ -111,23 +149,44 @@ class OrderPaymentService extends SupabaseServiceBase {
       var fallbackStatus = status;
       var fallbackData = data;
       if (fallbackStatus == 404) {
-        final res = await client.functions.invoke(
-          'create-razorpay-order',
-          headers: <String, String>{
-            'Authorization': 'Bearer $accessToken',
-          },
-          body: body,
-        );
-        fallbackStatus = res.status;
-        fallbackData = res.data;
+        if (kIsWeb) {
+          final res = await _postEdgeFunctionJsonWeb(
+            functionName: 'create-razorpay-order',
+            body: body,
+            accessToken: accessToken,
+          );
+          fallbackStatus = res.status;
+          fallbackData = res.data;
+        } else {
+          final res = await client.functions.invoke(
+            'create-razorpay-order',
+            headers: <String, String>{
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: body,
+          );
+          fallbackStatus = res.status;
+          fallbackData = res.data;
+        }
       }
       if (fallbackStatus == 404) {
+        if (kIsWeb) {
+          throw const RepositoryException(
+            'Could not start payment (server order unavailable). Please try again in a moment.',
+          );
+        }
         developer.log(
           'Edge Function create_payment_order returned 404 (not deployed?). '
           'Using Razorpay checkout without server order_id.',
           name: 'OrderPaymentService',
         );
         return null;
+      }
+      if (fallbackStatus == 401 || fallbackStatus == 403) {
+        throw const AuthException(
+          'Session expired, please login again',
+          kind: AuthFailureKind.sessionExpired,
+        );
       }
       if (fallbackStatus < 200 || fallbackStatus >= 300) {
         final err =
@@ -152,6 +211,11 @@ class OrderPaymentService extends SupabaseServiceBase {
       final msg = e.toString().toLowerCase();
       // Browser blocks cross-origin Edge Function calls without CORS (shows as ClientException: Failed to fetch).
       if (msg.contains('failed to fetch')) {
+        if (kIsWeb) {
+          throw const RepositoryException(
+            'Could not reach payment server. Please check connection and try again.',
+          );
+        }
         developer.log(
           'create_payment_order: network/CORS blocked (redeploy Edge Function with CORS headers). '
           'Falling back to Razorpay checkout without server order_id.',
@@ -165,6 +229,11 @@ class OrderPaymentService extends SupabaseServiceBase {
         );
       }
       if (_functionPathNotFound(e)) {
+        if (kIsWeb) {
+          throw const RepositoryException(
+            'Payment service unavailable. Please retry in a moment.',
+          );
+        }
         developer.log(
           'create_payment_order unavailable ($e). Opening Razorpay without server order_id.',
           name: 'OrderPaymentService',
@@ -211,16 +280,26 @@ class OrderPaymentService extends SupabaseServiceBase {
     String? razorpayOrderId,
     String? razorpaySignature,
   }) async {
+    String refreshedToken = '';
     try {
-      await client.auth.refreshSession();
+      final refreshed = await client.auth.refreshSession();
+      refreshedToken = refreshed.session?.accessToken.trim() ?? '';
     } catch (_) {}
-    final accessToken = client.auth.currentSession?.accessToken.trim() ?? '';
+    final accessToken = refreshedToken.isNotEmpty
+        ? refreshedToken
+        : client.auth.currentSession?.accessToken.trim() ?? '';
     final userId = client.auth.currentUser?.id.trim() ?? '';
     if (accessToken.isEmpty) {
-      throw const AuthException('Sign in required.');
+      throw const AuthException(
+        'Session expired, please login again',
+        kind: AuthFailureKind.sessionExpired,
+      );
     }
     if (userId.isEmpty) {
-      throw const AuthException('Sign in required.');
+      throw const AuthException(
+        'Session expired, please login again',
+        kind: AuthFailureKind.sessionExpired,
+      );
     }
     final body = <String, dynamic>{
       'order_id': orderId,
@@ -240,7 +319,11 @@ class OrderPaymentService extends SupabaseServiceBase {
       late final int status;
       late final dynamic data;
       if (kIsWeb) {
-        final res = await _invokeVerifyPaymentNoPreflightWeb(body: body);
+        final res = await _postEdgeFunctionJsonWeb(
+          functionName: primaryVerifyFn,
+          body: body,
+          accessToken: accessToken,
+        );
         status = res.status;
         data = res.data;
       } else {
@@ -257,19 +340,35 @@ class OrderPaymentService extends SupabaseServiceBase {
       var fallbackStatus = status;
       var fallbackData = data;
       if (fallbackStatus == 404) {
-        final res = await client.functions.invoke(
-          fallbackVerifyFn,
-          headers: <String, String>{
-            'Authorization': 'Bearer $accessToken',
-          },
-          body: body,
-        );
-        fallbackStatus = res.status;
-        fallbackData = res.data;
+        if (kIsWeb) {
+          final res = await _postEdgeFunctionJsonWeb(
+            functionName: fallbackVerifyFn,
+            body: body,
+            accessToken: accessToken,
+          );
+          fallbackStatus = res.status;
+          fallbackData = res.data;
+        } else {
+          final res = await client.functions.invoke(
+            fallbackVerifyFn,
+            headers: <String, String>{
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: body,
+          );
+          fallbackStatus = res.status;
+          fallbackData = res.data;
+        }
       }
       if (fallbackStatus == 404) {
         throw const RepositoryException(
           'Payment verification is not deployed. Deploy the verify_payment Edge Function.',
+        );
+      }
+      if (fallbackStatus == 401 || fallbackStatus == 403) {
+        throw const AuthException(
+          'Session expired, please login again',
+          kind: AuthFailureKind.sessionExpired,
         );
       }
       if (fallbackStatus < 200 || fallbackStatus >= 300) {
@@ -381,6 +480,80 @@ class OrderPaymentService extends SupabaseServiceBase {
         throw const ValidationException('Could not update this order.');
       }
       throw RepositoryException(e.message.trim().isNotEmpty ? e.message : e.toString());
+    }
+  }
+
+  Future<String> getPaymentStatus({required String orderId}) async {
+    String refreshedToken = '';
+    try {
+      final refreshed = await client.auth.refreshSession();
+      refreshedToken = refreshed.session?.accessToken.trim() ?? '';
+    } catch (_) {}
+    final accessToken = refreshedToken.isNotEmpty
+        ? refreshedToken
+        : client.auth.currentSession?.accessToken.trim() ?? '';
+    if (accessToken.isEmpty) {
+      throw const AuthException(
+        'Session expired, please login again',
+        kind: AuthFailureKind.sessionExpired,
+      );
+    }
+    try {
+      late final int status;
+      late final dynamic data;
+      if (kIsWeb) {
+        final res = await _getEdgeFunctionJsonWeb(
+          functionName: 'check-payment-status',
+          queryParameters: <String, String>{'order_id': orderId},
+          accessToken: accessToken,
+        );
+        status = res.status;
+        data = res.data;
+      } else {
+        final base = AppEnv.resolve().supabaseFunctionsBaseUrl.trim();
+        if (base.isEmpty) {
+          throw const RepositoryException('Missing Supabase functions base URL.');
+        }
+        final uri = Uri.parse('$base/check-payment-status').replace(
+          queryParameters: <String, String>{'order_id': orderId},
+        );
+        final res = await HttpResilience.get(
+          uri,
+          headers: <String, String>{
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          retries: 2,
+          timeout: const Duration(seconds: 18),
+        );
+        status = res.statusCode;
+        try {
+          data = jsonDecode(res.body);
+        } catch (_) {
+          data = <String, dynamic>{'raw': res.body};
+        }
+      }
+      if (status == 401 || status == 403) {
+        throw const AuthException(
+          'Session expired, please login again',
+          kind: AuthFailureKind.sessionExpired,
+        );
+      }
+      if (status < 200 || status >= 300) {
+        throw RepositoryException('Payment status check failed ($status).');
+      }
+      final mapped = (data is Map ? data['status']?.toString().trim() : null) ?? '';
+      final normalized = mapped.toLowerCase();
+      if (normalized == 'paid' || normalized == 'failed' || normalized == 'pending') {
+        return normalized;
+      }
+      throw const RepositoryException('Invalid payment status response.');
+    } on AuthException {
+      rethrow;
+    } on RepositoryException {
+      rethrow;
+    } catch (e) {
+      throw RepositoryException('Could not check payment status: $e');
     }
   }
 }

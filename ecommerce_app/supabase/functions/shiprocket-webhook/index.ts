@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "npm:@supabase/supabase-js";
+import { devLog } from "../_shared/dev_log.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +18,15 @@ function json(status: number, body: Record<string, unknown>) {
 
 function ok(body: Record<string, unknown>) {
   return json(200, body);
+}
+
+function readShiprocketSignature(req: Request): string {
+  return (
+    req.headers.get("x-shiprocket-signature") ??
+    req.headers.get("x-webhook-secret") ??
+    req.headers.get("x-hook-secret") ??
+    ""
+  ).trim();
 }
 
 function str(v: unknown): string {
@@ -56,6 +66,74 @@ function pickFromAny(obj: unknown, keys: string[]): string {
   return "";
 }
 
+const WEBHOOK_STATUS_KEYS = [
+  "current_status",
+  "shipment_status",
+  "current_status_name",
+  "status",
+  "new_status",
+  "sr_status",
+  "order_status",
+  "orderStatus",
+  "tracking_status",
+];
+
+function shipmentObjectFromPayload(payload: Record<string, unknown>): Record<string, unknown> | null {
+  const top = payload.shipment ?? payload.Shipment;
+  if (top && typeof top === "object" && !Array.isArray(top)) return top as Record<string, unknown>;
+  const p = payload.payload;
+  if (p && typeof p === "object" && !Array.isArray(p)) {
+    const pr = p as Record<string, unknown>;
+    const s = pr.shipment ?? pr.Shipment;
+    if (s && typeof s === "object" && !Array.isArray(s)) return s as Record<string, unknown>;
+  }
+  const d = payload.data;
+  if (d && typeof d === "object" && !Array.isArray(d)) {
+    const dr = d as Record<string, unknown>;
+    const s = dr.shipment ?? dr.Shipment;
+    if (s && typeof s === "object" && !Array.isArray(s)) return s as Record<string, unknown>;
+  }
+  return null;
+}
+
+/** Prefer nested `shipment` so a generic root `status` does not mask shipment cancel. */
+function resolveWebhookStatusRaw(payload: Record<string, unknown>): string {
+  const sh = shipmentObjectFromPayload(payload);
+  if (sh) {
+    const st = pickFirstString(sh, WEBHOOK_STATUS_KEYS);
+    if (st) return st;
+  }
+  const fromAny = pickFromAny(payload, WEBHOOK_STATUS_KEYS);
+  if (fromAny) return fromAny;
+  const eventish = pickFromAny(payload, ["event", "event_name", "event_type", "type", "topic", "action"]);
+  if (eventish && eventish.toUpperCase().includes("CANCEL")) return "CANCELLED";
+  return "";
+}
+
+function extractWebhookShipmentId(payload: Record<string, unknown>): string {
+  const keys = ["shipment_id", "shipmentId", "sr_shipment_id", "shiprocket_shipment_id"];
+  const fromRoot = pickFromAny(payload, keys);
+  if (fromRoot) return fromRoot;
+  const sh = shipmentObjectFromPayload(payload);
+  if (sh) {
+    const sid = pickFirstString(sh, [...keys, "id"]);
+    if (sid) return sid;
+  }
+  return "";
+}
+
+function extractWebhookAwb(payload: Record<string, unknown>): string {
+  const keys = ["awb_code", "awb", "awbCode", "airway_bill_number", "airwaybill_number", "AWB"];
+  const fromRoot = pickFromAny(payload, keys);
+  if (fromRoot) return fromRoot;
+  const sh = shipmentObjectFromPayload(payload);
+  if (sh) {
+    const a = pickFirstString(sh, keys);
+    if (a) return a;
+  }
+  return "";
+}
+
 function mapShiprocketStatus(statusRaw: string): {
   shipmentStatus: string;
   deliveryStatus: string;
@@ -83,7 +161,7 @@ function mapShiprocketStatus(statusRaw: string): {
   if (s.includes("RTO_DELIVERED")) {
     return { shipmentStatus: "rto_completed", deliveryStatus: "rto_completed", orderStatus: null };
   }
-  if (s.includes("CANCEL")) {
+  if (s.includes("CANCEL") || s.includes("VOIDED") || /\bVOID\b/.test(s)) {
     return { shipmentStatus: "cancelled", deliveryStatus: "cancelled", orderStatus: "cancelled" };
   }
   if (s.includes("NEW") || s.includes("CREATED")) {
@@ -204,7 +282,7 @@ async function writeWebhookLog(
 }
 
 Deno.serve(async (req) => {
-  console.log("shiprocket_webhook_hit", { method: req.method });
+  devLog("shiprocket_webhook_hit", { method: req.method });
   if (req.method === "OPTIONS") {
     return ok({ ok: true, received: true, method: "OPTIONS" });
   }
@@ -215,9 +293,14 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const SHIPROCKET_WEBHOOK_SECRET = Deno.env.get("SHIPROCKET_WEBHOOK_SECRET") ?? "";
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error("shiprocket_webhook_missing_supabase_env");
       return ok({ ok: false, received: true, ignored: "missing_supabase_env" });
+    }
+    const incoming = readShiprocketSignature(req);
+    if (!SHIPROCKET_WEBHOOK_SECRET.trim().length || !incoming || incoming !== SHIPROCKET_WEBHOOK_SECRET.trim()) {
+      return json(401, { error: "unauthorized" });
     }
 
     let payload: Record<string, unknown> = {};
@@ -230,21 +313,12 @@ Deno.serve(async (req) => {
       } else {
         payload = {};
       }
-      console.log("shiprocket_webhook_payload_parsed");
+      devLog("shiprocket_webhook_payload_parsed");
     } catch (_) {
-      console.log("shiprocket_webhook_invalid_or_empty_json");
+      devLog("shiprocket_webhook_invalid_or_empty_json");
       payload = {};
     }
-    const statusRaw = pickFromAny(payload, [
-      "current_status",
-      "status",
-      "shipment_status",
-      "current_status_name",
-      "new_status",
-      "sr_status",
-      "order_status",
-      "orderStatus",
-    ]);
+    const statusRaw = resolveWebhookStatusRaw(payload);
     if (!statusRaw) {
       return ok({
         ok: true,
@@ -256,14 +330,21 @@ Deno.serve(async (req) => {
     const mappedPreview = mapShiprocketStatus(statusRaw);
     const isCancelPreview = mappedPreview.shipmentStatus === "cancelled";
 
-    const shipmentId = pickFromAny(payload, ["shipment_id", "shipmentId", "shipment"]);
-    const awbCode = pickFromAny(payload, ["awb_code", "awb", "awbCode"]);
+    const shipmentId = extractWebhookShipmentId(payload);
+    const awbCode = extractWebhookAwb(payload);
     const channelRefRaw = pickFromAny(payload, [
       "channel_order_id",
       "channelOrderId",
       "channel_order",
+      "channelOrder",
+      "customer_order_id",
     ]);
-    const adhocOrderRefRaw = pickFromAny(payload, ["order_id", "orderId"]);
+    const adhocOrderRefRaw = pickFromAny(payload, [
+      "order_id",
+      "orderId",
+      "client_order_id",
+      "clientOrderId",
+    ]);
     const channelOrderUuid =
       normalizeChannelOrderRefToUuid(channelRefRaw) ?? normalizeChannelOrderRefToUuid(adhocOrderRefRaw);
 
@@ -291,6 +372,8 @@ Deno.serve(async (req) => {
       delivery_method: string | null;
       delivery_status: string | null;
       last_tracking_update: string | null;
+      shipment_id?: string | null;
+      awb_code?: string | null;
     };
 
     let matchOrder: MatchRow | null = null;
@@ -319,14 +402,16 @@ Deno.serve(async (req) => {
     if (!matchOrder && isShipmentCancelled && channelOrderUuid) {
       const byChannel = await admin
         .from("orders")
-        .select("id, user_id, status, delivery_method, delivery_status, last_tracking_update")
+        .select("id, user_id, status, delivery_method, delivery_status, last_tracking_update, shipment_id, awb_code")
         .eq("id", channelOrderUuid)
         .limit(1)
         .maybeSingle();
       if (!byChannel.error && byChannel.data?.id) {
         const row = byChannel.data as MatchRow;
         const dm = (row.delivery_method ?? "").toString().trim().toLowerCase();
-        if (dm === "shiprocket_delivery") {
+        const sid = (row.shipment_id ?? "").toString().trim();
+        const awbRow = (row.awb_code ?? "").toString().trim();
+        if (dm === "shiprocket_delivery" || sid.length > 0 || awbRow.length > 0) {
           matchOrder = row;
         }
       }
@@ -369,7 +454,7 @@ Deno.serve(async (req) => {
         source: "webhook",
         action: "ignored_stale_or_duplicate",
       });
-      console.log("shiprocket_webhook_ignored_stale", {
+      devLog("shiprocket_webhook_ignored_stale", {
         shipment_id: shipmentId || null,
         status: mapped.shipmentStatus,
         at: incomingAt.toISOString(),
@@ -387,7 +472,7 @@ Deno.serve(async (req) => {
         source: "webhook",
         action: "ignored_downgrade",
       });
-      console.log("shiprocket_webhook_ignored_priority", {
+      devLog("shiprocket_webhook_ignored_priority", {
         shipment_id: shipmentId || null,
         status: mapped.shipmentStatus,
         at: incomingAt.toISOString(),
@@ -448,7 +533,7 @@ Deno.serve(async (req) => {
       console.error("shiprocket_webhook_update_failed", error.message);
       return ok({ ok: false, received: true, ignored: "db_update_failed" });
     }
-    console.log("shiprocket_webhook_db_update_executed", { order_id: matchOrder.id });
+    devLog("shiprocket_webhook_db_update_executed", { order_id: matchOrder.id });
 
     await insertStatusNotificationIfNeeded(admin, matchOrder, mapped.deliveryStatus);
     await writeWebhookLog(admin, {
@@ -459,7 +544,7 @@ Deno.serve(async (req) => {
       action: "applied",
     });
 
-    console.log("shiprocket_webhook_processed", {
+    devLog("shiprocket_webhook_processed", {
       shipment_id: shipmentId || null,
       status: mapped.shipmentStatus,
       at: nowIso,

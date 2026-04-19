@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import 'package:ecommerce_app/core/network/http_resilience.dart';
 import 'package:printing/printing.dart';
 
 class SecureArticleReaderPage extends StatefulWidget {
@@ -44,7 +44,7 @@ class _SecureArticleReaderPageState extends State<SecureArticleReaderPage> {
 
   Future<Uint8List> _downloadPdfBytes() async {
     final uri = Uri.parse(widget.signedPdfUrl);
-    final res = await http.get(uri);
+    final res = await HttpResilience.get(uri, timeout: const Duration(seconds: 12));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('Could not load article PDF (HTTP ${res.statusCode}).');
     }

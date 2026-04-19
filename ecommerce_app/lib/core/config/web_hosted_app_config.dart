@@ -15,6 +15,7 @@ Future<AppEnv?> tryLoadWebHostedAppConfig() async {
   try {
     final r = await http.get(uri).timeout(const Duration(seconds: 10));
     if (r.statusCode != 200 || r.body.trim().isEmpty) return null;
+    if (r.body.length > 65536) return null;
     final decoded = jsonDecode(r.body);
     if (decoded is! Map<String, dynamic>) return null;
     return AppEnv.fromHostedConfigJson(decoded);

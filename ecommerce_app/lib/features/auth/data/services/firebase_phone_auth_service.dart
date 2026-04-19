@@ -115,14 +115,19 @@ class FirebasePhoneAuthService {
   }) async {
     final phone = normalizePhone(phoneNumber);
     await _supabase.auth.signOut();
-    final bridge = await _ensurePhoneBridgeIdentity(
-      phone: phone,
-      firebaseUid: firebaseUid,
-    );
+    final bridge = await _ensurePhoneBridgeIdentity();
     await _supabase.auth.signInWithPassword(
       email: bridge.email,
       password: bridge.password,
     );
+    if (kDebugMode) {
+      debugPrint(
+        'Phone login: Supabase session present=${_supabase.auth.currentSession != null}',
+      );
+    }
+    if (_supabase.auth.currentSession == null) {
+      throw const AuthException('Session expired, please login again');
+    }
 
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -165,21 +170,19 @@ class FirebasePhoneAuthService {
     );
   }
 
-  Future<({String email, String password})> _ensurePhoneBridgeIdentity({
-    required String phone,
-    required String firebaseUid,
-  }) async {
+  Future<({String email, String password})> _ensurePhoneBridgeIdentity() async {
     final firebaseUser = _firebaseAuth.currentUser;
     if (firebaseUser == null) {
       throw const AuthException('Phone session missing. Please verify OTP again.');
     }
     final idToken = await firebaseUser.getIdToken(true);
+    if (kDebugMode) {
+      debugPrint('Phone OTP verify: Firebase ID token received=${idToken != null && idToken.isNotEmpty}');
+    }
     final response = await _supabase.functions.invoke(
       'phone-auth-bridge',
       body: <String, dynamic>{
-        'firebase_id_token': idToken,
-        'phone': phone,
-        'firebase_uid': firebaseUid,
+        'id_token': idToken,
       },
     );
     if (response.status < 200 || response.status >= 300) {
@@ -204,29 +207,42 @@ class FirebasePhoneAuthService {
     required String phone,
     required String firebaseUid,
   }) async {
-    final existing = await _supabase
+    final nameRow = await _supabase
         .from('profiles')
-        .select('id, full_name, role')
+        .select('full_name')
         .eq('id', userId)
         .maybeSingle();
-
-    if (existing == null) {
-      await _supabase.from('profiles').insert({
-        'id': userId,
-        'full_name': 'User',
-        'role': 'customer',
-        'phone': phone,
-        'firebase_uid': firebaseUid,
-        'login_type': 'phone',
-      });
-      return;
-    }
-
-    await _supabase.from('profiles').update({
+    final existingName = nameRow?['full_name']?.toString().trim() ?? '';
+    final fullName = existingName.isNotEmpty ? existingName : 'User';
+    final insertPayload = <String, dynamic>{
+      'id': userId,
+      'full_name': fullName,
+      'role': 'customer',
       'phone': phone,
       'firebase_uid': firebaseUid,
       'login_type': 'phone',
-    }).eq('id', userId);
+    };
+    final updatePayload = <String, dynamic>{
+      'full_name': fullName,
+      'phone': phone,
+      'firebase_uid': firebaseUid,
+      'login_type': 'phone',
+    };
+    try {
+      final rows = await _supabase
+          .from('profiles')
+          .update(updatePayload)
+          .eq('id', userId)
+          .select('id');
+      if (rows.isNotEmpty) return;
+    } catch (_) {}
+
+    final idRow = await _supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
+    if (idRow != null) return;
+
+    try {
+      await _supabase.from('profiles').insert(insertPayload);
+    } catch (_) {}
   }
 
 }

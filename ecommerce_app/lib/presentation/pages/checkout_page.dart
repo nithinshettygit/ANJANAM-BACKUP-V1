@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/payments/razorpay_service.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
@@ -11,6 +12,8 @@ import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
 import 'package:ecommerce_app/features/checkout/domain/checkout_pricing_rules.dart';
 import 'package:ecommerce_app/features/checkout/domain/shipping_details.dart';
+import 'package:ecommerce_app/features/checkout/data/services/order_payment_web_console_stub.dart'
+    if (dart.library.html) 'package:ecommerce_app/features/checkout/data/services/order_payment_web_console_web.dart';
 import 'package:ecommerce_app/features/checkout/state/checkout_actions_controller.dart';
 import 'package:ecommerce_app/features/checkout/state/checkout_pricing_provider.dart';
 import 'package:ecommerce_app/features/checkout/state/order_payment_provider.dart';
@@ -19,6 +22,7 @@ import 'package:ecommerce_app/features/product_details/state/product_details_pro
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -197,6 +201,23 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _checkoutFlowLock = false;
   }
 
+  /// True when Razorpay never presented a checkout UI (script, config, merchant branding).
+  static bool _razorpayWebInfrastructureError(String lower) {
+    if (lower.contains('cancel') ||
+        lower.contains('dismiss') ||
+        lower.contains('closed')) {
+      return false;
+    }
+    return lower.contains('could not load') ||
+        lower.contains('check your connection') ||
+        lower.contains('not available in this browser') ||
+        lower.contains('could not start payment') ||
+        lower.contains('payments are not configured') ||
+        lower.contains('not configured') ||
+        lower.contains('too small') ||
+        lower.contains('minimum');
+  }
+
   String _placeOrderButtonLabel() {
     if (!_checkoutFlowLock) {
       return 'Place order';
@@ -215,6 +236,37 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       case _CheckoutPhase.showingPaymentFailed:
         return 'Payment failed';
     }
+  }
+
+  Future<String> _pollPaymentStatus({
+    required String orderId,
+    Duration timeout = const Duration(minutes: 3),
+  }) async {
+    final paymentSvc = ref.read(orderPaymentServiceProvider);
+    final started = DateTime.now();
+    while (DateTime.now().difference(started) < timeout) {
+      if (!mounted) return 'pending';
+      try {
+        if (kIsWeb) {
+          orderPaymentWebConsoleLog('Polling payment status for: $orderId');
+        }
+        final status = await paymentSvc.getPaymentStatus(orderId: orderId);
+        if (kIsWeb) {
+          orderPaymentWebConsoleLog('Payment status: $status');
+        }
+        if (status == 'paid' || status == 'failed') {
+          return status;
+        }
+      } on AuthException {
+        rethrow;
+      } catch (e) {
+        if (kIsWeb) {
+          orderPaymentWebConsoleLog('Payment status poll transient error: $e');
+        }
+      }
+      await Future<void>.delayed(const Duration(seconds: 4));
+    }
+    return 'timeout';
   }
 
   Future<void> _placeOrder({
@@ -368,12 +420,42 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       return;
     }
 
+    final completer = Completer<void>();
     _razorpayService ??= RazorpayService(keyId: env.razorpayKeyId);
+    final supabase = ref.read(supabaseClientProvider);
+    var session = supabase.auth.currentSession;
+    if (session == null) {
+      try {
+        final refreshed = await supabase.auth.refreshSession();
+        session = refreshed.session ?? supabase.auth.currentSession;
+      } catch (_) {
+        session = supabase.auth.currentSession;
+      }
+    }
+    if (kDebugMode) {
+      debugPrint('Checkout payment: Supabase session present=${session != null}');
+    }
+    if (session == null) {
+      if (mounted) {
+        setState(() => _checkoutPhase = _CheckoutPhase.idle);
+        _releaseCheckoutLock();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            content: Text('Session expired, please login again'),
+          ),
+        );
+        Navigator.of(context).pushNamed('/login');
+      } else {
+        _releaseCheckoutLock();
+      }
+      if (!completer.isCompleted) completer.complete();
+      return;
+    }
     final userEmail = ref.read(authSessionProvider).maybeWhen(
           data: (u) => u == null ? '' : u.email.trim(),
           orElse: () => '',
         );
-    final completer = Completer<void>();
 
     setState(() => _checkoutPhase = _CheckoutPhase.openingPayment);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -393,6 +475,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     String? rzpCheckoutOrderId;
     try {
       rzpCheckoutOrderId = await paymentSvc.tryCreateRazorpayServerOrder(orderId: order.id);
+      if (kIsWeb && (rzpCheckoutOrderId == null || rzpCheckoutOrderId.trim().isEmpty)) {
+        throw const RepositoryException(
+          'Could not start secure payment session. Please try again.',
+        );
+      }
       if (rzpCheckoutOrderId != null) {
         try {
           await paymentSvc.setRazorpayCheckoutOrderId(
@@ -407,6 +494,23 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       if (mounted) {
         setState(() => _checkoutPhase = _CheckoutPhase.idle);
         _releaseCheckoutLock();
+        final lower = e.toString().toLowerCase();
+        if (e is AuthException ||
+            lower.contains('(auth)') ||
+            lower.contains('sign in again') ||
+            lower.contains('login again') ||
+            lower.contains('session expired') ||
+            lower.contains('unauthorized')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              behavior: SnackBarBehavior.fixed,
+              content: Text('Session expired, please login again'),
+            ),
+          );
+          Navigator.of(context).pushNamed('/login');
+          if (!completer.isCompleted) completer.complete();
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.fixed,
@@ -420,14 +524,56 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       return;
     }
 
-    _razorpayService!.openCheckout(
+    var checkoutResolved = false;
+    var razorpayPrecheckFailed = false;
+
+    Future<void> completePaid({String? razorpayPaymentId}) async {
+      if (!mounted || checkoutResolved) return;
+      checkoutResolved = true;
+      setState(() {
+        _successOverlayIsCod = false;
+        _checkoutPhase = _CheckoutPhase.showingPaymentSuccess;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      _releaseCheckoutLock();
+      setState(() => _checkoutPhase = _CheckoutPhase.idle);
+      _navigateOrderSuccess(order, razorpayPaymentId: razorpayPaymentId);
+      if (!completer.isCompleted) completer.complete();
+    }
+
+    Future<void> completeFailed(String message) async {
+      if (!mounted || checkoutResolved) return;
+      checkoutResolved = true;
+      setState(() {
+        _paymentFailureOverlayDetail = message;
+        _checkoutPhase = _CheckoutPhase.showingPaymentFailed;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 750));
+      if (!mounted) {
+        if (!completer.isCompleted) completer.complete();
+        return;
+      }
+      setState(() => _checkoutPhase = _CheckoutPhase.idle);
+      _releaseCheckoutLock();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.fixed,
+          content: Text('Payment failed. Please try again.'),
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed('/orders');
+      if (!completer.isCompleted) completer.complete();
+    }
+
+    await _razorpayService!.openCheckoutAfterScriptReady(
       amountPaise: (order.grandTotal * 100).round(),
       customerName: ship.fullName,
       customerEmail: userEmail,
       customerContact: ship.phone,
       razorpayOrderId: rzpCheckoutOrderId,
       onPaymentSuccess: (paymentId, razorpayOrderId, razorpaySignature) async {
-        if (!mounted) return;
+        if (!mounted || checkoutResolved) return;
         setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
         try {
           await paymentSvc.verifyRazorpayPaymentAndMarkPaid(
@@ -436,39 +582,75 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             razorpayOrderId: razorpayOrderId,
             razorpaySignature: razorpaySignature,
           );
-          if (!mounted) return;
-          setState(() {
-            _successOverlayIsCod = false;
-            _checkoutPhase = _CheckoutPhase.showingPaymentSuccess;
-          });
-          await Future<void>.delayed(const Duration(milliseconds: 600));
-          if (!mounted) return;
-          _releaseCheckoutLock();
-          setState(() => _checkoutPhase = _CheckoutPhase.idle);
-          _navigateOrderSuccess(order, razorpayPaymentId: paymentId);
+          await completePaid(razorpayPaymentId: paymentId);
         } catch (e) {
+          if (checkoutResolved) return;
           if (mounted) {
             setState(() => _checkoutPhase = _CheckoutPhase.idle);
             _releaseCheckoutLock();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                behavior: SnackBarBehavior.fixed,
-                content: Text(
-                  'Payment went through but we could not update your order. '
-                  'Save this reference for support: $paymentId. Details: $e',
+            if (e is AuthException) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  behavior: SnackBarBehavior.fixed,
+                  content: Text('Session expired, please login again'),
                 ),
-              ),
-            );
-            Navigator.of(context).pushReplacementNamed('/orders');
+              );
+              Navigator.of(context).pushNamed('/login');
+            } else {
+              // For web QR/UPI flows callback can arrive before capture/webhook;
+              // keep waiting for status polling instead of hard-failing immediately.
+              if (!kIsWeb) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    behavior: SnackBarBehavior.fixed,
+                    content: Text(
+                      'Payment went through but we could not update your order. '
+                      'Save this reference for support: $paymentId. Details: $e',
+                    ),
+                  ),
+                );
+                Navigator.of(context).pushReplacementNamed('/orders');
+              }
+            }
           } else {
             _releaseCheckoutLock();
           }
         } finally {
-          if (!completer.isCompleted) completer.complete();
+          if (!kIsWeb && !completer.isCompleted) completer.complete();
         }
       },
       onPaymentError: (message) async {
-        if (!mounted) return;
+        final lowerImmediate = message.toLowerCase();
+        if (kIsWeb && _razorpayWebInfrastructureError(lowerImmediate)) {
+          razorpayPrecheckFailed = true;
+        }
+        if (!mounted || checkoutResolved) return;
+        if (kIsWeb) {
+          final lower = message.toLowerCase();
+          final userCancelled = lower.contains('cancel') ||
+              lower.contains('dismiss') ||
+              lower.contains('closed');
+          if (userCancelled) {
+            try {
+              await paymentSvc.updatePaymentStatus(
+                orderId: order.id,
+                paymentStatus: 'failed',
+              );
+            } catch (_) {}
+            await completeFailed('Payment cancelled by user.');
+            return;
+          }
+          if (_razorpayWebInfrastructureError(lower)) {
+            await completeFailed(
+              'Payment could not open. In Razorpay Dashboard, remove any localhost '
+              'URLs from branding or logo, add this website to allowed checkout sites, '
+              'then try again.',
+            );
+            return;
+          }
+          // Bank or wallet errors after UI opened: polling remains source of truth.
+          return;
+        }
         setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
         try {
           await paymentSvc.updatePaymentStatus(
@@ -478,26 +660,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         } catch (_) {
           // Order may stay pending; UI still shows failure.
         }
-        if (!mounted) return;
-        setState(() {
-          _paymentFailureOverlayDetail = message;
-          _checkoutPhase = _CheckoutPhase.showingPaymentFailed;
-        });
-        await Future<void>.delayed(const Duration(milliseconds: 750));
-        if (!mounted) {
-          if (!completer.isCompleted) completer.complete();
-          return;
-        }
-        setState(() => _checkoutPhase = _CheckoutPhase.idle);
-        _releaseCheckoutLock();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.fixed,
-            content: const Text('Payment failed. Please try again.'),
-          ),
-        );
-        Navigator.of(context).pushReplacementNamed('/orders');
-        if (!completer.isCompleted) completer.complete();
+        await completeFailed(message);
       },
       onExternalWallet: (_) {},
     );
@@ -505,6 +668,55 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     // Clear "opening" only if Razorpay did not already advance the phase (e.g. sync validation error).
     if (mounted && _checkoutPhase == _CheckoutPhase.openingPayment) {
       setState(() => _checkoutPhase = _CheckoutPhase.idle);
+    }
+
+    if (kIsWeb && !razorpayPrecheckFailed) {
+      unawaited(() async {
+        try {
+          final status = await _pollPaymentStatus(orderId: order.id);
+          if (!mounted || checkoutResolved) return;
+          if (status == 'paid') {
+            await completePaid();
+            return;
+          }
+          if (status == 'failed') {
+            await completeFailed('Payment failed.');
+            return;
+          }
+          if (status == 'timeout') {
+            checkoutResolved = true;
+            if (!mounted) {
+              if (!completer.isCompleted) completer.complete();
+              return;
+            }
+            setState(() => _checkoutPhase = _CheckoutPhase.idle);
+            _releaseCheckoutLock();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                behavior: SnackBarBehavior.fixed,
+                content: Text('Payment pending, we will update shortly'),
+              ),
+            );
+            Navigator.of(context).pushReplacementNamed('/orders');
+            if (!completer.isCompleted) completer.complete();
+          }
+        } on AuthException {
+          if (!mounted || checkoutResolved) return;
+          checkoutResolved = true;
+          setState(() => _checkoutPhase = _CheckoutPhase.idle);
+          _releaseCheckoutLock();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              behavior: SnackBarBehavior.fixed,
+              content: Text('Session expired, please login again'),
+            ),
+          );
+          Navigator.of(context).pushNamed('/login');
+          if (!completer.isCompleted) completer.complete();
+        } catch (_) {
+          // Ignore transient poll errors; timeout fallback handles final UX.
+        }
+      }());
     }
 
     await completer.future;

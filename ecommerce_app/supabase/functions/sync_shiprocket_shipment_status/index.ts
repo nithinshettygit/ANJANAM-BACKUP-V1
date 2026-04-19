@@ -8,6 +8,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -20,6 +21,14 @@ function json(status: number, body: Record<string, unknown>) {
 function authBearer(req: Request): string {
   const h = req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
   return h.replace(/^Bearer\s+/i, "").trim();
+}
+
+function webhookSecret(req: Request): string {
+  return (
+    req.headers.get("x-webhook-secret") ??
+    req.headers.get("x-hook-secret") ??
+    ""
+  ).trim();
 }
 
 async function shiprocketLogin(email: string, password: string): Promise<string> {
@@ -84,7 +93,7 @@ function pickTrackData(data: unknown): Record<string, unknown> | null {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
   try {
     if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
@@ -92,6 +101,7 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const SHIPROCKET_WEBHOOK_SECRET = Deno.env.get("SHIPROCKET_WEBHOOK_SECRET") ?? "";
     const SHIPROCKET_EMAIL = Deno.env.get("SHIPROCKET_EMAIL") ?? "";
     const SHIPROCKET_PASSWORD = Deno.env.get("SHIPROCKET_PASSWORD") ?? "";
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -102,24 +112,31 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const jwtFromBody = typeof body?.access_token === "string" ? body.access_token.trim() : "";
-    const jwt = authBearer(req) || jwtFromBody;
-    if (!jwt) return json(401, { error: "missing_authorization" });
+    const incomingWebhookSecret = webhookSecret(req);
+    const hasValidWebhookSecret =
+      SHIPROCKET_WEBHOOK_SECRET.trim().length > 0 &&
+      incomingWebhookSecret.length > 0 &&
+      incomingWebhookSecret === SHIPROCKET_WEBHOOK_SECRET.trim();
 
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-    });
-    const { data: userData, error: userErr } = await userClient.auth.getUser(jwt);
-    if (userErr || !userData?.user?.id) return json(401, { error: "invalid_token" });
-    const uid = userData.user.id;
+    const jwt = authBearer(req);
+    if (!hasValidWebhookSecret && !jwt) return json(401, { error: "missing_authorization" });
 
-    const { data: prof } = await userClient
-      .from("profiles")
-      .select("role")
-      .eq("id", uid)
-      .maybeSingle();
-    const role = (prof?.role ?? "").toString().trim().toLowerCase();
-    if (role !== "admin") return json(403, { error: "not_admin" });
+    if (!hasValidWebhookSecret) {
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${jwt}` } },
+      });
+      const { data: userData, error: userErr } = await userClient.auth.getUser(jwt);
+      if (userErr || !userData?.user?.id) return json(401, { error: "invalid_token" });
+      const uid = userData.user.id;
+
+      const { data: prof } = await userClient
+        .from("profiles")
+        .select("role")
+        .eq("id", uid)
+        .maybeSingle();
+      const role = (prof?.role ?? "").toString().trim().toLowerCase();
+      if (role !== "admin") return json(403, { error: "not_admin" });
+    }
 
     const orderId = typeof body?.order_id === "string" ? body.order_id.trim() : "";
     if (!orderId) return json(400, { error: "missing_order_id" });
@@ -202,7 +219,7 @@ Deno.serve(async (req) => {
     }
 
     const { error: upErr } = await adminClient.from("orders").update(patch).eq("id", orderId);
-    if (upErr) return json(500, { error: "persist_failed", detail: upErr.message });
+    if (upErr) return json(500, { error: "persist_failed" });
 
     return json(200, {
       synced: true,
@@ -219,7 +236,7 @@ Deno.serve(async (req) => {
       const detail = msg.split(":").slice(1).join(":").trim();
       return json(502, { error: "shiprocket_auth_failed", detail: detail || "auth_failed" });
     }
-    return json(500, { error: "internal_error", detail: String(e) });
+    return json(500, { error: "internal_error" });
   }
 });
 

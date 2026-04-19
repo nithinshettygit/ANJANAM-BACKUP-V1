@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js";
+import { resolveRequesterIdentity } from "../_shared/auth.ts";
+import { devLog } from "../_shared/dev_log.ts";
 
 /** Required for Flutter Web / browser: preflight + cross-origin POST with Authorization. */
 const corsHeaders: Record<string, string> = {
@@ -8,6 +10,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -15,10 +18,6 @@ function json(status: number, body: Record<string, unknown>) {
     status,
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
-}
-
-function authHeader(req: Request): string | null {
-  return req.headers.get("authorization") ?? req.headers.get("Authorization");
 }
 
 function reqString(v: unknown, name: string): string {
@@ -45,16 +44,17 @@ type RazorpayPayment = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
   try {
     if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID") ?? "";
     const RAZORPAY_KEY_SECRET = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
       return json(500, { error: "missing_supabase_secrets" });
     }
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
@@ -64,29 +64,14 @@ serve(async (req) => {
       global: { headers: { "Content-Type": "application/json" } },
     });
 
-    // Auth is required even in test mode to prevent anonymous capture attempts.
-    let requesterId: string | null = null;
-    const h = authHeader(req);
-    const accessTokenRaw = h?.trim() ?? "";
-    const tokenPart =
-      accessTokenRaw
-        .split(/\s+/)
-        .filter(Boolean)
-        .pop() ?? "";
-    const accessToken = tokenPart.replace(/^Bearer$/i, "").trim();
-    if (!accessToken || !accessToken.includes(".")) {
-      return json(401, {
-        error: "missing_auth",
-        detail: "Authorization Bearer JWT required.",
-      });
-    }
-    const { data: authData, error: authErr } = await supabase.auth.getUser(accessToken);
-    if (authErr || !authData?.user) {
-      return json(401, { error: "invalid_auth", detail: authErr?.message ?? "invalid_token" });
-    }
-    requesterId = authData.user.id;
-
     const body = await req.json();
+    const authResult = await resolveRequesterIdentity(req, {
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY,
+    });
+    if (!authResult.ok) return json(authResult.code, { error: authResult.error });
+    const requesterId = authResult.userId;
+    devLog(`auth_ok user_id=${requesterId}`);
     const auth = basicAuthHeader(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET);
 
     const orderId = reqString(body["order_id"], "order_id");
@@ -197,9 +182,8 @@ serve(async (req) => {
       capture_status: "captured_now",
       payment_status: cap.status ?? "captured",
     });
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
-    return json(500, { error: "capture_payment_failed", detail });
+  } catch (_) {
+    return json(500, { error: "capture_payment_failed" });
   }
 });
 

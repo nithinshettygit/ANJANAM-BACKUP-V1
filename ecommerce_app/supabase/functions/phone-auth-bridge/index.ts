@@ -32,9 +32,11 @@ function syntheticEmailFromPhone(phone: string): string {
   return `phone_${digits}@phone.anjanam.app`;
 }
 
-function syntheticPasswordFromPhone(phone: string): string {
-  const digits = phone.replace(/[^\d]/g, "");
-  return `AnjanamPhoneAuth@${digits}#v1`;
+function generateOneTimeBridgePassword(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  const entropy = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `AnjanamBridge@${entropy}#`;
 }
 
 async function verifyFirebaseToken({
@@ -86,17 +88,20 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const idToken = String(body?.firebase_id_token ?? "").trim();
-    const requestedPhone = normalizePhone(body?.phone);
-    const requestedUid = String(body?.firebase_uid ?? "").trim();
+    const idToken = String(body?.id_token ?? body?.firebase_id_token ?? "").trim();
     if (!idToken) return json(400, { error: "missing_firebase_id_token" });
 
-    const verified = await verifyFirebaseToken({
-      firebaseWebApiKey: FIREBASE_WEB_API_KEY,
-      idToken,
-    });
-    const phone = normalizePhone(requestedPhone || verified.phoneNumber);
-    const firebaseUid = requestedUid || verified.localId;
+    let verified: { localId: string; phoneNumber: string };
+    try {
+      verified = await verifyFirebaseToken({
+        firebaseWebApiKey: FIREBASE_WEB_API_KEY,
+        idToken,
+      });
+    } catch {
+      return json(401, { error: "invalid_firebase_id_token" });
+    }
+    const phone = normalizePhone(verified.phoneNumber);
+    const firebaseUid = verified.localId;
     if (!phone || !firebaseUid) return json(400, { error: "invalid_phone_identity" });
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -121,7 +126,8 @@ Deno.serve(async (req) => {
     }
 
     const syntheticEmail = syntheticEmailFromPhone(phone);
-    const syntheticPassword = syntheticPasswordFromPhone(phone);
+    // Rotated on every bridge sign-in to avoid static reusable shared-password risk.
+    const syntheticPassword = generateOneTimeBridgePassword();
 
     let authUserId = String(profile?.id ?? "").trim();
     if (authUserId) {
@@ -145,6 +151,11 @@ Deno.serve(async (req) => {
         });
       }
       authUserId = created.data.user.id;
+    } else {
+      await admin.auth.admin.updateUserById(authUserId, {
+        password: syntheticPassword,
+        email_confirm: true,
+      });
     }
 
     // Ensure profile exists + linked to phone/firebase identity.
@@ -166,8 +177,8 @@ Deno.serve(async (req) => {
       password: syntheticPassword,
       phone,
     });
-  } catch (e) {
-    console.error("phone_auth_bridge_error", String(e));
+  } catch (_) {
+    console.error("phone_auth_bridge_error");
     return json(500, { error: "internal_error" });
   }
 });

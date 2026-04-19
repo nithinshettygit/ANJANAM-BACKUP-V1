@@ -4,12 +4,12 @@ import 'dart:convert';
 import 'package:ecommerce_app/core/config/app_env.dart';
 import 'package:ecommerce_app/core/constants/stock_constants.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:ecommerce_app/core/network/http_resilience.dart';
 import 'package:ecommerce_app/core/search/order_search_utils.dart';
 import 'package:ecommerce_app/core/formatting/estimated_delivery_format.dart';
 import '../utils/admin_order_status_workflow.dart';
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart'
     show FileOptions, PostgrestException, SupabaseClient;
 import 'package:uuid/uuid.dart';
@@ -1578,7 +1578,8 @@ class AdminService {
 
     final userIds = orders
         .map((e) => e['user_id']?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty && _uuidLike.hasMatch(id))
         .toSet()
         .toList();
     final orderIds = orders
@@ -2309,15 +2310,13 @@ class AdminService {
       if (base.isEmpty) {
         throw const RepositoryException('Missing Supabase functions base URL.');
       }
-      // Keep request CORS-safelisted to bypass broken OPTIONS preflight.
-      final payload = <String, dynamic>{
-        ...body,
-        'access_token': token,
-      };
-      final res = await http.post(
+      final res = await HttpResilience.post(
         Uri.parse('$base/create_shiprocket_shipment'),
-        headers: const <String, String>{'Content-Type': 'text/plain'},
-        body: jsonEncode(payload),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
       );
       status = res.statusCode;
       try {
@@ -2350,13 +2349,17 @@ class AdminService {
 
   Future<Map<String, dynamic>> syncShiprocketShipmentStatus({
     required String orderId,
+    bool forceClearShiprocketBooking = false,
   }) async {
     await _requireAdmin();
     final token = client.auth.currentSession?.accessToken;
     if (token == null || token.isEmpty) {
       throw const RepositoryException('Session expired. Sign in again.');
     }
-    final body = <String, dynamic>{'order_id': orderId};
+    final body = <String, dynamic>{
+      'order_id': orderId,
+      if (forceClearShiprocketBooking) 'force_clear_shiprocket_booking': true,
+    };
     late final int status;
     late final dynamic data;
     if (kIsWeb) {
@@ -2364,11 +2367,13 @@ class AdminService {
       if (base.isEmpty) {
         throw const RepositoryException('Missing Supabase functions base URL.');
       }
-      final payload = <String, dynamic>{...body, 'access_token': token};
-      final res = await http.post(
+      final res = await HttpResilience.post(
         Uri.parse('$base/sync-shiprocket-status'),
-        headers: const <String, String>{'Content-Type': 'text/plain'},
-        body: jsonEncode(payload),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
       );
       status = res.statusCode;
       try {
@@ -2419,11 +2424,13 @@ class AdminService {
       if (base.isEmpty) {
         throw const RepositoryException('Missing Supabase functions base URL.');
       }
-      final payload = <String, dynamic>{...body, 'access_token': token};
-      final res = await http.post(
+      final res = await HttpResilience.post(
         Uri.parse('$base/refund-payment'),
-        headers: const <String, String>{'Content-Type': 'text/plain'},
-        body: jsonEncode(payload),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
       );
       status = res.statusCode;
       try {
@@ -2463,7 +2470,7 @@ class AdminService {
     return '-';
   }
 
-  /// Prefer email stored on the order row (server snapshot), then profile, then auth.users map.
+  /// Prefer email stored on the order row (server snapshot), then profile / secondary email map.
   String _customerEmailForOrder({
     required dynamic orderSnapshotEmail,
     required String? profileEmail,
@@ -2498,21 +2505,8 @@ class AdminService {
       for (final p in profiles) (p['id'] ?? '').toString(): p,
     }..remove('');
 
-    // Try to include all authenticated users, not only profiles rows.
-    List<Map<String, dynamic>> authUsers = const [];
-    try {
-      final data = await client
-          .schema('auth')
-          .from('users')
-          .select('id, email, created_at');
-      authUsers = (data as List).cast<Map<String, dynamic>>();
-    } catch (_) {
-      // Fallback gracefully when auth.users is restricted.
-      authUsers = const [];
-    }
-    final authById = {
-      for (final u in authUsers) (u['id'] ?? '').toString(): u,
-    }..remove('');
+    // Do not query auth.users over PostgREST (often 406 / not exposed). Emails live on public.profiles
+    // (see migration 007); users with orders but no profile row still appear via orderIdsByUser below.
 
     final ordersData = await client.from('orders').select('id, user_id');
     final orders = (ordersData as List).cast<Map<String, dynamic>>();
@@ -2528,22 +2522,20 @@ class AdminService {
 
     final allUserIds = <String>{
       ...profileById.keys,
-      ...authById.keys,
       ...orderIdsByUser.keys,
     }.toList();
     allUserIds.sort();
 
     return allUserIds.map((id) {
       final p = profileById[id];
-      final a = authById[id];
       final orderIds = orderIdsByUser[id] ?? const <String>[];
       final spent = totalSpentByUser[id] ?? 0;
-      final email = _resolveUserEmail(p?['email']?.toString(), a?['email']?.toString());
+      final email = _resolveUserEmail(p?['email']?.toString(), null);
       final fullName = p?['full_name']?.toString().trim();
       final displayName = (fullName != null && fullName.isNotEmpty)
           ? fullName
           : (email != '-' ? email.split('@').first : 'User ${id.substring(0, id.length >= 8 ? 8 : id.length)}');
-      final createdAtRaw = p?['created_at'] ?? a?['created_at'];
+      final createdAtRaw = p?['created_at'];
       final roleRaw = p?['role']?.toString().trim().toLowerCase();
       final role = switch (roleRaw) {
         'admin' => 'admin',
@@ -3496,23 +3488,29 @@ class AdminService {
     return buf.toString().trim();
   }
 
+  static final RegExp _uuidLike = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  /// Reads emails from [profiles] only. Avoids PostgREST access to [auth.users] (often 406 / blocked).
   Future<Map<String, String>> _fetchAuthEmailsByUserIds(List<String> userIds) async {
-    if (userIds.isEmpty) return const {};
+    final ids = userIds.map((e) => e.trim()).where((e) => e.isNotEmpty && _uuidLike.hasMatch(e)).toList();
+    if (ids.isEmpty) return const {};
+    final map = <String, String>{};
     try {
-      final authUsers = await client
-          .schema('auth')
-          .from('users')
-          .select('id, email')
-          .inFilter('id', userIds);
-      final map = <String, String>{};
-      for (final row in (authUsers as List).cast<Map<String, dynamic>>()) {
+      final rows = (await client
+              .from('profiles')
+              .select('id, email')
+              .inFilter('id', ids) as List)
+          .cast<Map<String, dynamic>>();
+      for (final row in rows) {
         final id = (row['id'] ?? '').toString();
-        if (id.isEmpty) continue;
-        map[id] = row['email']?.toString() ?? '-';
+        final em = (row['email'] ?? '').toString().trim();
+        if (id.isEmpty || em.isEmpty) continue;
+        map[id] = em;
       }
       return map;
     } catch (_) {
-      // Access to auth.users depends on DB grants/policies. Fallback gracefully.
       return const {};
     }
   }

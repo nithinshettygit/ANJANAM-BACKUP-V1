@@ -338,6 +338,9 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     try {
       final token = await FirebaseMessaging.instance.getToken();
       _fcmToken = token;
+      if (kDebugMode && token != null && token.isNotEmpty) {
+        debugPrint('FCM token: $token');
+      }
       if (kDebugMode && (token == null || token.isEmpty)) {
         debugPrint(
           'FCM: getToken() is empty. Notifications cannot work until Firebase returns a token.',
@@ -351,6 +354,9 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     try {
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
         _fcmToken = newToken;
+        if (kDebugMode) {
+          debugPrint('FCM token: $newToken');
+        }
         final user = ref.read(authSessionProvider).asData?.value;
         if (user == null) return;
         unawaited(

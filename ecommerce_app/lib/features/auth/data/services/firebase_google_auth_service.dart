@@ -166,13 +166,7 @@ class FirebaseGoogleAuthService {
     required String? displayName,
     required String? photoUrl,
   }) async {
-    final existing = await _supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
-
-    final payload = <String, dynamic>{
+    final insertPayload = <String, dynamic>{
       'id': userId,
       'email': email,
       'full_name': (displayName == null || displayName.isEmpty) ? 'User' : displayName,
@@ -181,13 +175,30 @@ class FirebaseGoogleAuthService {
       'login_type': 'google',
       'role': 'customer',
     };
-
-    if (existing == null) {
-      await _supabase.from('profiles').insert(payload);
-      return;
+    final updatePayload = <String, dynamic>{
+      'email': email,
+      'full_name': insertPayload['full_name']!,
+      'firebase_uid': firebaseUid,
+      'login_type': 'google',
+    };
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      updatePayload['avatar_url'] = photoUrl;
     }
+    try {
+      final rows = await _supabase
+          .from('profiles')
+          .update(updatePayload)
+          .eq('id', userId)
+          .select('id');
+      if (rows.isNotEmpty) return;
+    } catch (_) {}
 
-    await _supabase.from('profiles').update(payload).eq('id', userId);
+    final existing = await _supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
+    if (existing != null) return;
+
+    try {
+      await _supabase.from('profiles').insert(insertPayload);
+    } catch (_) {}
   }
 }
 

@@ -16,8 +16,11 @@ function json(status: number, body: Record<string, unknown>) {
   });
 }
 
-function syntheticPasswordFromUid(firebaseUid: string): string {
-  return `AnjanamGoogleAuth@${firebaseUid}#v1`;
+function generateOneTimeBridgePassword(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  const entropy = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `AnjanamBridge@${entropy}#`;
 }
 
 async function verifyFirebaseToken({
@@ -65,21 +68,22 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const idToken = String(body?.firebase_id_token ?? "").trim();
-    const requestedEmail = String(body?.email ?? "").trim().toLowerCase();
-    const requestedUid = String(body?.firebase_uid ?? "").trim();
-    const requestedName = String(body?.display_name ?? "").trim();
-    const requestedPhoto = String(body?.photo_url ?? "").trim();
+    const idToken = String(body?.id_token ?? body?.firebase_id_token ?? "").trim();
     if (!idToken) return json(400, { error: "missing_firebase_id_token" });
 
-    const verified = await verifyFirebaseToken({
-      firebaseWebApiKey: FIREBASE_WEB_API_KEY,
-      idToken,
-    });
-    const firebaseUid = requestedUid || verified.localId;
-    const email = requestedEmail || verified.email;
-    const displayName = requestedName || verified.name || "User";
-    const photoUrl = requestedPhoto || verified.photoUrl || null;
+    let verified: { localId: string; email: string; name: string; photoUrl: string };
+    try {
+      verified = await verifyFirebaseToken({
+        firebaseWebApiKey: FIREBASE_WEB_API_KEY,
+        idToken,
+      });
+    } catch {
+      return json(401, { error: "invalid_firebase_id_token" });
+    }
+    const firebaseUid = verified.localId;
+    const email = verified.email;
+    const displayName = verified.name || "User";
+    const photoUrl = verified.photoUrl || null;
     if (!firebaseUid || !email) return json(400, { error: "invalid_google_identity" });
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -112,7 +116,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    const bridgePassword = syntheticPasswordFromUid(firebaseUid);
+    // Rotated on every bridge sign-in to avoid static reusable shared-password risk.
+    const bridgePassword = generateOneTimeBridgePassword();
     if (!authUserId) {
       const created = await admin.auth.admin.createUser({
         email,
@@ -153,8 +158,8 @@ Deno.serve(async (req) => {
       email,
       password: bridgePassword,
     });
-  } catch (e) {
-    console.error("google_auth_bridge_error", String(e));
+  } catch (_) {
+    console.error("google_auth_bridge_error");
     return json(500, { error: "internal_error" });
   }
 });

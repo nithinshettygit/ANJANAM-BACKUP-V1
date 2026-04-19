@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 
-import 'package:http/http.dart' as http;
+import 'package:ecommerce_app/core/network/http_resilience.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -14,7 +14,7 @@ Future<bool> tryShareWithImage({
   try {
     final uri = Uri.tryParse(imageUrl);
     if (uri == null || !uri.hasScheme) return false;
-    final response = await http.get(uri);
+    final response = await HttpResilience.get(uri, timeout: const Duration(seconds: 10));
     if (response.statusCode != 200 || response.bodyBytes.isEmpty) return false;
 
     final header = response.headers['content-type'] ?? '';

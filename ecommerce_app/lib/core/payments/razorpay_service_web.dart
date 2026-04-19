@@ -96,6 +96,56 @@ class RazorpayService {
     });
   }
 
+  /// Awaits checkout.js, then opens the modal. Call this from Flutter Web checkout
+  /// **before** starting payment-status polling so polling does not race the UI.
+  Future<void> openCheckoutAfterScriptReady({
+    required int amountPaise,
+    required String customerName,
+    required String customerEmail,
+    required String customerContact,
+    String? razorpayOrderId,
+    void Function(String razorpayPaymentId, String? razorpayOrderId, String? razorpaySignature)?
+        onPaymentSuccess,
+    void Function(String message)? onPaymentError,
+    void Function(String walletName)? onExternalWallet,
+  }) async {
+    if (_keyId.isEmpty) {
+      onPaymentError?.call(
+        'Payments are not configured. Add your Razorpay Key Id at build time '
+        '(--dart-define=RAZORPAY_KEY_ID=...).',
+      );
+      return;
+    }
+
+    if (amountPaise < 100) {
+      onPaymentError?.call('Order total is too small to charge (minimum ₹1).');
+      return;
+    }
+
+    try {
+      await _ensureCheckoutScript();
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('Razorpay script load failed: $e\n$st');
+      }
+      onPaymentError?.call(
+        'Could not load payment checkout. Check your connection and try again.',
+      );
+      return;
+    }
+    if (_disposed) return;
+    _openCheckoutJs(
+      amountPaise: amountPaise,
+      customerName: customerName,
+      customerEmail: customerEmail,
+      customerContact: customerContact,
+      razorpayOrderId: razorpayOrderId,
+      onPaymentSuccess: onPaymentSuccess,
+      onPaymentError: onPaymentError,
+      onExternalWallet: onExternalWallet,
+    );
+  }
+
   void _openCheckoutJs({
     required int amountPaise,
     required String customerName,
