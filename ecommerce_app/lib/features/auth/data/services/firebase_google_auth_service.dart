@@ -1,12 +1,19 @@
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/auth/domain/entities/app_user.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
 class FirebaseGoogleAuthService {
+  String _buildClientNonce() {
+    final r = Random.secure();
+    final bytes = List<int>.generate(24, (_) => r.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
+
   FirebaseGoogleAuthService(
     this._firebaseAuth,
     this._supabase,
@@ -79,10 +86,7 @@ class FirebaseGoogleAuthService {
           displayName: firebaseUser.displayName?.trim(),
           photoUrl: firebaseUser.photoURL?.trim(),
         );
-        await _supabase.auth.signInWithPassword(
-          email: bridge.email,
-          password: bridge.password,
-        );
+        await _supabase.auth.setSession(bridge.refreshToken);
       }
     } else {
       final idToken = await firebaseUser.getIdToken(true);
@@ -96,10 +100,7 @@ class FirebaseGoogleAuthService {
         displayName: firebaseUser.displayName?.trim(),
         photoUrl: firebaseUser.photoURL?.trim(),
       );
-      await _supabase.auth.signInWithPassword(
-        email: bridge.email,
-        password: bridge.password,
-      );
+      await _supabase.auth.setSession(bridge.refreshToken);
     }
 
     final authUser = _supabase.auth.currentUser;
@@ -125,7 +126,7 @@ class FirebaseGoogleAuthService {
     );
   }
 
-  Future<({String email, String password})> _ensureGoogleBridgeIdentity({
+  Future<({String refreshToken})> _ensureGoogleBridgeIdentity({
     required String firebaseIdToken,
     required String firebaseUid,
     required String email,
@@ -140,6 +141,7 @@ class FirebaseGoogleAuthService {
         'email': email,
         'display_name': displayName,
         'photo_url': photoUrl,
+        'client_nonce': _buildClientNonce(),
       },
     );
     if (response.status < 200 || response.status >= 300) {
@@ -151,12 +153,11 @@ class FirebaseGoogleAuthService {
     if (data is! Map) {
       throw const sb.AuthException('Google bridge failed: invalid response.');
     }
-    final bridgeEmail = data['email']?.toString().trim() ?? '';
-    final bridgePassword = data['password']?.toString().trim() ?? '';
-    if (bridgeEmail.isEmpty || bridgePassword.isEmpty) {
-      throw const sb.AuthException('Google bridge failed: missing credentials.');
+    final refreshToken = data['refresh_token']?.toString().trim() ?? '';
+    if (refreshToken.isEmpty) {
+      throw const sb.AuthException('Google bridge failed: missing session token.');
     }
-    return (email: bridgeEmail, password: bridgePassword);
+    return (refreshToken: refreshToken);
   }
 
   Future<void> _upsertGoogleProfile({

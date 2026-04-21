@@ -432,6 +432,7 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_returns_after_inspection_replacement on public.returns;
 create trigger trg_returns_after_inspection_replacement
 after update of return_status on public.returns
 for each row

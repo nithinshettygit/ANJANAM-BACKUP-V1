@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, payment_method, payment_status, currency, delivery_fee")
+      .select("id, user_id, payment_method, payment_status, currency, delivery_fee, razorpay_order_id")
       .eq("id", orderId)
       .single();
     if (orderErr || !order) return json(404, { error: "order_not_found" });
@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
     if (ps !== "pending" && ps !== "failed") {
       return json(400, { error: "order_not_payable", detail: ps });
     }
+    const existingRazorpayOrderId = optionalString((order as { razorpay_order_id?: unknown }).razorpay_order_id);
 
     const { data: items, error: itemsErr } = await supabase
       .from("order_items")
@@ -106,6 +107,18 @@ Deno.serve(async (req) => {
     const amountPaise = Math.round((subtotal + deliveryFee) * 100);
     if (!(amountPaise >= 100)) {
       return json(400, { error: "invalid_order_amount", detail: "minimum_one_inr" });
+    }
+    if (ps === "pending" && existingRazorpayOrderId.length > 0) {
+      const currency = (order.currency ?? "INR").toString();
+      return json(200, {
+        ok: true,
+        razorpay_order_id: existingRazorpayOrderId,
+        amount: amountPaise,
+        amount_paise: amountPaise,
+        currency,
+        key_id: RAZORPAY_KEY_ID,
+        reused: true,
+      });
     }
 
     const receipt = orderId.replace(/-/g, "").slice(0, 40);

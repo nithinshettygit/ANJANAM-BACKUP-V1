@@ -55,9 +55,73 @@ update public.order_items set id = gen_random_uuid() where id is null;
 alter table public.order_items alter column id set default gen_random_uuid();
 alter table public.order_items alter column id set not null;
 
-alter table public.order_items drop constraint if exists order_items_pkey;
+-- Make id uniqueness safe across environments:
+-- - if id is already the primary key: no-op
+-- - if another primary key already exists: keep it, but enforce unique(id) for FKs
+-- - if no primary key exists: use id as primary key
+do $$
+declare
+  v_has_pk_on_id boolean := false;
+  v_has_any_pk boolean := false;
+  v_has_unique_on_id boolean := false;
+begin
+  select exists (
+    select 1
+    from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'order_items'
+      and c.contype = 'p'
+      and c.conkey = array[
+        (select a.attnum
+         from pg_attribute a
+         where a.attrelid = t.oid
+           and a.attname = 'id'
+           and not a.attisdropped)
+      ]::int2[]
+  ) into v_has_pk_on_id;
 
-alter table public.order_items add primary key (id);
+  select exists (
+    select 1
+    from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'order_items'
+      and c.contype = 'p'
+  ) into v_has_any_pk;
+
+  select exists (
+    select 1
+    from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'order_items'
+      and c.contype = 'u'
+      and c.conkey = array[
+        (select a.attnum
+         from pg_attribute a
+         where a.attrelid = t.oid
+           and a.attname = 'id'
+           and not a.attisdropped)
+      ]::int2[]
+  ) into v_has_unique_on_id;
+
+  if v_has_pk_on_id then
+    null;
+  elsif v_has_any_pk then
+    if not v_has_unique_on_id then
+      alter table public.order_items
+        add constraint order_items_id_key unique (id);
+    end if;
+  else
+    alter table public.order_items
+      add constraint order_items_pkey primary key (id);
+  end if;
+end
+$$;
 
 create unique index if not exists order_items_order_id_product_id_key
   on public.order_items (order_id, product_id);

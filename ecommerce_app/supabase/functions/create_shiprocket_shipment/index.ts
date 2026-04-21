@@ -273,16 +273,15 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { data: prof, error: profErr } = await adminClient
-      .from("profiles")
-      .select("role")
-      .eq("id", uid)
-      .maybeSingle();
-    if (profErr || !prof) {
-      return json(403, { error: "not_admin" });
-    }
-    const role = (prof.role ?? "").toString().trim().toLowerCase();
-    if (role !== "admin") {
+    const { data: isActiveAdmin, error: adminCheckErr } = await adminClient.rpc(
+      "is_active_admin",
+      { uid },
+    );
+    if (adminCheckErr || isActiveAdmin !== true) {
+      console.error("create_shiprocket_shipment_unauthorized", {
+        user_id: uid,
+        reason: adminCheckErr?.message ?? "not_active_admin",
+      });
       return json(403, { error: "not_admin" });
     }
 

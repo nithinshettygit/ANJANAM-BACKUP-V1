@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -19,6 +20,12 @@ class PhoneOtpStartResult {
 }
 
 class FirebasePhoneAuthService {
+  String _buildClientNonce() {
+    final r = Random.secure();
+    final bytes = List<int>.generate(24, (_) => r.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
+
   FirebasePhoneAuthService(
     this._firebaseAuth,
     this._supabase,
@@ -116,10 +123,7 @@ class FirebasePhoneAuthService {
     final phone = normalizePhone(phoneNumber);
     await _supabase.auth.signOut();
     final bridge = await _ensurePhoneBridgeIdentity();
-    await _supabase.auth.signInWithPassword(
-      email: bridge.email,
-      password: bridge.password,
-    );
+    await _supabase.auth.setSession(bridge.refreshToken);
     if (kDebugMode) {
       debugPrint(
         'Phone login: Supabase session present=${_supabase.auth.currentSession != null}',
@@ -170,7 +174,7 @@ class FirebasePhoneAuthService {
     );
   }
 
-  Future<({String email, String password})> _ensurePhoneBridgeIdentity() async {
+  Future<({String refreshToken})> _ensurePhoneBridgeIdentity() async {
     final firebaseUser = _firebaseAuth.currentUser;
     if (firebaseUser == null) {
       throw const AuthException('Phone session missing. Please verify OTP again.');
@@ -183,6 +187,7 @@ class FirebasePhoneAuthService {
       'phone-auth-bridge',
       body: <String, dynamic>{
         'id_token': idToken,
+        'client_nonce': _buildClientNonce(),
       },
     );
     if (response.status < 200 || response.status >= 300) {
@@ -194,12 +199,11 @@ class FirebasePhoneAuthService {
     if (data is! Map) {
       throw const AuthException('Phone bridge failed: invalid response.');
     }
-    final email = data['email']?.toString().trim() ?? '';
-    final password = data['password']?.toString().trim() ?? '';
-    if (email.isEmpty || password.isEmpty) {
-      throw const AuthException('Phone bridge failed: missing credentials.');
+    final refreshToken = data['refresh_token']?.toString().trim() ?? '';
+    if (refreshToken.isEmpty) {
+      throw const AuthException('Phone bridge failed: missing session token.');
     }
-    return (email: email, password: password);
+    return (refreshToken: refreshToken);
   }
 
   Future<void> _syncProfileForPhoneAuth({

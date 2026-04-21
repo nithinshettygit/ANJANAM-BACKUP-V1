@@ -92,11 +92,11 @@ alter table public.refunds
   );
 
 drop index if exists public.refunds_one_per_return;
-create unique index refunds_one_per_return_id
+create unique index if not exists refunds_one_per_return_id
   on public.refunds (return_id)
   where return_id is not null;
 
-create unique index refunds_one_cancellation_per_order
+create unique index if not exists refunds_one_cancellation_per_order
   on public.refunds (order_id)
   where refund_source = 'order_cancellation';
 

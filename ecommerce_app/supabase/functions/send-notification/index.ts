@@ -292,23 +292,15 @@ serve(async (req) => {
         return jsonRes(jwtAuth.code, { error: jwtAuth.error });
       }
       requesterId = jwtAuth.userId;
-      let adminFromRpc = false;
       try {
-        const { data: rpcAdmin } = await supabaseAdmin.rpc("is_admin", { uid: requesterId });
-        adminFromRpc = Boolean(rpcAdmin);
-      } catch (_) {
-        // Optional RPC; fall back to profiles.role.
+        const { data: rpcAdmin, error: rpcErr } = await supabaseAdmin.rpc("is_active_admin", { uid: requesterId });
+        if (rpcErr) {
+          return jsonRes(403, { error: "admin_check_failed" });
+        }
+        isAdmin = rpcAdmin === true;
+      } catch {
+        return jsonRes(403, { error: "admin_check_failed" });
       }
-      let role = "";
-      if (!adminFromRpc) {
-        const { data: prof } = await supabaseAdmin
-          .from("profiles")
-          .select("role")
-          .eq("id", normUserId(requesterId))
-          .maybeSingle();
-        role = (prof?.role ?? "").toString().toLowerCase().trim();
-      }
-      isAdmin = adminFromRpc || role === "admin" || role === "super_admin";
     }
 
     const serviceAccount = getServiceAccountFromEnv();
@@ -670,8 +662,9 @@ serve(async (req) => {
 
       const { data: adminProfiles, error: adminErr } = await supabaseAdmin
         .from("profiles")
-        .select("id,role")
-        .in("role", ["admin", "super_admin"]);
+        .select("id,role,status")
+        .in("role", ["admin", "super_admin"])
+        .eq("status", "active");
       if (adminErr) throw adminErr;
 
       const adminIds = (adminProfiles ?? [])

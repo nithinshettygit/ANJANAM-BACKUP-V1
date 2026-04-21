@@ -226,42 +226,30 @@ Deno.serve(async (req) => {
     }
 
     const dbRzOrder = (order.razorpay_order_id ?? "").toString().trim();
-    // Prefer client → DB → Razorpay payment object so Orders checkouts always verify HMAC.
-    const rzOrderId =
-      rzOrderIdInput.length > 0 ? rzOrderIdInput : dbRzOrder.length > 0 ? dbRzOrder : payOrderId;
-
-    if (rzOrderId.length > 0) {
-      if (signature.length < 1) {
-        return json(400, {
-          error: "signature_required",
-          detail: "razorpay_signature is required for Razorpay Orders checkout.",
-        });
-      }
-      const expected = await hmacSha256Hex(RAZORPAY_KEY_SECRET, `${rzOrderId}|${paymentId}`);
-      if (!timingSafeEqualHex(expected, signature)) {
-        return json(403, { error: "invalid_signature" });
-      }
-      if (payOrderId.length > 0 && payOrderId !== rzOrderId) {
-        return json(409, {
-          error: "razorpay_order_mismatch",
-          detail: "Payment is not linked to the stated Razorpay order.",
-        });
-      }
-      if (dbRzOrder.length > 0 && dbRzOrder !== rzOrderId) {
-        return json(409, {
-          error: "checkout_order_mismatch",
-          detail: "Razorpay order does not match this checkout session.",
-        });
-      }
+    const rzOrderId = rzOrderIdInput.length > 0 ? rzOrderIdInput : dbRzOrder;
+    if (rzOrderId.length < 1 || signature.length < 1 || dbRzOrder.length < 1) {
+      return json(400, {
+        error: "strict_verification_required",
+        detail: "razorpay_order_id and razorpay_signature are required.",
+      });
     }
-    // Legacy: no Razorpay order id on payment path — amount + capture verified via API only.
+    const expected = await hmacSha256Hex(RAZORPAY_KEY_SECRET, `${rzOrderId}|${paymentId}`);
+    if (!timingSafeEqualHex(expected, signature)) {
+      return json(403, { error: "invalid_signature" });
+    }
+    if (payOrderId.length < 1 || payOrderId !== rzOrderId || dbRzOrder !== rzOrderId) {
+      return json(409, {
+        error: "razorpay_order_mismatch",
+        detail: "Payment is not linked to this checkout session.",
+      });
+    }
 
     const nowIso = new Date().toISOString();
     const upQuery = supabase
       .from("orders")
       .update({
         payment_status: "paid",
-        status: "paid",
+        status: "processing",
         razorpay_payment_id: paymentId,
         razorpay_order_id: rzOrderId.length > 0 ? rzOrderId : null,
         razorpay_signature: signature.length > 0 ? signature : null,

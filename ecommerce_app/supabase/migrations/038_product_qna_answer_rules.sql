@@ -243,6 +243,7 @@ execute function public.trg_product_answers_author_edit_guard();
 drop policy if exists "product_answers_insert_admin" on public.product_answers;
 
 drop policy if exists "product_answers_update_admin" on public.product_answers;
+drop policy if exists "product_answers_update_own_or_admin" on public.product_answers;
 create policy "product_answers_update_own_or_admin"
 on public.product_answers
 for update
@@ -251,6 +252,7 @@ using (user_id = auth.uid() or public.is_admin())
 with check (user_id = auth.uid() or public.is_admin());
 
 drop policy if exists "product_answers_delete_admin" on public.product_answers;
+drop policy if exists "product_answers_delete_own_or_admin" on public.product_answers;
 create policy "product_answers_delete_own_or_admin"
 on public.product_answers
 for delete

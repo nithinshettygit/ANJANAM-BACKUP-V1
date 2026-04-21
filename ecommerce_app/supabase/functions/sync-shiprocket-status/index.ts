@@ -293,8 +293,17 @@ Deno.serve(async (req) => {
     devLog(`auth_ok user_id=${requesterId}`);
 
     const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: prof } = await adminClient.from("profiles").select("role").eq("id", requesterId).maybeSingle();
-    if ((prof?.role ?? "").toString().trim().toLowerCase() !== "admin") return json(403, { error: "not_admin" });
+    const { data: isActiveAdmin, error: adminCheckErr } = await adminClient.rpc(
+      "is_active_admin",
+      { uid: requesterId },
+    );
+    if (adminCheckErr || isActiveAdmin !== true) {
+      console.error("sync_shiprocket_status_unauthorized", {
+        user_id: requesterId,
+        reason: adminCheckErr?.message ?? "not_active_admin",
+      });
+      return json(403, { error: "not_admin" });
+    }
 
     const orderId = typeof body?.order_id === "string" ? body.order_id.trim() : "";
     if (!orderId) return json(400, { error: "missing_order_id" });

@@ -60,6 +60,40 @@ create index if not exists idx_returns_replacement_order_id
 
 alter table public.returns drop constraint if exists returns_return_status_check;
 
+-- In long-lived environments, a later migration may already have installed a
+-- strict transition trigger (`trg_returns_before_write_status`) that blocks
+-- normalization updates in this older migration. Temporarily remove it.
+drop trigger if exists trg_returns_before_write_status on public.returns;
+drop trigger if exists trg_returns_sync_order_item_return_state on public.returns;
+
+-- Normalize legacy/prod statuses before tightening the check constraint.
+-- Some environments may already contain newer lifecycle states introduced later.
+update public.returns
+set return_status = case lower(trim(coalesce(return_status, '')))
+  when 'return_requested' then 'return_requested'
+  when 'return_approved' then 'return_approved'
+  when 'pickup_scheduled' then 'pickup_scheduled'
+  when 'item_received_warehouse' then 'item_received_warehouse'
+  when 'return_rejected' then 'return_rejected'
+  when 'replacement_in_progress' then 'replacement_in_progress'
+  -- Map newer/legacy states to nearest compatible state for this migration step.
+  when 'inspection_passed' then 'item_received_warehouse'
+  when 'inspection_failed' then 'return_rejected'
+  when 'refund_pending' then 'item_received_warehouse'
+  when 'refund_initiated' then 'item_received_warehouse'
+  when 'replacement_created' then 'replacement_in_progress'
+  else 'return_requested'
+end
+where return_status is null
+   or lower(trim(return_status)) not in (
+     'return_requested',
+     'return_approved',
+     'pickup_scheduled',
+     'item_received_warehouse',
+     'return_rejected',
+     'replacement_in_progress'
+   );
+
 alter table public.returns
   add constraint returns_return_status_check check (
     return_status in (
@@ -76,6 +110,7 @@ alter table public.returns
 -- 3) refunds: strict positive amount + trigger vs order line total
 -- ---------------------------------------------------------------------------
 alter table public.refunds drop constraint if exists refunds_refund_amount_check;
+alter table public.refunds drop constraint if exists refunds_refund_amount_positive;
 
 alter table public.refunds
   add constraint refunds_refund_amount_positive check (refund_amount > 0);
@@ -126,6 +161,7 @@ end;
 $$;
 
 drop trigger if exists trg_refunds_enforce_gate on public.refunds;
+drop trigger if exists trg_refunds_write_guard on public.refunds;
 
 create trigger trg_refunds_write_guard
 before insert or update on public.refunds
@@ -437,3 +473,39 @@ comment on column public.orders.source_return_id is
   'If this order was created as a replacement shipment, links to the originating return.';
 comment on column public.returns.replacement_order_id is
   'Replacement shipment order created when a replacement return is approved.';
+
+-- Reattach transition trigger only when the function is available (idempotent
+-- across migration orders and partially-migrated production databases).
+do $$
+begin
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'returns_before_write_status'
+  ) then
+    drop trigger if exists trg_returns_before_write_status on public.returns;
+    create trigger trg_returns_before_write_status
+    before insert or update of return_status
+    on public.returns
+    for each row
+    execute function public.returns_before_write_status();
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'sync_order_item_return_state'
+  ) then
+    drop trigger if exists trg_returns_sync_order_item_return_state on public.returns;
+    create trigger trg_returns_sync_order_item_return_state
+    after insert or update of return_status, return_reason, created_at, updated_at
+    on public.returns
+    for each row
+    execute function public.sync_order_item_return_state();
+  end if;
+end
+$$;

@@ -99,8 +99,7 @@ class OrderPaymentService extends SupabaseServiceBase {
 
   /// Creates a Razorpay Order (`order_...`) via Edge Function.
   ///
-  /// Uses `create_payment_order` (production name), and transparently falls back to
-  /// `create-razorpay-order` for backward compatibility.
+  /// Uses `create_payment_order` (production name) and requires server order id.
   Future<String?> tryCreateRazorpayServerOrder({required String orderId}) async {
     String refreshedToken = '';
     try {
@@ -146,61 +145,28 @@ class OrderPaymentService extends SupabaseServiceBase {
         status = res.status;
         data = res.data;
       }
-      var fallbackStatus = status;
-      var fallbackData = data;
-      if (fallbackStatus == 404) {
-        if (kIsWeb) {
-          final res = await _postEdgeFunctionJsonWeb(
-            functionName: 'create-razorpay-order',
-            body: body,
-            accessToken: accessToken,
-          );
-          fallbackStatus = res.status;
-          fallbackData = res.data;
-        } else {
-          final res = await client.functions.invoke(
-            'create-razorpay-order',
-            headers: <String, String>{
-              'Authorization': 'Bearer $accessToken',
-            },
-            body: body,
-          );
-          fallbackStatus = res.status;
-          fallbackData = res.data;
-        }
+      if (status == 404) {
+        throw const RepositoryException('Unable to start payment. Please try again.');
       }
-      if (fallbackStatus == 404) {
-        if (kIsWeb) {
-          throw const RepositoryException(
-            'Could not start payment (server order unavailable). Please try again in a moment.',
-          );
-        }
-        developer.log(
-          'Edge Function create_payment_order returned 404 (not deployed?). '
-          'Using Razorpay checkout without server order_id.',
-          name: 'OrderPaymentService',
-        );
-        return null;
-      }
-      if (fallbackStatus == 401 || fallbackStatus == 403) {
+      if (status == 401 || status == 403) {
         throw const AuthException(
           'Session expired, please login again',
           kind: AuthFailureKind.sessionExpired,
         );
       }
-      if (fallbackStatus < 200 || fallbackStatus >= 300) {
+      if (status < 200 || status >= 300) {
         final err =
-            (fallbackData is Map ? fallbackData['error']?.toString() : null) ??
+            (data is Map ? data['error']?.toString() : null) ??
             'invoke_failed';
         final detail =
-            (fallbackData is Map ? fallbackData['detail']?.toString() : null) ??
+            (data is Map ? data['detail']?.toString() : null) ??
             '';
         throw RepositoryException(
           detail.isEmpty ? 'Could not start payment ($err).' : 'Could not start payment ($err): $detail',
         );
       }
-      if (fallbackData is Map) {
-        final id = fallbackData['razorpay_order_id']?.toString().trim();
+      if (data is Map) {
+        final id = data['razorpay_order_id']?.toString().trim();
         if (id != null && id.isNotEmpty) return id;
       }
       throw const RepositoryException('Could not start payment (missing order id).');
@@ -211,17 +177,9 @@ class OrderPaymentService extends SupabaseServiceBase {
       final msg = e.toString().toLowerCase();
       // Browser blocks cross-origin Edge Function calls without CORS (shows as ClientException: Failed to fetch).
       if (msg.contains('failed to fetch')) {
-        if (kIsWeb) {
-          throw const RepositoryException(
-            'Could not reach payment server. Please check connection and try again.',
-          );
-        }
-        developer.log(
-          'create_payment_order: network/CORS blocked (redeploy Edge Function with CORS headers). '
-          'Falling back to Razorpay checkout without server order_id.',
-          name: 'OrderPaymentService',
+        throw const RepositoryException(
+          'Unable to start payment. Please try again.',
         );
-        return null;
       }
       if (msg.contains('status 401') || msg.contains('unauthorized')) {
         throw const RepositoryException(
@@ -229,16 +187,9 @@ class OrderPaymentService extends SupabaseServiceBase {
         );
       }
       if (_functionPathNotFound(e)) {
-        if (kIsWeb) {
-          throw const RepositoryException(
-            'Payment service unavailable. Please retry in a moment.',
-          );
-        }
-        developer.log(
-          'create_payment_order unavailable ($e). Opening Razorpay without server order_id.',
-          name: 'OrderPaymentService',
+        throw const RepositoryException(
+          'Unable to start payment. Please try again.',
         );
-        return null;
       }
       rethrow;
     }

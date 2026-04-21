@@ -106,6 +106,7 @@ Deno.serve(async (req) => {
     const paymentMethod = (order.payment_method ?? "").toString().toLowerCase().trim();
     const paymentStatus = (order.payment_status ?? "").toString().toLowerCase().trim();
     const refundStatus = (order.refund_status ?? "none").toString().toLowerCase().trim();
+    const orderStatus = (order.status ?? "").toString().toLowerCase().trim();
     const paymentId = (order.razorpay_payment_id ?? "").toString().trim();
 
     if (paymentMethod !== "razorpay") return json(400, { error: "not_razorpay_order" });
@@ -118,6 +119,23 @@ Deno.serve(async (req) => {
       (order.refund_id ?? "").toString().trim().length > 0
     ) {
       return json(409, { error: "Refund already processed" });
+    }
+
+    // Enforce refund eligibility: only cancelled orders or return flow with warehouse-received item.
+    if (orderStatus !== "cancelled") {
+      const { data: eligibleReturn, error: eligibleReturnErr } = await supabase
+        .from("returns")
+        .select("id")
+        .eq("order_id", orderId)
+        .eq("return_status", "returned")
+        .limit(1)
+        .maybeSingle();
+      if (eligibleReturnErr) {
+        return json(500, { error: "refund_eligibility_check_failed" });
+      }
+      if (!eligibleReturn) {
+        return json(409, { error: "refund_not_eligible_return_not_received" });
+      }
     }
 
     const { data: items, error: itemsErr } = await supabase
