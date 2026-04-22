@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-/// Public pages for Play Store compliance (Privacy, Terms, Refund, Support).
+/// Public pages for Play Store compliance (Privacy, Terms, Refund, Support, Delete Account).
 ///
 /// Override hosting base: `--dart-define=STOREFRONT_LEGAL_BASE_URL=https://anjanam.app`
 /// On web, defaults to [Uri.base.origin] when no define is set (same deployment).
@@ -9,6 +9,7 @@ enum StorefrontLegalPage {
   terms,
   refundPolicy,
   support,
+  deleteAccount,
 }
 
 String storefrontLegalBaseUrl() {
@@ -33,6 +34,7 @@ String storefrontLegalPath(StorefrontLegalPage page) {
     StorefrontLegalPage.terms => '/terms',
     StorefrontLegalPage.refundPolicy => '/refund-policy',
     StorefrontLegalPage.support => '/support',
+    StorefrontLegalPage.deleteAccount => '/delete-account',
   };
 }
 
@@ -41,4 +43,4 @@ String storefrontLegalPageUrl(StorefrontLegalPage page) {
 }
 
 /// Shown in policy text (mailto). Replace with your production inbox if different.
-const String storefrontSupportEmail = 'support.anjanam@gmail.com';
+const String storefrontSupportEmail = 'support@anjanam.store';

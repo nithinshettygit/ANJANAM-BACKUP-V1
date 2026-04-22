@@ -46,6 +46,14 @@ class LegalSupportLinksCard extends StatelessWidget {
             trailing: const Icon(Icons.open_in_new, size: 20),
             onTap: () => openStorefrontLegalPage(context, StorefrontLegalPage.support),
           ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.person_remove_alt_1_outlined),
+            title: const Text('Delete Account'),
+            subtitle: const Text('How to request account deletion'),
+            trailing: const Icon(Icons.open_in_new, size: 20),
+            onTap: () => openStorefrontLegalPage(context, StorefrontLegalPage.deleteAccount),
+          ),
         ],
       ),
     );
@@ -90,6 +98,11 @@ class LegalSupportFooterCompact extends StatelessWidget {
               _TextLink(
                 label: 'Support',
                 onTap: () => openStorefrontLegalPage(context, StorefrontLegalPage.support),
+                style: style,
+              ),
+              _TextLink(
+                label: 'Delete Account',
+                onTap: () => openStorefrontLegalPage(context, StorefrontLegalPage.deleteAccount),
                 style: style,
               ),
             ],
