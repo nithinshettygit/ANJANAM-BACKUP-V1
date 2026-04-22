@@ -73,3 +73,6 @@ android/key.properties
 # Google Cloud service account keys (private keys) — never commit
 eco-muse*.json
 *.base64.txt
+
+# Local ADI registration payload
+assets/adi-registration.properties
