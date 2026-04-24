@@ -1,10 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../presentation/pages/notification_detail_page.dart';
+import '../../presentation/widgets/product_image_fullscreen_gallery.dart';
 
 /// Central routing when a user opens a notification (FCM tap or in-app list).
 class NotificationTapNavigator {
   NotificationTapNavigator._();
+
+  static const List<String> _urlDataKeys = <String>[
+    'url',
+    'link',
+    'deep_link_url',
+    'redirect_url',
+    'target_url',
+    'cta_url',
+    'web_url',
+    'redirect_value',
+  ];
+
+  static const List<String> _imageDataKeys = <String>[
+    'image_url',
+    'image',
+    'imageUrl',
+    'banner_url',
+    'media_url',
+  ];
 
   static void _pushDetail(
     NavigatorState nav, {
@@ -106,6 +127,18 @@ class NotificationTapNavigator {
     if (screenRoute != null) {
       nav.pushNamed(screenRoute);
       return;
+    }
+
+    final tapUrl = _firstHttpUrl(data, _urlDataKeys);
+    if (tapUrl != null) {
+      final opened = await _openExternalUrl(tapUrl);
+      if (opened) return;
+    }
+
+    final tapImageUrl = _firstHttpUrl(data, _imageDataKeys);
+    if (tapImageUrl != null) {
+      final opened = await _openImageViewer(nav, tapImageUrl);
+      if (opened) return;
     }
 
     if (resolvedRedirect == 'none' || resolvedRedirect.isEmpty) {
@@ -228,5 +261,39 @@ class NotificationTapNavigator {
       default:
         return null;
     }
+  }
+
+  static String? _firstHttpUrl(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final raw = data[key]?.toString().trim();
+      if (raw == null || raw.isEmpty) continue;
+      final uri = Uri.tryParse(raw);
+      if (uri != null && (uri.isScheme('http') || uri.isScheme('https'))) {
+        return uri.toString();
+      }
+    }
+    return null;
+  }
+
+  static Future<bool> _openExternalUrl(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> _openImageViewer(NavigatorState nav, String imageUrl) async {
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
+      return false;
+    }
+    await nav.push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProductImageFullscreenGallery(imageUrls: <String>[imageUrl]),
+      ),
+    );
+    return true;
   }
 }
