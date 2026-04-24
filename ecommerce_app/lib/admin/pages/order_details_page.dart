@@ -1188,8 +1188,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                             .where((r) => r.orderId == order.id)
                             .toList() ??
                         const <AdminReturnRow>[];
-                    return ListView(
-                      children: [
+                    return SelectionArea(
+                      child: ListView(
+                        children: [
                         Card(
                           child: Padding(
                             padding: const EdgeInsets.all(12),
@@ -2013,6 +2014,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                       final canOut = _manualTransitionAllowed(order.status, 'out_for_delivery');
                                       final canDelivered =
                                           _manualTransitionAllowed(order.status, 'delivered');
+                                      final isPackedCurrent = current == 1;
+                                      final isShippedCurrent = current == 2;
+                                      final isOutCurrent = current == 3;
+                                      final isDeliveredCurrent = current == 4;
                                       final shipmentSaved = _shipmentCoreReady(details) &&
                                           !_shipmentFormDiffersFrom(details);
 
@@ -2029,7 +2034,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                               ),
                                               foregroundColor: Colors.black87,
                                             ),
-                                            onPressed: (_manualDeliveryBusy || !canPacked)
+                                            onPressed: (_manualDeliveryBusy ||
+                                                    !canPacked ||
+                                                    isPackedCurrent)
                                                 ? null
                                                 : () => _setManualDeliveryStatus(
                                                       context,
@@ -2048,7 +2055,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                               ),
                                               foregroundColor: Colors.black87,
                                             ),
-                                            onPressed: (_manualDeliveryBusy || !canShipped)
+                                            onPressed: (_manualDeliveryBusy ||
+                                                    !canShipped ||
+                                                    isShippedCurrent)
                                                 ? null
                                                 : () async {
                                                     if (!shipmentSaved) {
@@ -2078,7 +2087,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                               ),
                                               foregroundColor: Colors.black87,
                                             ),
-                                            onPressed: (_manualDeliveryBusy || !canOut)
+                                            onPressed: (_manualDeliveryBusy ||
+                                                    !canOut ||
+                                                    isOutCurrent)
                                                 ? null
                                                 : () => _setManualDeliveryStatus(
                                                       context,
@@ -2097,7 +2108,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                               ),
                                               foregroundColor: Colors.black87,
                                             ),
-                                            onPressed: (_manualDeliveryBusy || !canDelivered)
+                                            onPressed: (_manualDeliveryBusy ||
+                                                    !canDelivered ||
+                                                    isDeliveredCurrent)
                                                 ? null
                                                 : () => _setManualDeliveryStatus(
                                                       context,
@@ -2306,7 +2319,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                             ),
                           ),
                         ),
-                      ],
+                        ],
+                      ),
                     );
               },
               loading: () => const SizedBox.shrink(),

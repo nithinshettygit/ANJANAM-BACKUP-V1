@@ -195,8 +195,9 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
                     return const SizedBox.shrink();
                   }
                   final user = details.user;
-                  return ListView(
-                    children: [
+                  return SelectionArea(
+                    child: ListView(
+                      children: [
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -407,7 +408,8 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
                           ),
                         ),
                       ),
-                    ],
+                      ],
+                    ),
                   );
                   },
                   loading: () => const SizedBox.shrink(),

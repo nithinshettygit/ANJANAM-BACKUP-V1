@@ -228,7 +228,7 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
                     : (kIsWeb ? 18 : 14),
                 isCompact ? 10 : (kIsWeb ? 16 : 12),
               ),
-              child: widget.body,
+              child: SelectionArea(child: widget.body),
             ),
           ),
         ],
