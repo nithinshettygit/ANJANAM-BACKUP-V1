@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ecommerce_app/features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/features/notifications/state/notifications_controller.dart';
+import 'package:ecommerce_app/features/order_history/state/order_history_controller.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 
@@ -38,6 +39,8 @@ class _OrderSuccessPageState extends ConsumerState<OrderSuccessPage> {
   @override
   void initState() {
     super.initState();
+    // Keep "My Orders" up to date when user navigates there from success screen.
+    ref.invalidate(orderHistoryControllerProvider);
     unawaited(_handleOrderPlacedNotification());
   }
 

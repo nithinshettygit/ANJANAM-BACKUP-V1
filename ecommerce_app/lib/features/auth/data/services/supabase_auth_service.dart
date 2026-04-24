@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:ecommerce_app/core/network/network_request_guard.dart';
 import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 import 'package:gotrue/gotrue.dart' show AuthApiException, UserAttributes;
@@ -99,9 +100,12 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   }) async {
     late final AuthResponse response;
     try {
-      response = await client.auth.signInWithPassword(
-        email: email,
-        password: password,
+      response = await NetworkRequestGuard.run(
+        () => client.auth.signInWithPassword(
+          email: email,
+          password: password,
+        ),
+        operation: 'email sign-in',
       );
     } catch (e) {
       throw resolvePresentableAuthError(e, isSignUp: false);
@@ -142,11 +146,14 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
     final Map<String, dynamic>? meta =
         trimmedName.isEmpty ? null : <String, dynamic>{'full_name': trimmedName};
     try {
-      response = await client.auth.signUp(
-        email: email,
-        password: password,
-        emailRedirectTo: _emailRedirectTo,
-        data: meta,
+      response = await NetworkRequestGuard.run(
+        () => client.auth.signUp(
+          email: email,
+          password: password,
+          emailRedirectTo: _emailRedirectTo,
+          data: meta,
+        ),
+        operation: 'email sign-up',
       );
     } catch (e) {
       throw resolvePresentableAuthError(e, isSignUp: true);
@@ -186,7 +193,10 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   @override
   Future<void> signOut() async {
     try {
-      await client.auth.signOut();
+      await NetworkRequestGuard.run(
+        () => client.auth.signOut(),
+        operation: 'sign-out',
+      );
     } catch (e) {
       throw resolvePresentableAuthError(e, isSignUp: false);
     }
@@ -202,9 +212,12 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   @override
   Future<void> sendPasswordResetEmail({required String email}) async {
     try {
-      await client.auth.resetPasswordForEmail(
-        email.trim(),
-        redirectTo: _passwordResetRedirectTo,
+      await NetworkRequestGuard.run(
+        () => client.auth.resetPasswordForEmail(
+          email.trim(),
+          redirectTo: _passwordResetRedirectTo,
+        ),
+        operation: 'password reset',
       );
     } catch (e) {
       throw resolvePresentableAuthError(e, isSignUp: false);
@@ -214,7 +227,10 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
   @override
   Future<void> updatePasswordFromRecoverySession({required String newPassword}) async {
     try {
-      await client.auth.updateUser(UserAttributes(password: newPassword));
+      await NetworkRequestGuard.run(
+        () => client.auth.updateUser(UserAttributes(password: newPassword)),
+        operation: 'password update',
+      );
     } catch (e) {
       throw resolvePresentableAuthError(e, isSignUp: false);
     }
@@ -238,24 +254,27 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
     final email = authUser.email;
     final Map<String, dynamic> emailField =
         (email != null && email.isNotEmpty) ? <String, dynamic>{'email': email} : <String, dynamic>{};
-    // [handle_new_user] inserts profiles. Do not send [role] on UPDATE — trigger
-    // trg_profiles_enforce_role_update only allows role changes by super_admin.
-    final updatePayload = <String, dynamic>{
-      'full_name': _deriveDisplayName(authUser),
-      ...emailField,
-    };
-    try {
-      final updated = await client
-          .from('profiles')
-          .update(updatePayload)
-          .eq('id', authUser.id)
-          .select('id');
-      if (updated.isNotEmpty) return;
-    } catch (_) {}
-
-    final existing =
-        await client.from('profiles').select('id').eq('id', authUser.id).maybeSingle();
-    if (existing != null) return;
+    final existing = await client
+        .from('profiles')
+        .select('id, full_name')
+        .eq('id', authUser.id)
+        .maybeSingle();
+    if (existing != null) {
+      // Keep user-edited profile names intact: only backfill a missing name.
+      final existingName = (existing['full_name'] ?? '').toString().trim();
+      final updatePayload = <String, dynamic>{
+        if (existingName.isEmpty) 'full_name': _deriveDisplayName(authUser),
+        ...emailField,
+      };
+      if (updatePayload.isNotEmpty) {
+        // [handle_new_user] inserts profiles. Do not send [role] on UPDATE — trigger
+        // trg_profiles_enforce_role_update only allows role changes by super_admin.
+        try {
+          await client.from('profiles').update(updatePayload).eq('id', authUser.id);
+        } catch (_) {}
+      }
+      return;
+    }
 
     try {
       await client.from('profiles').insert({

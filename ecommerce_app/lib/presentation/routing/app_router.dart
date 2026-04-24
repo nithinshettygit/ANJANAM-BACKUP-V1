@@ -201,7 +201,11 @@ class AppRouter {
           ),
         );
       case '/login':
-        return MaterialPageRoute(builder: (_) => const AuthChoicePage());
+        final args = settings.arguments;
+        final fromLogout = args is Map && args['fromLogout'] == true;
+        return MaterialPageRoute(
+          builder: (_) => AuthChoicePage(fromLogout: fromLogout),
+        );
       case '/login/email':
         return MaterialPageRoute(builder: (_) => const LoginPage());
       case '/login/phone':

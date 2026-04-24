@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:ecommerce_app/core/network/http_resilience.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:ecommerce_app/core/notifications/notification_markdown_text.dart';
 
 class LocalNotificationService {
   LocalNotificationService._();
@@ -79,14 +80,16 @@ class LocalNotificationService {
         message.notification?.title ?? message.data['title']?.toString() ?? 'Notification';
     final body =
         message.notification?.body ?? message.data['message']?.toString() ?? '';
+    final displayTitle = stripNotificationMarkdownBold(title);
+    final displayBody = stripNotificationMarkdownBold(body);
     final imageUrl =
         message.data['image_url']?.toString().trim().isNotEmpty == true
             ? message.data['image_url']!.toString().trim()
             : null;
 
     final androidDetails = await _androidDetailsForImage(
-      title: title,
-      body: body,
+      title: displayTitle,
+      body: displayBody,
       imageUrl: imageUrl,
     );
 
@@ -94,12 +97,12 @@ class LocalNotificationService {
       message.data['notification_id']?.toString().trim(),
       message.data['kind']?.toString().trim(),
       message.data['order_id']?.toString().trim(),
-      title,
-      body,
+      displayTitle,
+      displayBody,
     ].where((e) => e != null && e.isNotEmpty).join('|');
     await show(
-      title: title,
-      body: body,
+      title: displayTitle,
+      body: displayBody,
       payload: jsonEncode(message.data),
       dedupKey: dedupKey.isEmpty ? null : dedupKey,
       androidDetails: androidDetails,
@@ -165,8 +168,10 @@ class LocalNotificationService {
       await initialize();
     }
 
-    final normalizedTitle = title.trim().isEmpty ? 'Notification' : title.trim();
-    final normalizedBody = body.trim();
+    final normalizedTitle = stripNotificationMarkdownBold(
+      title.trim().isEmpty ? 'Notification' : title.trim(),
+    );
+    final normalizedBody = stripNotificationMarkdownBold(body.trim());
     final now = DateTime.now();
     if (dedupKey != null && dedupKey.trim().isNotEmpty) {
       final key = dedupKey.trim();

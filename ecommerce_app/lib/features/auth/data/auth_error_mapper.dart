@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:ecommerce_app/core/network/network_request_guard.dart';
 import 'package:gotrue/gotrue.dart' as gt;
 
 /// Converts API and wrapper errors into [AuthException] with stable [AuthFailureKind].
@@ -80,13 +81,19 @@ AuthException _fromPlainText(String raw, {required bool isSignUp}) {
       );
     }
   }
+  if (lower.contains('timed out') || lower.contains('timeoutexception')) {
+    return const AuthException(
+      NetworkRequestGuard.timeoutMessage,
+      kind: AuthFailureKind.network,
+    );
+  }
   if (lower.contains('network') ||
       lower.contains('socket') ||
       lower.contains('failed host lookup') ||
       lower.contains('connection refused') ||
-      lower.contains('timed out')) {
-    return AuthException(
-      'We could not reach the service. Please check your internet connection and try again.',
+      lower.contains("you're offline")) {
+    return const AuthException(
+      NetworkRequestGuard.noInternetMessage,
       kind: AuthFailureKind.network,
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:ecommerce_app/core/notifications/notification_markdown_text.dart';
 import 'package:ecommerce_app/core/notifications/notification_tap_navigator.dart';
 import 'package:ecommerce_app/core/theme/wishlist_heart_sizes.dart';
 import 'package:ecommerce_app/features/cart/state/cart_controller.dart';
@@ -213,16 +214,26 @@ class _NotificationListTile extends StatelessWidget {
           title: Row(
             children: [
               Expanded(
-                child: Text(
-                  notification.title,
+                child: Text.rich(
+                  TextSpan(
+                    children: notificationMarkdownSpans(
+                      input: notification.title,
+                      baseStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: isUnread ? FontWeight.w700 : FontWeight.w500,
+                            color: isUnread
+                                ? scheme.onSurface
+                                : scheme.onSurface.withValues(alpha: 0.72),
+                          ),
+                      boldStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: isUnread
+                                ? scheme.onSurface
+                                : scheme.onSurface.withValues(alpha: 0.82),
+                          ),
+                    ),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: isUnread ? FontWeight.w800 : FontWeight.w500,
-                        color: isUnread
-                            ? scheme.onSurface
-                            : scheme.onSurface.withValues(alpha: 0.72),
-                      ),
                 ),
               ),
               if (isUnread)
@@ -239,15 +250,25 @@ class _NotificationListTile extends StatelessWidget {
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                notification.message,
+              Text.rich(
+                TextSpan(
+                  children: notificationMarkdownSpans(
+                    input: notification.message,
+                    baseStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant.withValues(
+                            alpha: isUnread ? 0.95 : 0.72,
+                          ),
+                        ),
+                    boldStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurfaceVariant.withValues(
+                            alpha: isUnread ? 0.98 : 0.82,
+                          ),
+                        ),
+                  ),
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: scheme.onSurfaceVariant.withValues(
-                        alpha: isUnread ? 0.95 : 0.72,
-                      ),
-                    ),
               ),
               if (notification.imageUrl != null &&
                   notification.imageUrl!.trim().isNotEmpty) ...[

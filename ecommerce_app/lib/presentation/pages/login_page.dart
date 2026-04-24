@@ -6,6 +6,7 @@ import 'package:ecommerce_app/features/auth/state/auth_local_session_store.dart'
 import 'package:ecommerce_app/features/auth/state/auth_session_provider.dart';
 import 'package:ecommerce_app/features/auth/utils/auth_input_validators.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
+import 'package:ecommerce_app/core/network/network_request_guard.dart';
 import 'package:ecommerce_app/presentation/utils/auth_issue_presenter.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -149,6 +150,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _submitGoogle() async {
     if (_isSubmitting || _isGoogleSubmitting) return;
+    if (!await NetworkRequestGuard.hasConnection()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(NetworkRequestGuard.offlineMessage),
+          action: SnackBarAction(label: 'Retry', onPressed: _submitGoogle),
+        ),
+      );
+      return;
+    }
     if (kIsWeb && Firebase.apps.isEmpty) {
       try {
         await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -196,20 +207,34 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ? 'Google sign-in cancelled.'
                 : isPopupIssue
                     ? 'Google popup blocked or not enabled in Firebase Auth (${e.code}).'
-                : (e.message?.trim().isNotEmpty == true
-                    ? '${e.message!.trim()} (${e.code})'
-                    : 'Unable to continue with Google.'),
+                    : _networkAwareMessage(e),
           ),
+          action: isCancel ? null : SnackBarAction(label: 'Retry', onPressed: _submitGoogle),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google sign-in failed: $e')),
+        SnackBar(
+          content: Text(_networkAwareMessage(e)),
+          action: SnackBarAction(label: 'Retry', onPressed: _submitGoogle),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isGoogleSubmitting = false);
     }
+  }
+
+  String _networkAwareMessage(Object error) {
+    final lower = error.toString().toLowerCase();
+    if (lower.contains('timed out') || lower.contains('timeoutexception')) {
+      return NetworkRequestGuard.timeoutMessage;
+    }
+    if (lower.contains("you're offline")) return NetworkRequestGuard.offlineMessage;
+    if (NetworkRequestGuard.isTransientNetworkError(error)) {
+      return NetworkRequestGuard.noInternetMessage;
+    }
+    return 'Unable to continue with Google.';
   }
 
   Future<void> _sendPasswordReset() async {

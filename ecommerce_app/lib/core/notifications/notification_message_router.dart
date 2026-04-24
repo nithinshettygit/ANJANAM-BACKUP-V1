@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'local_notification_service.dart';
+import 'notification_markdown_text.dart';
 import 'notification_navigation.dart';
 import 'notification_tap_navigator.dart';
 
@@ -43,11 +44,22 @@ class NotificationMessageRouter {
     final body = message.notification?.body ??
         message.data['message']?.toString() ??
         '';
+    final displayTitle = stripNotificationMarkdownBold(title);
+    final displayBody = stripNotificationMarkdownBold(body);
 
     ScaffoldMessenger.of(ctx).showSnackBar(
       SnackBar(
-        content: Text(
-          body.isEmpty ? title : '$title\n$body',
+        content: Text.rich(
+          TextSpan(
+            children: notificationMarkdownSpans(
+              input: displayBody.isEmpty ? displayTitle : '$displayTitle\n$displayBody',
+              baseStyle: Theme.of(ctx).textTheme.bodyMedium?.copyWith(color: Colors.white),
+              boldStyle: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
         ),

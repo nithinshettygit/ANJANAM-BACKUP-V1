@@ -57,6 +57,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   final ScrollController _scrollController = ScrollController();
+  _ProfileSnapshot? _localProfileSnapshotOverride;
 
   @override
   void initState() {
@@ -141,17 +142,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => Center(child: Text('Failed to load profile: $error')),
             data: (snapshot) {
-              final displayName = snapshot.fullName.trim().isNotEmpty
-                  ? snapshot.fullName.trim()
+              final effectiveSnapshot = _localProfileSnapshotOverride ?? snapshot;
+              final displayName = effectiveSnapshot.fullName.trim().isNotEmpty
+                  ? effectiveSnapshot.fullName.trim()
                   : ((user.fullName ?? '').trim().isNotEmpty ? user.fullName!.trim() : 'User');
-              final displayContact = snapshot.phone.trim().isNotEmpty
-                  ? '+91 ${snapshot.phone.trim()}'
+              final displayContact = effectiveSnapshot.phone.trim().isNotEmpty
+                  ? '+91 ${effectiveSnapshot.phone.trim()}'
                   : user.email;
 
               return RefreshIndicator(
                 onRefresh: () async {
+                  if (mounted) {
+                    setState(() => _localProfileSnapshotOverride = null);
+                  }
                   ref.invalidate(_profileSnapshotProvider);
-                  ref.invalidate(authSessionProvider);
                   ref.invalidate(userAddressesProvider);
                   await Future.wait([
                     ref.read(_profileSnapshotProvider.future),
@@ -167,19 +171,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       name: displayName,
                       contact: displayContact,
                       onEdit: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute<void>(
+                        final updatedSnapshot = await Navigator.of(context).push<_ProfileSnapshot>(
+                          MaterialPageRoute<_ProfileSnapshot>(
                             builder: (_) => _EditProfilePage(
                               userId: user.id,
                               email: user.email,
                               initialName: displayName,
-                              initialPhone: snapshot.phone,
-                              initialAddress: snapshot.address,
+                              initialPhone: effectiveSnapshot.phone,
+                              initialAddress: effectiveSnapshot.address,
                             ),
                           ),
                         );
+                        if (!mounted) return;
+                        if (updatedSnapshot != null) {
+                          setState(() => _localProfileSnapshotOverride = updatedSnapshot);
+                        }
                         ref.invalidate(_profileSnapshotProvider);
-                        ref.invalidate(authSessionProvider);
                       },
                     ),
                     const SizedBox(height: 14),
@@ -233,17 +240,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             title: 'My Profile',
                             subtitle: 'Edit personal details',
                             onTap: () async {
-                              await Navigator.of(context).push(
-                                MaterialPageRoute<void>(
+                              final updatedSnapshot = await Navigator.of(context).push<_ProfileSnapshot>(
+                                MaterialPageRoute<_ProfileSnapshot>(
                                   builder: (_) => _EditProfilePage(
                                     userId: user.id,
                                     email: user.email,
                                     initialName: displayName,
-                                    initialPhone: snapshot.phone,
-                                    initialAddress: snapshot.address,
+                                    initialPhone: effectiveSnapshot.phone,
+                                    initialAddress: effectiveSnapshot.address,
                                   ),
                                 ),
                               );
+                              if (!mounted) return;
+                              if (updatedSnapshot != null) {
+                                setState(() => _localProfileSnapshotOverride = updatedSnapshot);
+                              }
                               ref.invalidate(_profileSnapshotProvider);
                             },
                           ),
@@ -584,9 +595,25 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully.')),
+        const SnackBar(content: Text('Profile updated successfully')),
       );
-      Navigator.of(context).pop();
+      Map<String, dynamic>? refreshed;
+      try {
+        refreshed = await client
+            .from('profiles')
+            .select('full_name, phone, address')
+            .eq('id', widget.userId)
+            .maybeSingle();
+      } catch (_) {
+        refreshed = null;
+      }
+      if (!mounted) return;
+      final updatedSnapshot = _ProfileSnapshot(
+        fullName: (refreshed?['full_name'] ?? _nameCtrl.text.trim()).toString(),
+        phone: (refreshed?['phone'] ?? _phoneCtrl.text.trim()).toString(),
+        address: (refreshed?['address'] ?? _addressCtrl.text.trim()).toString(),
+      );
+      Navigator.of(context).pop(updatedSnapshot);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1057,7 +1084,10 @@ Future<void> _signOutWithFormalErrors(BuildContext context, WidgetRef ref) async
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You have been signed out successfully.')),
       );
-      Navigator.of(context).pushReplacementNamed('/login');
+      Navigator.of(context).pushReplacementNamed(
+        '/login',
+        arguments: const {'fromLogout': true},
+      );
     } catch (error) {
       if (!context.mounted) return;
       await presentAuthIssue(

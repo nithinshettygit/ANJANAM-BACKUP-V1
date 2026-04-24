@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import 'package:ecommerce_app/core/notifications/notification_markdown_text.dart';
 import 'package:flutter/material.dart';
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
 
@@ -78,12 +79,21 @@ class NotificationDetailPage extends StatelessWidget {
                         ),
                       ),
                     ),
-                  Text(
-                    title.trim().isEmpty ? 'Update' : title.trim(),
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      height: 1.25,
-                      color: AppColors.textPrimary,
+                  Text.rich(
+                    TextSpan(
+                      children: notificationMarkdownSpans(
+                        input: title.trim().isEmpty ? 'Update' : title.trim(),
+                        baseStyle: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          height: 1.25,
+                          color: AppColors.textPrimary,
+                        ),
+                        boldStyle: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          height: 1.25,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                     ),
                   ),
                   if (formatted != null) ...[
@@ -144,13 +154,22 @@ class NotificationDetailPage extends StatelessWidget {
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
-                      child: SelectableText(
-                        message.trim().isEmpty
-                            ? 'No additional details.'
-                            : message.trim(),
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          height: 1.55,
-                          color: AppColors.textPrimary,
+                      child: SelectableText.rich(
+                        TextSpan(
+                          children: notificationMarkdownSpans(
+                            input: message.trim().isEmpty
+                                ? 'No additional details.'
+                                : message.trim(),
+                            baseStyle: theme.textTheme.bodyLarge?.copyWith(
+                              height: 1.55,
+                              color: AppColors.textPrimary,
+                            ),
+                            boldStyle: theme.textTheme.bodyLarge?.copyWith(
+                              height: 1.55,
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),

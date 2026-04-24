@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:ecommerce_app/core/errors/app_exception.dart' show NetworkException;
+import 'package:ecommerce_app/core/network/network_request_guard.dart';
 
 import '../../domain/entities/app_user.dart';
 
@@ -52,39 +54,48 @@ class FirebasePhoneAuthService {
     Duration timeout = const Duration(seconds: 60),
   }) async {
     final normalized = normalizePhone(phoneNumber);
+    if (!await NetworkRequestGuard.hasConnection()) {
+      throw const NetworkException(NetworkRequestGuard.offlineMessage);
+    }
     if (kIsWeb) {
-      final result = await _firebaseAuth.signInWithPhoneNumber(normalized);
+      final result = await NetworkRequestGuard.run(
+        () => _firebaseAuth.signInWithPhoneNumber(normalized),
+        operation: 'phone otp start web',
+      );
       return PhoneOtpStartResult(confirmationResult: result);
     }
 
     final completer = Completer<PhoneOtpStartResult>();
-    await _firebaseAuth.verifyPhoneNumber(
-      phoneNumber: normalized,
-      timeout: timeout,
-      forceResendingToken: forceResendingToken,
-      verificationCompleted: (credential) async {
-        if (!completer.isCompleted) {
-          completer.complete(const PhoneOtpStartResult());
-        }
-      },
-      verificationFailed: (e) {
-        if (!completer.isCompleted) completer.completeError(e);
-      },
-      codeSent: (verificationId, resendToken) {
-        if (!completer.isCompleted) {
-          completer.complete(
-            PhoneOtpStartResult(
-              verificationId: verificationId,
-              resendToken: resendToken,
-            ),
-          );
-        }
-      },
-      codeAutoRetrievalTimeout: (verificationId) {
-        if (!completer.isCompleted) {
-          completer.complete(PhoneOtpStartResult(verificationId: verificationId));
-        }
-      },
+    await NetworkRequestGuard.run(
+      () => _firebaseAuth.verifyPhoneNumber(
+        phoneNumber: normalized,
+        timeout: timeout,
+        forceResendingToken: forceResendingToken,
+        verificationCompleted: (credential) async {
+          if (!completer.isCompleted) {
+            completer.complete(const PhoneOtpStartResult());
+          }
+        },
+        verificationFailed: (e) {
+          if (!completer.isCompleted) completer.completeError(e);
+        },
+        codeSent: (verificationId, resendToken) {
+          if (!completer.isCompleted) {
+            completer.complete(
+              PhoneOtpStartResult(
+                verificationId: verificationId,
+                resendToken: resendToken,
+              ),
+            );
+          }
+        },
+        codeAutoRetrievalTimeout: (verificationId) {
+          if (!completer.isCompleted) {
+            completer.complete(PhoneOtpStartResult(verificationId: verificationId));
+          }
+        },
+      ),
+      operation: 'phone otp start',
     );
     return completer.future;
   }
@@ -121,9 +132,15 @@ class FirebasePhoneAuthService {
     required String firebaseUid,
   }) async {
     final phone = normalizePhone(phoneNumber);
-    await _supabase.auth.signOut();
+    await NetworkRequestGuard.run(
+      () => _supabase.auth.signOut(),
+      operation: 'phone auth sign-out stale session',
+    );
     final bridge = await _ensurePhoneBridgeIdentity();
-    await _supabase.auth.setSession(bridge.refreshToken);
+    await NetworkRequestGuard.run(
+      () => _supabase.auth.setSession(bridge.refreshToken),
+      operation: 'phone bridge set session',
+    );
     if (kDebugMode) {
       debugPrint(
         'Phone login: Supabase session present=${_supabase.auth.currentSession != null}',
@@ -183,12 +200,15 @@ class FirebasePhoneAuthService {
     if (kDebugMode) {
       debugPrint('Phone OTP verify: Firebase ID token received=${idToken != null && idToken.isNotEmpty}');
     }
-    final response = await _supabase.functions.invoke(
-      'phone-auth-bridge',
-      body: <String, dynamic>{
-        'id_token': idToken,
-        'client_nonce': _buildClientNonce(),
-      },
+    final response = await NetworkRequestGuard.run(
+      () => _supabase.functions.invoke(
+        'phone-auth-bridge',
+        body: <String, dynamic>{
+          'id_token': idToken,
+          'client_nonce': _buildClientNonce(),
+        },
+      ),
+      operation: 'phone auth bridge invoke',
     );
     if (response.status < 200 || response.status >= 300) {
       final data = response.data;

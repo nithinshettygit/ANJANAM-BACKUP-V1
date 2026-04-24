@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecommerce_app/firebase_options.dart';
+import 'package:ecommerce_app/core/network/network_request_guard.dart';
 
 final firebasePhoneAuthServiceProvider = Provider<FirebasePhoneAuthService>((ref) {
   return FirebasePhoneAuthService(
@@ -65,6 +66,13 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
   }
 
   Future<void> _sendOtp({bool isResend = false}) async {
+    if (!await NetworkRequestGuard.hasConnection()) {
+      _show(
+        NetworkRequestGuard.offlineMessage,
+        onRetry: () => _sendOtp(isResend: isResend),
+      );
+      return;
+    }
     if (kIsWeb && Firebase.apps.isEmpty) {
       try {
         await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -97,7 +105,10 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
       _otpFocus.requestFocus();
       _show('OTP sent successfully');
     } catch (e) {
-      _show('Failed to send OTP: $e');
+      _show(
+        _networkAwareMessage(e, fallback: 'Failed to send OTP. Please try again.'),
+        onRetry: () => _sendOtp(isResend: isResend),
+      );
     } finally {
       if (mounted) setState(() => _isSendingOtp = false);
     }
@@ -121,6 +132,10 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
   }
 
   Future<void> _verifyOtp() async {
+    if (!await NetworkRequestGuard.hasConnection()) {
+      _show(NetworkRequestGuard.offlineMessage, onRetry: _verifyOtp);
+      return;
+    }
     final code = _otpCtrl.text.trim();
     if (code.length < 6) {
       _show('Enter valid 6-digit OTP');
@@ -152,24 +167,50 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
     } on FirebaseAuthException catch (e) {
       final code = e.code.toLowerCase().trim();
       if (code == 'code-expired') {
-        _show('OTP expired. Please tap Resend OTP and use the latest code.');
+        _show(
+          'OTP expired. Please tap Resend OTP and use the latest code.',
+          onRetry: () => _sendOtp(isResend: true),
+        );
       } else if (code == 'invalid-verification-code') {
         _show('Invalid OTP. Enter the latest code received on your phone.');
       } else if (code == 'too-many-requests') {
         _show('Too many OTP attempts. Please wait a few minutes and retry.');
       } else {
-        _show('OTP verification failed (${e.code}). ${e.message ?? ''}'.trim());
+        _show(
+          _networkAwareMessage(e, fallback: 'OTP verification failed. Please try again.'),
+          onRetry: _verifyOtp,
+        );
       }
     } catch (e) {
-      _show('OTP verification failed: $e');
+      _show(
+        _networkAwareMessage(e, fallback: 'OTP verification failed. Please try again.'),
+        onRetry: _verifyOtp,
+      );
     } finally {
       if (mounted) setState(() => _isVerifyingOtp = false);
     }
   }
 
-  void _show(String message) {
+  String _networkAwareMessage(Object error, {required String fallback}) {
+    final lower = error.toString().toLowerCase();
+    if (lower.contains('timed out') || lower.contains('timeoutexception')) {
+      return NetworkRequestGuard.timeoutMessage;
+    }
+    if (lower.contains("you're offline")) return NetworkRequestGuard.offlineMessage;
+    if (NetworkRequestGuard.isTransientNetworkError(error)) {
+      return NetworkRequestGuard.noInternetMessage;
+    }
+    return fallback;
+  }
+
+  void _show(String message, {VoidCallback? onRetry}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: onRetry == null ? null : SnackBarAction(label: 'Retry', onPressed: onRetry),
+      ),
+    );
   }
 
   @override

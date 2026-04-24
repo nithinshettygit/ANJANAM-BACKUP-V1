@@ -18,6 +18,7 @@ import 'package:ecommerce_app/features/checkout/state/checkout_actions_controlle
 import 'package:ecommerce_app/features/checkout/state/checkout_pricing_provider.dart';
 import 'package:ecommerce_app/features/checkout/state/order_payment_provider.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
+import 'package:ecommerce_app/features/order_history/state/order_history_controller.dart';
 import 'package:ecommerce_app/features/product_details/state/product_details_providers.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
@@ -83,7 +84,29 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   RazorpayService? _razorpayService;
 
   @override
+  void initState() {
+    super.initState();
+    _nameCtrl.addListener(_onAddressFormChanged);
+    _phoneCtrl.addListener(_onAddressFormChanged);
+    _addressCtrl.addListener(_onAddressFormChanged);
+    _address2Ctrl.addListener(_onAddressFormChanged);
+    _cityCtrl.addListener(_onAddressFormChanged);
+    _postalCtrl.addListener(_onAddressFormChanged);
+  }
+
+  void _onAddressFormChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  @override
   void dispose() {
+    _nameCtrl.removeListener(_onAddressFormChanged);
+    _phoneCtrl.removeListener(_onAddressFormChanged);
+    _addressCtrl.removeListener(_onAddressFormChanged);
+    _address2Ctrl.removeListener(_onAddressFormChanged);
+    _cityCtrl.removeListener(_onAddressFormChanged);
+    _postalCtrl.removeListener(_onAddressFormChanged);
     _razorpayService?.dispose();
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
@@ -174,6 +197,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
   void _refreshCachesAfterOrder(Order order) {
     ref.invalidate(cartControllerProvider);
+    ref.invalidate(orderHistoryControllerProvider);
     for (final line in order.items) {
       ref.invalidate(productDetailsProvider(line.productId));
     }
@@ -1008,17 +1032,44 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               }),
               const SizedBox(height: 8),
             ],
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _selectedAddressId = null;
-                  _showNewAddressForm = true;
-                  _clearForm();
-                });
-              },
-              icon: const Icon(Icons.add),
-              label: Text(saved.isEmpty ? 'Enter delivery address' : 'Add new address'),
-            ),
+            if (saved.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Delivery Address form is below',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _selectedAddressId = null;
+                    _showNewAddressForm = true;
+                    _clearForm();
+                  });
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Add new address'),
+              ),
             if (_showNewAddressForm || saved.isEmpty) ...[
               const SizedBox(height: 16),
               Form(

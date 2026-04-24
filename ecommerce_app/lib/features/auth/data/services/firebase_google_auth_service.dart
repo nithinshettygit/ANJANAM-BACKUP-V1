@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
+import 'package:ecommerce_app/core/network/network_request_guard.dart';
 import 'package:ecommerce_app/features/auth/domain/entities/app_user.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math';
@@ -45,10 +46,14 @@ class FirebaseGoogleAuthService {
       return await _firebaseAuth.signInWithProvider(provider);
     } on FirebaseAuthException {
       rethrow;
-    } catch (e) {
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('Google sign-in error: $e');
+        debugPrintStack(stackTrace: st);
+      }
       throw FirebaseAuthException(
         code: 'google-sign-in-failed',
-        message: 'Google sign-in failed. Please try again. $e',
+        message: 'Unable to continue with Google. Please try again.',
       );
     }
   }
@@ -64,15 +69,21 @@ class FirebaseGoogleAuthService {
     if (email.isEmpty) {
       throw const sb.AuthException('Google account does not have a valid email.');
     }
-    await _supabase.auth.signOut();
+    await NetworkRequestGuard.run(
+      () => _supabase.auth.signOut(),
+      operation: 'google auth sign-out stale session',
+    );
     if (kIsWeb) {
       final rawCredential = firebaseCredential.credential;
       final oauth = rawCredential is OAuthCredential ? rawCredential : null;
       final googleIdToken = oauth?.idToken?.trim() ?? '';
       if (googleIdToken.isNotEmpty) {
-        await _supabase.auth.signInWithIdToken(
-          provider: sb.OAuthProvider.google,
-          idToken: googleIdToken,
+        await NetworkRequestGuard.run(
+          () => _supabase.auth.signInWithIdToken(
+            provider: sb.OAuthProvider.google,
+            idToken: googleIdToken,
+          ),
+          operation: 'google id token sign-in',
         );
       } else {
         final idToken = await firebaseUser.getIdToken(true);
@@ -86,7 +97,10 @@ class FirebaseGoogleAuthService {
           displayName: firebaseUser.displayName?.trim(),
           photoUrl: firebaseUser.photoURL?.trim(),
         );
-        await _supabase.auth.setSession(bridge.refreshToken);
+        await NetworkRequestGuard.run(
+          () => _supabase.auth.setSession(bridge.refreshToken),
+          operation: 'google bridge set session',
+        );
       }
     } else {
       final idToken = await firebaseUser.getIdToken(true);
@@ -100,7 +114,10 @@ class FirebaseGoogleAuthService {
         displayName: firebaseUser.displayName?.trim(),
         photoUrl: firebaseUser.photoURL?.trim(),
       );
-      await _supabase.auth.setSession(bridge.refreshToken);
+      await NetworkRequestGuard.run(
+        () => _supabase.auth.setSession(bridge.refreshToken),
+        operation: 'google bridge set session',
+      );
     }
 
     final authUser = _supabase.auth.currentUser;
@@ -133,16 +150,19 @@ class FirebaseGoogleAuthService {
     String? displayName,
     String? photoUrl,
   }) async {
-    final response = await _supabase.functions.invoke(
-      'google-auth-bridge',
-      body: <String, dynamic>{
-        'firebase_id_token': firebaseIdToken,
-        'firebase_uid': firebaseUid,
-        'email': email,
-        'display_name': displayName,
-        'photo_url': photoUrl,
-        'client_nonce': _buildClientNonce(),
-      },
+    final response = await NetworkRequestGuard.run(
+      () => _supabase.functions.invoke(
+        'google-auth-bridge',
+        body: <String, dynamic>{
+          'firebase_id_token': firebaseIdToken,
+          'firebase_uid': firebaseUid,
+          'email': email,
+          'display_name': displayName,
+          'photo_url': photoUrl,
+          'client_nonce': _buildClientNonce(),
+        },
+      ),
+      operation: 'google auth bridge invoke',
     );
     if (response.status < 200 || response.status >= 300) {
       final data = response.data;
