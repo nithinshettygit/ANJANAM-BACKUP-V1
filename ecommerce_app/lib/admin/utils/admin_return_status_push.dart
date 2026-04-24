@@ -23,6 +23,38 @@ import 'package:ecommerce_app/features/notifications/data/services/fcm_edge_func
         title: 'Replacement item received',
         message: 'Your item has been received and verified for replacement.',
       ),
+    'replacement_order_created' => (
+        title: 'Replacement order created',
+        message: 'Your replacement order is created and will be dispatched soon.',
+      ),
+    'replacement_dispatched' => (
+        title: 'Replacement dispatched',
+        message: 'Your replacement item has been dispatched.',
+      ),
+    'replacement_delivered' => (
+        title: 'Replacement delivered',
+        message: 'Your replacement item has been delivered.',
+      ),
+    'pickup_scheduled' => (
+        title: 'Pickup scheduled',
+        message: 'Pickup for the original item has been scheduled.',
+      ),
+    'pickup_in_progress' => (
+        title: 'Pickup in progress',
+        message: 'Courier is attempting pickup for your original item.',
+      ),
+    'pickup_completed' => (
+        title: 'Pickup completed',
+        message: 'Original item pickup is completed.',
+      ),
+    'failed' => (
+        title: 'Replacement update required',
+        message: 'Pickup failed and will be retried. Open the app for details.',
+      ),
+    'completed' => (
+        title: 'Replacement completed',
+        message: 'Replacement delivery and pickup are both completed.',
+      ),
     'refund_completed' => (
         title: 'Replacement refund processed',
         message: 'Refund for your replacement request has been completed.',

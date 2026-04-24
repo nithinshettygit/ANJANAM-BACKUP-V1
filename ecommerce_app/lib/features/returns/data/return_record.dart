@@ -1,4 +1,5 @@
 import '../domain/return_enums.dart';
+import 'replacement_case_record.dart';
 
 class RefundRecord {
   final String id;
@@ -63,6 +64,7 @@ class ReturnRecord {
   final DateTime updatedAt;
   final RefundRecord? refund;
   final String? replacementOrderId;
+  final ReplacementCaseRecord? replacementCase;
 
   const ReturnRecord({
     required this.id,
@@ -82,6 +84,7 @@ class ReturnRecord {
     required this.updatedAt,
     this.refund,
     this.replacementOrderId,
+    this.replacementCase,
   });
 
   static List<Map<String, dynamic>>? _refundsList(dynamic raw) {
@@ -142,6 +145,32 @@ class ReturnRecord {
         final t = json['replacement_order_id']?.toString().trim();
         return t != null && t.isNotEmpty ? t : null;
       }(),
+      replacementCase: null,
+    );
+  }
+
+  ReturnRecord copyWith({
+    ReplacementCaseRecord? replacementCase,
+  }) {
+    return ReturnRecord(
+      id: id,
+      orderId: orderId,
+      userId: userId,
+      productId: productId,
+      orderItemId: orderItemId,
+      reason: reason,
+      returnNote: returnNote,
+      returnImages: returnImages,
+      returnType: returnType,
+      status: status,
+      pickupScheduledAt: pickupScheduledAt,
+      pickupNotes: pickupNotes,
+      rejectionReason: rejectionReason,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      refund: refund,
+      replacementOrderId: replacementOrderId,
+      replacementCase: replacementCase ?? this.replacementCase,
     );
   }
 }

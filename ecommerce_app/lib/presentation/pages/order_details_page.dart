@@ -250,7 +250,100 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
         if (!mounted) return;
         ref.invalidate(orderDetailBundleProvider(widget.orderId));
         ref.invalidate(orderHistoryControllerProvider);
+        ref.invalidate(orderReturnsProvider(widget.orderId));
       },
+    );
+    void refreshReturns() {
+      if (!mounted) return;
+      ref.invalidate(orderReturnsProvider(widget.orderId));
+    }
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'returns',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'order_id',
+        value: widget.orderId,
+      ),
+      callback: (_) => refreshReturns(),
+    );
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'returns',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'order_id',
+        value: widget.orderId,
+      ),
+      callback: (_) => refreshReturns(),
+    );
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: 'returns',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'order_id',
+        value: widget.orderId,
+      ),
+      callback: (_) => refreshReturns(),
+    );
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'replacement_cases',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'original_order_id',
+        value: widget.orderId,
+      ),
+      callback: (_) => refreshReturns(),
+    );
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'replacement_cases',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'original_order_id',
+        value: widget.orderId,
+      ),
+      callback: (_) => refreshReturns(),
+    );
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: 'replacement_cases',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'original_order_id',
+        value: widget.orderId,
+      ),
+      callback: (_) => refreshReturns(),
+    );
+
+    // Pickup status updates map into ReplacementCase rendering in order-details.
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'replacement_pickups',
+      callback: (_) => refreshReturns(),
+    );
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'replacement_pickups',
+      callback: (_) => refreshReturns(),
+    );
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: 'replacement_pickups',
+      callback: (_) => refreshReturns(),
     );
     channel.subscribe();
     _orderRealtimeChannel = channel;
@@ -2081,6 +2174,134 @@ class _ReturnTrackingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final replacementCase = record.replacementCase;
+    final isReplacement = record.returnType == ReturnType.replacement;
+    if (isReplacement && replacementCase != null) {
+      final forwardStatus = replacementCase.forwardStatus;
+      final reverseStatus = replacementCase.reverseStatus;
+      final forwardSteps = <_ReturnStep>[
+        const _ReturnStep('Replacement approved', true),
+        _ReturnStep(
+          'Replacement order created',
+          _replacementForwardRank(forwardStatus) >= 1,
+        ),
+        _ReturnStep(
+          'Replacement dispatched',
+          _replacementForwardRank(forwardStatus) >= 2,
+        ),
+        _ReturnStep(
+          'Replacement delivered',
+          _replacementForwardRank(forwardStatus) >= 3,
+        ),
+      ];
+      final reverseSteps = <_ReturnStep>[
+        _ReturnStep(
+          'Pickup scheduled',
+          _replacementReverseRank(reverseStatus) >= 1,
+        ),
+        _ReturnStep(
+          'Pickup in progress',
+          _replacementReverseRank(reverseStatus) >= 2,
+        ),
+        _ReturnStep(
+          'Pickup completed',
+          _replacementReverseRank(reverseStatus) >= 3,
+        ),
+      ];
+
+      return Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Replacement in progress',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Status: ${_replacementStatusLabel(replacementCase.status)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Forward: ${_replacementStatusLabel(forwardStatus)} · Reverse: ${_replacementStatusLabel(reverseStatus)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+              ),
+              if ((replacementCase.failureReason ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Update: ${replacementCase.failureReason!.trim()}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Text(
+                'New item delivery',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              ...forwardSteps.map((s) => _stepRow(context, s)),
+              if ((replacementCase.forwardTrackingUrl ?? '').isNotEmpty) ...[
+                const SizedBox(height: 4),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final u = Uri.tryParse(replacementCase.forwardTrackingUrl!.trim());
+                    if (u != null && await canLaunchUrl(u)) {
+                      await launchUrl(u, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Track new item'),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                'Old item pickup',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              ...reverseSteps.map((s) => _stepRow(context, s)),
+              if ((replacementCase.reverseTrackingUrl ?? '').isNotEmpty) ...[
+                const SizedBox(height: 4),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final u = Uri.tryParse(replacementCase.reverseTrackingUrl!.trim());
+                    if (u != null && await canLaunchUrl(u)) {
+                      await launchUrl(u, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Track old item pickup'),
+                ),
+              ],
+              if ((replacementCase.replacementOrderId ?? '').isNotEmpty) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed(
+                    '/order-details',
+                    arguments: replacementCase.replacementOrderId!,
+                  ),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Open replacement order'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
     if (record.status == ReturnWorkflowStatus.rejected) {
       return Card(
         margin: EdgeInsets.zero,
@@ -2205,6 +2426,94 @@ class _ReturnTrackingCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _stepRow(BuildContext context, _ReturnStep s) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            s.done ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 20,
+            color: s.done ? scheme.primary : scheme.outline,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              s.label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: s.done ? scheme.onSurface : scheme.onSurfaceVariant,
+                    fontWeight: s.done ? FontWeight.w600 : FontWeight.w400,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _replacementStatusLabel(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'replacement_order_created':
+        return 'Replacement order created';
+      case 'replacement_dispatched':
+        return 'Replacement dispatched';
+      case 'replacement_delivered':
+        return 'Replacement delivered';
+      case 'pickup_scheduled':
+        return 'Pickup scheduled';
+      case 'pickup_in_progress':
+        return 'Pickup in progress';
+      case 'pickup_completed':
+        return 'Pickup completed';
+      case 'completed':
+        return 'Completed';
+      case 'failed':
+        return 'Action needed';
+      default:
+        return status;
+    }
+  }
+
+  static int _replacementForwardRank(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'created':
+      case 'replacement_order_created':
+        return 1;
+      case 'in_transit':
+      case 'replacement_dispatched':
+      case 'out_for_delivery':
+        return 2;
+      case 'delivered':
+      case 'replacement_delivered':
+      case 'completed':
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
+  static int _replacementReverseRank(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'scheduled':
+      case 'pickup_scheduled':
+        return 1;
+      case 'in_transit':
+      case 'out_for_pickup':
+      case 'pickup_in_progress':
+      case 'failed':
+        return 2;
+      case 'picked_up':
+      case 'returned':
+      case 'pickup_completed':
+      case 'completed':
+        return 3;
+      default:
+        return 0;
+    }
   }
 
   /// Linear ranks for standard return → refund milestones (not used for replacement flow).

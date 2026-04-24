@@ -439,7 +439,40 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                   AdminTableColumn<AdminOrderRow>(
                     label: 'Order ID',
                     sortValue: (o) => o.id,
-                    cellBuilder: (o) => Text(o.id),
+                    cellBuilder: (o) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(o.id),
+                        if (o.orderKind.toLowerCase() == 'replacement')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                Chip(
+                                  visualDensity: VisualDensity.compact,
+                                  label: const Text('Replacement'),
+                                  backgroundColor: Colors.deepPurple.withOpacity(0.12),
+                                  side: BorderSide(color: Colors.deepPurple.withOpacity(0.35)),
+                                  labelStyle: TextStyle(
+                                    color: Colors.deepPurple.shade700,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                if ((o.originalOrderId ?? '').isNotEmpty)
+                                  Text(
+                                    'From: ${o.originalOrderId}',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                   AdminTableColumn<AdminOrderRow>(
                     label: 'Customer',

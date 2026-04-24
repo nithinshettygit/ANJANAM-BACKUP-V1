@@ -73,10 +73,16 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
 
   Future<void> _approve(AdminReturnRow r) async {
     try {
-      await ref.read(adminServiceProvider).updateReturnStatus(
-            returnId: r.id,
-            newStatus: 'approved',
-          );
+      if (_norm(r.returnType) == 'replacement') {
+        await ref.read(adminServiceProvider).ensureReplacementCaseForReturn(
+              returnId: r.id,
+            );
+      } else {
+        await ref.read(adminServiceProvider).updateReturnStatus(
+              returnId: r.id,
+              newStatus: 'approved',
+            );
+      }
       await trySendReplacementStatusFcm(
         ref.read(fcmNotificationSenderProvider),
         userId: r.userId,
@@ -89,6 +95,198 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _schedulePickup(AdminReturnRow r) async {
+    String caseId = (r.replacementCaseId ?? '').trim();
+    try {
+      if (caseId.isEmpty && _norm(r.returnType) == 'replacement') {
+        caseId = await ref.read(adminServiceProvider).ensureReplacementCaseForReturn(
+              returnId: r.id,
+            );
+      }
+      if (caseId.isEmpty) throw Exception('Replacement case not available. Approve first.');
+      await ref.read(adminServiceProvider).upsertReplacementPickup(
+            replacementCaseId: caseId,
+            status: 'pickup_scheduled',
+            scheduledAt: DateTime.now().add(const Duration(days: 1)),
+          );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: r.userId,
+        orderId: r.orderId,
+        status: 'pickup_scheduled',
+      );
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pickup scheduled.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _markPickupFailed(AdminReturnRow r) async {
+    String caseId = (r.replacementCaseId ?? '').trim();
+    try {
+      if (caseId.isEmpty && _norm(r.returnType) == 'replacement') {
+        caseId = await ref.read(adminServiceProvider).ensureReplacementCaseForReturn(
+              returnId: r.id,
+            );
+      }
+      if (caseId.isEmpty) throw Exception('Replacement case not available.');
+      await ref.read(adminServiceProvider).upsertReplacementPickup(
+            replacementCaseId: caseId,
+            status: 'pickup_failed',
+            failureCode: 'user_unavailable',
+            failureReason: 'Customer unavailable at pickup time.',
+          );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: r.userId,
+        orderId: r.orderId,
+        status: 'failed',
+      );
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Marked pickup as failed.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _createForwardShiprocket(AdminReturnRow r) async {
+    final replacementOrderId = (r.replacementOrderId ?? '').trim();
+    String caseId = (r.replacementCaseId ?? '').trim();
+    if (replacementOrderId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Replacement order not ready. Approve first.')),
+      );
+      return;
+    }
+    try {
+      if (caseId.isEmpty) {
+        caseId = await ref.read(adminServiceProvider).ensureReplacementCaseForReturn(
+              returnId: r.id,
+            );
+      }
+      final result = await ref.read(adminServiceProvider).createShiprocketShipment(
+            orderId: replacementOrderId,
+            pickupLocation: 'Primary',
+          );
+      await ref.read(adminServiceProvider).setReplacementLogistics(
+            replacementCaseId: caseId,
+            logisticsMode: 'shiprocket',
+            forwardShipmentId: result['shipment_id']?.toString(),
+            forwardTrackingUrl: result['tracking_url']?.toString(),
+            forwardStatus: 'created',
+          );
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Forward Shiprocket shipment created.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _markForwardDelivered(AdminReturnRow r) async {
+    String caseId = (r.replacementCaseId ?? '').trim();
+    try {
+      if (caseId.isEmpty && _norm(r.returnType) == 'replacement') {
+        caseId = await ref.read(adminServiceProvider).ensureReplacementCaseForReturn(
+              returnId: r.id,
+            );
+      }
+      if (caseId.isEmpty) return;
+      await ref.read(adminServiceProvider).setReplacementLogistics(
+            replacementCaseId: caseId,
+            forwardStatus: 'delivered',
+          );
+      await trySendReplacementStatusFcm(
+        ref.read(fcmNotificationSenderProvider),
+        userId: r.userId,
+        orderId: r.orderId,
+        status: 'replacement_delivered',
+      );
+      await _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _markReverseDone(AdminReturnRow r, {required bool returned}) async {
+    String caseId = (r.replacementCaseId ?? '').trim();
+    try {
+      if (caseId.isEmpty && _norm(r.returnType) == 'replacement') {
+        caseId = await ref.read(adminServiceProvider).ensureReplacementCaseForReturn(
+              returnId: r.id,
+            );
+      }
+      if (caseId.isEmpty) return;
+      await ref.read(adminServiceProvider).setReplacementLogistics(
+            replacementCaseId: caseId,
+            reverseStatus: returned ? 'returned' : 'picked_up',
+          );
+      await _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _linkReverseShiprocketShipment(AdminReturnRow r) async {
+    String caseId = (r.replacementCaseId ?? '').trim();
+    final ctrl = TextEditingController(text: r.replacementReverseShipmentId ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Link reverse Shiprocket shipment'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(
+            labelText: 'Reverse shipment ID',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      if (caseId.isEmpty && _norm(r.returnType) == 'replacement') {
+        caseId = await ref.read(adminServiceProvider).ensureReplacementCaseForReturn(
+              returnId: r.id,
+            );
+      }
+      if (caseId.isEmpty) throw Exception('Replacement case not available.');
+      await ref.read(adminServiceProvider).linkReverseShipmentToReplacementCase(
+            replacementCaseId: caseId,
+            reverseShipmentId: ctrl.text.trim(),
+          );
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reverse shipment linked.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      ctrl.dispose();
     }
   }
 
@@ -138,6 +336,12 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
 
   Future<void> _markPickedUp(AdminReturnRow r) async {
     try {
+      if ((r.replacementCaseId ?? '').isNotEmpty) {
+        await ref.read(adminServiceProvider).upsertReplacementPickup(
+              replacementCaseId: r.replacementCaseId!,
+              status: 'pickup_completed',
+            );
+      }
       await ref.read(adminServiceProvider).updateReturnStatus(
             returnId: r.id,
             newStatus: 'picked_up',
@@ -165,6 +369,14 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
             returnId: r.id,
             newStatus: 'returned',
           );
+      if ((r.replacementCaseId ?? '').isNotEmpty) {
+        await trySendReplacementStatusFcm(
+          ref.read(fcmNotificationSenderProvider),
+          userId: r.userId,
+          orderId: r.orderId,
+          status: 'pickup_completed',
+        );
+      }
       await trySendReplacementStatusFcm(
         ref.read(fcmNotificationSenderProvider),
         userId: r.userId,
@@ -220,6 +432,12 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
       case _ReturnAdminAction.viewOrder:
         Navigator.of(context).pushNamed('/admin/orders/details/${r.orderId}');
         return;
+      case _ReturnAdminAction.viewReplacementOrder:
+        final rid = (r.replacementOrderId ?? '').trim();
+        if (rid.isNotEmpty) {
+          Navigator.of(context).pushNamed('/admin/orders/details/$rid');
+        }
+        return;
       case _ReturnAdminAction.viewImages:
         _viewImages(r);
         return;
@@ -238,6 +456,27 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
       case _ReturnAdminAction.processRefund:
         await _processRefund(r);
         return;
+      case _ReturnAdminAction.schedulePickup:
+        await _schedulePickup(r);
+        return;
+      case _ReturnAdminAction.markPickupFailed:
+        await _markPickupFailed(r);
+        return;
+      case _ReturnAdminAction.createForwardShiprocket:
+        await _createForwardShiprocket(r);
+        return;
+      case _ReturnAdminAction.markForwardDelivered:
+        await _markForwardDelivered(r);
+        return;
+      case _ReturnAdminAction.markReversePickedUp:
+        await _markReverseDone(r, returned: false);
+        return;
+      case _ReturnAdminAction.markReverseReturned:
+        await _markReverseDone(r, returned: true);
+        return;
+      case _ReturnAdminAction.linkReverseShiprocket:
+        await _linkReverseShiprocketShipment(r);
+        return;
     }
   }
 
@@ -253,6 +492,13 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
         action: _ReturnAdminAction.viewImages,
         label: 'View images',
         icon: Icons.photo_library_outlined,
+      ));
+    }
+    if ((r.replacementOrderId ?? '').trim().isNotEmpty) {
+      items.add(const _ActionMenuItem(
+        action: _ReturnAdminAction.viewReplacementOrder,
+        label: 'View replacement order',
+        icon: Icons.swap_horiz_outlined,
       ));
     }
 
@@ -271,9 +517,50 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     }
     if (status == 'approved') {
       items.add(const _ActionMenuItem(
+        action: _ReturnAdminAction.schedulePickup,
+        label: 'Schedule pickup',
+        icon: Icons.event_available_outlined,
+      ));
+      items.add(const _ActionMenuItem(
         action: _ReturnAdminAction.markPickedUp,
         label: 'Mark pickup done',
         icon: Icons.local_shipping_outlined,
+      ));
+      if (r.replacementCaseId != null && r.replacementCaseId!.isNotEmpty) {
+        items.add(const _ActionMenuItem(
+          action: _ReturnAdminAction.markPickupFailed,
+          label: 'Mark pickup failed',
+          icon: Icons.error_outline,
+        ));
+      }
+    }
+    if ((r.replacementCaseId ?? '').isNotEmpty) {
+      if ((r.replacementOrderId ?? '').isNotEmpty) {
+        items.add(const _ActionMenuItem(
+          action: _ReturnAdminAction.createForwardShiprocket,
+          label: 'Create forward shipment (Shiprocket)',
+          icon: Icons.local_shipping_outlined,
+        ));
+      }
+      items.add(const _ActionMenuItem(
+        action: _ReturnAdminAction.markForwardDelivered,
+        label: 'Mark new item delivered',
+        icon: Icons.inventory_2_outlined,
+      ));
+      items.add(const _ActionMenuItem(
+        action: _ReturnAdminAction.markReversePickedUp,
+        label: 'Mark old item picked up',
+        icon: Icons.assignment_turned_in_outlined,
+      ));
+      items.add(const _ActionMenuItem(
+        action: _ReturnAdminAction.markReverseReturned,
+        label: 'Mark old item returned',
+        icon: Icons.unarchive_outlined,
+      ));
+      items.add(const _ActionMenuItem(
+        action: _ReturnAdminAction.linkReverseShiprocket,
+        label: 'Link reverse shipment ID',
+        icon: Icons.link_outlined,
       ));
     }
     if (status == 'picked_up') {
@@ -573,6 +860,27 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
             ],
           ),
         const SizedBox(height: 12),
+        if (_norm(r.returnType) == 'replacement') ...[
+          const Text('Replacement case', style: TextStyle(fontWeight: FontWeight.w700)),
+          Text('Case ID: ${r.replacementCaseId ?? '—'}'),
+          Text('Case status: ${r.replacementCaseStatus ?? '—'}'),
+          Text('Logistics mode: ${r.replacementLogisticsMode}'),
+          Text('Forward status: ${r.replacementForwardStatus}'),
+          Text('Reverse status: ${r.replacementReverseStatus}'),
+          Text('Forward shipment: ${r.replacementForwardShipmentId ?? '—'}'),
+          Text('Reverse shipment: ${r.replacementReverseShipmentId ?? '—'}'),
+          if ((r.replacementForwardTrackingUrl ?? '').isNotEmpty)
+            SelectableText('Forward track: ${r.replacementForwardTrackingUrl}'),
+          if ((r.replacementReverseTrackingUrl ?? '').isNotEmpty)
+            SelectableText('Reverse track: ${r.replacementReverseTrackingUrl}'),
+          Text('Pickup status: ${r.replacementPickupStatus ?? '—'}'),
+          if (r.replacementPickupScheduledAt != null)
+            Text('Pickup at: ${formatOrderDetailsDateTime(r.replacementPickupScheduledAt!)}'),
+          Text('Attempts: ${r.replacementAttemptCount}'),
+          if ((r.replacementOrderId ?? '').trim().isNotEmpty)
+            Text('Replacement order: ${r.replacementOrderId}'),
+          const SizedBox(height: 12),
+        ],
         const Text('Return timeline', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         ...timeline.map((t) => ListTile(
@@ -704,10 +1012,18 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
 
 enum _ReturnAdminAction {
   viewOrder,
+  viewReplacementOrder,
   viewImages,
   approve,
   reject,
+  createForwardShiprocket,
+  markForwardDelivered,
+  markReversePickedUp,
+  markReverseReturned,
+  linkReverseShiprocket,
+  schedulePickup,
   markPickedUp,
+  markPickupFailed,
   markReturned,
   processRefund,
 }

@@ -9,6 +9,7 @@ import 'package:ecommerce_app/features/returns/domain/return_enums.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import 'package:uuid/uuid.dart';
 
+import 'replacement_case_record.dart';
 import 'return_record.dart';
 
 class ReturnsService extends SupabaseServiceBase {
@@ -35,7 +36,80 @@ class ReturnsService extends SupabaseServiceBase {
           .order('created_at', ascending: false),
     );
     final list = (data as List).cast<Map<String, dynamic>>();
-    return list.map(ReturnRecord.fromJson).toList();
+    final baseReturns = list.map(ReturnRecord.fromJson).toList();
+    if (baseReturns.isEmpty) return baseReturns;
+
+    final returnIds = baseReturns.map((e) => e.id).where((e) => e.isNotEmpty).toList();
+    final replacementRaw = await guard(
+      () => client
+          .from('replacement_cases')
+          .select(
+            'id, return_id, original_order_id, original_order_item_id, customer_id, '
+            'replacement_order_id, status, logistics_mode, forward_status, reverse_status, '
+            'forward_shipment_id, reverse_shipment_id, forward_tracking_url, reverse_tracking_url, '
+            'failure_reason, attempt_count, approved_at, '
+            'completed_at, updated_at',
+          )
+          .inFilter('return_id', returnIds),
+    );
+    final replacementRows = (replacementRaw as List).cast<Map<String, dynamic>>();
+    if (replacementRows.isEmpty) return baseReturns;
+
+    final caseByReturnId = <String, ReplacementCaseRecord>{};
+    final caseIds = <String>[];
+    for (final row in replacementRows) {
+      final caseRecord = ReplacementCaseRecord.fromJson(row);
+      caseByReturnId[caseRecord.returnId] = caseRecord;
+      if (caseRecord.id.isNotEmpty) caseIds.add(caseRecord.id);
+    }
+
+    final latestPickupByCase = <String, ReplacementPickupRecord>{};
+    if (caseIds.isNotEmpty) {
+      final pickupRaw = await guard(
+        () => client
+            .from('replacement_pickups')
+            .select(
+              'id, replacement_case_id, provider, status, scheduled_at, attempt_no, '
+              'failure_code, failure_reason, tracking_url, proof_urls, created_at',
+            )
+            .inFilter('replacement_case_id', caseIds)
+            .order('created_at', ascending: false),
+      );
+      for (final row in (pickupRaw as List).cast<Map<String, dynamic>>()) {
+        final pickup = ReplacementPickupRecord.fromJson(row);
+        latestPickupByCase.putIfAbsent(pickup.replacementCaseId, () => pickup);
+      }
+    }
+
+    return baseReturns.map((r) {
+      final rc = caseByReturnId[r.id];
+      if (rc == null) return r;
+      final withPickup = ReplacementCaseRecord.fromJson(
+        {
+          'id': rc.id,
+          'return_id': rc.returnId,
+          'original_order_id': rc.originalOrderId,
+          'original_order_item_id': rc.originalOrderItemId,
+          'customer_id': rc.customerId,
+          'replacement_order_id': rc.replacementOrderId,
+          'status': rc.status,
+          'logistics_mode': rc.logisticsMode,
+          'forward_status': rc.forwardStatus,
+          'reverse_status': rc.reverseStatus,
+          'forward_shipment_id': rc.forwardShipmentId,
+          'reverse_shipment_id': rc.reverseShipmentId,
+          'forward_tracking_url': rc.forwardTrackingUrl,
+          'reverse_tracking_url': rc.reverseTrackingUrl,
+          'failure_reason': rc.failureReason,
+          'attempt_count': rc.attemptCount,
+          'approved_at': rc.approvedAt?.toIso8601String(),
+          'completed_at': rc.completedAt?.toIso8601String(),
+          'updated_at': rc.updatedAt.toIso8601String(),
+        },
+        latestPickup: latestPickupByCase[rc.id],
+      );
+      return r.copyWith(replacementCase: withPickup);
+    }).toList();
   }
 
   /// Public URL after upload to `return-images` bucket.

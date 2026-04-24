@@ -267,6 +267,8 @@ class AdminOrderRow {
   final String? shipmentStatus;
   final String? deliveryMethod;
   final String? shipmentId;
+  final String orderKind;
+  final String? originalOrderId;
 
   const AdminOrderRow({
     required this.id,
@@ -289,6 +291,8 @@ class AdminOrderRow {
     this.shipmentStatus,
     this.deliveryMethod,
     this.shipmentId,
+    this.orderKind = 'normal',
+    this.originalOrderId,
   });
 }
 
@@ -448,6 +452,18 @@ class AdminReturnRow {
   final String paymentStatus;
   final String orderRefundStatus;
   final int? orderRefundAmountPaise;
+  final String? replacementCaseId;
+  final String? replacementCaseStatus;
+  final String? replacementPickupStatus;
+  final DateTime? replacementPickupScheduledAt;
+  final int replacementAttemptCount;
+  final String replacementLogisticsMode;
+  final String replacementForwardStatus;
+  final String replacementReverseStatus;
+  final String? replacementForwardShipmentId;
+  final String? replacementReverseShipmentId;
+  final String? replacementForwardTrackingUrl;
+  final String? replacementReverseTrackingUrl;
 
   const AdminReturnRow({
     required this.id,
@@ -483,6 +499,18 @@ class AdminReturnRow {
     this.paymentStatus = 'pending',
     this.orderRefundStatus = 'none',
     this.orderRefundAmountPaise,
+    this.replacementCaseId,
+    this.replacementCaseStatus,
+    this.replacementPickupStatus,
+    this.replacementPickupScheduledAt,
+    this.replacementAttemptCount = 0,
+    this.replacementLogisticsMode = 'manual',
+    this.replacementForwardStatus = 'pending',
+    this.replacementReverseStatus = 'pending',
+    this.replacementForwardShipmentId,
+    this.replacementReverseShipmentId,
+    this.replacementForwardTrackingUrl,
+    this.replacementReverseTrackingUrl,
   });
 }
 
@@ -1552,7 +1580,8 @@ class AdminService {
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
             'payment_method, payment_status, razorpay_payment_id, '
-            'refund_status, refund_amount, refund_id, delivery_status, shipment_status, delivery_method, shipment_id',
+            'refund_status, refund_amount, refund_id, delivery_status, shipment_status, delivery_method, shipment_id, '
+            'order_kind, original_order_id',
           )
           .order('created_at', ascending: false);
       if (limit != null) {
@@ -1565,7 +1594,8 @@ class AdminService {
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, '
             'payment_method, payment_status, razorpay_payment_id, '
-            'refund_status, refund_amount, refund_id, delivery_status, shipment_status, delivery_method, shipment_id',
+            'refund_status, refund_amount, refund_id, delivery_status, shipment_status, delivery_method, shipment_id, '
+            'order_kind, original_order_id',
           )
           .order('created_at', ascending: false);
       if (limit != null) {
@@ -1663,6 +1693,14 @@ class AdminService {
           final t = row['shipment_id']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
         }(),
+        orderKind: () {
+          final t = row['order_kind']?.toString().trim().toLowerCase();
+          return (t != null && t.isNotEmpty) ? t : 'normal';
+        }(),
+        originalOrderId: () {
+          final t = row['original_order_id']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
       );
     }).toList();
 
@@ -1726,6 +1764,7 @@ class AdminService {
       if (o.status.toLowerCase().contains(qLower)) return true;
       if (o.paymentStatus.toLowerCase().contains(qLower)) return true;
       if (o.paymentMethod.toLowerCase().contains(qLower)) return true;
+      if (o.orderKind.toLowerCase().contains(qLower)) return true;
       return false;
     }).toList();
   }
@@ -1739,7 +1778,7 @@ class AdminService {
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
             'payment_method, payment_status, razorpay_payment_id, '
-            'refund_status, refund_amount, refund_id',
+            'refund_status, refund_amount, refund_id, order_kind, original_order_id',
           )
           .eq('user_id', userId)
           .order('created_at', ascending: false);
@@ -1750,7 +1789,7 @@ class AdminService {
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, '
             'payment_method, payment_status, razorpay_payment_id, '
-            'refund_status, refund_amount, refund_id',
+            'refund_status, refund_amount, refund_id, order_kind, original_order_id',
           )
           .eq('user_id', userId)
           .order('created_at', ascending: false);
@@ -1809,6 +1848,14 @@ class AdminService {
           final t = row['refund_id']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
         }(),
+        orderKind: () {
+          final t = row['order_kind']?.toString().trim().toLowerCase();
+          return (t != null && t.isNotEmpty) ? t : 'normal';
+        }(),
+        originalOrderId: () {
+          final t = row['original_order_id']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
       );
     }).toList();
   }
@@ -1828,6 +1875,7 @@ class AdminService {
             'shipment_id, awb_code, shipment_status, tracking_url, shipped_at, last_tracking_update, '
             'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at, '
             'refund_status, refund_amount, refund_id, refund_requested_at, refund_processed_at, '
+            'order_kind, original_order_id, '
             'refund_initiated_by, refund_initiated_at, refund_reason',
           )
           .eq('id', orderId)
@@ -1841,6 +1889,7 @@ class AdminService {
               'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, '
               'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at, '
               'refund_status, refund_amount, refund_id, refund_requested_at, refund_processed_at, '
+              'order_kind, original_order_id, '
               'refund_initiated_by, refund_initiated_at, refund_reason',
             )
             .eq('id', orderId)
@@ -1854,6 +1903,7 @@ class AdminService {
                 'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, '
                 'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at, '
                 'refund_status, refund_amount, refund_id, refund_requested_at, refund_processed_at, '
+                'order_kind, original_order_id, '
                 'refund_initiated_by, refund_initiated_at, refund_reason',
               )
               .eq('id', orderId)
@@ -1958,6 +2008,11 @@ class AdminService {
       shipmentStatus: orderColStr('shipment_status'),
       deliveryMethod: orderColStr('delivery_method'),
       shipmentId: orderColStr('shipment_id'),
+      orderKind: () {
+        final t = orderMap['order_kind']?.toString().trim().toLowerCase();
+        return t != null && t.isNotEmpty ? t : 'normal';
+      }(),
+      originalOrderId: orderColStr('original_order_id'),
     );
 
     final shipName = orderMap['shipping_full_name']?.toString().trim();
@@ -3681,6 +3736,9 @@ class AdminService {
           'return_images, return_type, return_status, pickup_scheduled_at, pickup_notes, '
           'pickup_courier_partner, warehouse_receipt_at, inspection_notes, '
           'rejection_reason, replacement_order_id, created_at, updated_at, '
+          'replacement_cases(id, status, attempt_count, logistics_mode, forward_status, reverse_status, '
+          'forward_shipment_id, reverse_shipment_id, forward_tracking_url, reverse_tracking_url, '
+          'replacement_pickups(status, scheduled_at, created_at)), '
           'orders!returns_order_id_fkey(razorpay_payment_id, payment_method, payment_status, refund_status, refund_amount), '
           'refunds(id, refund_amount, refund_method, refund_status, payment_transaction_id, '
           'razorpay_refund_id, gateway_refund_status)',
@@ -3743,11 +3801,30 @@ class AdminService {
           imgs is List ? imgs.map((x) => x.toString()).toList() : const <String>[];
       final uid = (e['user_id'] ?? '').toString();
       Map<String, dynamic>? refundMap;
+      Map<String, dynamic>? replacementCaseMap;
+      Map<String, dynamic>? latestPickupMap;
       final refRaw = e['refunds'];
       if (refRaw is List && refRaw.isNotEmpty) {
         refundMap = Map<String, dynamic>.from(refRaw.first as Map);
       } else if (refRaw is Map) {
         refundMap = Map<String, dynamic>.from(refRaw);
+      }
+      final replacementRaw = e['replacement_cases'];
+      if (replacementRaw is List && replacementRaw.isNotEmpty) {
+        replacementCaseMap = Map<String, dynamic>.from(replacementRaw.first as Map);
+      } else if (replacementRaw is Map) {
+        replacementCaseMap = Map<String, dynamic>.from(replacementRaw);
+      }
+      final pickupRaw = replacementCaseMap?['replacement_pickups'];
+      if (pickupRaw is List && pickupRaw.isNotEmpty) {
+        final sorted = pickupRaw
+            .map((x) => Map<String, dynamic>.from(x as Map))
+            .toList()
+          ..sort((a, b) => (b['created_at']?.toString() ?? '')
+              .compareTo(a['created_at']?.toString() ?? ''));
+        latestPickupMap = sorted.first;
+      } else if (pickupRaw is Map) {
+        latestPickupMap = Map<String, dynamic>.from(pickupRaw);
       }
       return AdminReturnRow(
         id: (e['id'] ?? '').toString(),
@@ -3847,8 +3924,168 @@ class AdminService {
               : (orderRaw is Map ? Map<String, dynamic>.from(orderRaw) : null);
           return (orderMap?['refund_amount'] as num?)?.toInt();
         }(),
+        replacementCaseId: replacementCaseMap?['id']?.toString(),
+        replacementCaseStatus: replacementCaseMap?['status']?.toString(),
+        replacementPickupStatus: latestPickupMap?['status']?.toString(),
+        replacementPickupScheduledAt:
+            DateTime.tryParse(latestPickupMap?['scheduled_at']?.toString() ?? ''),
+        replacementAttemptCount:
+            (replacementCaseMap?['attempt_count'] as num?)?.toInt() ?? 0,
+        replacementLogisticsMode:
+            (replacementCaseMap?['logistics_mode'] ?? 'manual').toString(),
+        replacementForwardStatus:
+            (replacementCaseMap?['forward_status'] ?? 'pending').toString(),
+        replacementReverseStatus:
+            (replacementCaseMap?['reverse_status'] ?? 'pending').toString(),
+        replacementForwardShipmentId: () {
+          final t = replacementCaseMap?['forward_shipment_id']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
+        replacementReverseShipmentId: () {
+          final t = replacementCaseMap?['reverse_shipment_id']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
+        replacementForwardTrackingUrl: () {
+          final t = replacementCaseMap?['forward_tracking_url']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
+        replacementReverseTrackingUrl: () {
+          final t = replacementCaseMap?['reverse_tracking_url']?.toString().trim();
+          return t != null && t.isNotEmpty ? t : null;
+        }(),
       );
     }).toList();
+  }
+
+  Future<Map<String, dynamic>> approveReplacementReturn({
+    required String returnId,
+    DateTime? schedulePickupAt,
+  }) async {
+    await _requireAdmin();
+    final raw = await client.rpc(
+      'admin_approve_replacement_return',
+      params: {
+        'p_return_id': returnId,
+        'p_schedule_pickup_at': schedulePickupAt?.toUtc().toIso8601String(),
+      },
+    );
+    Map<String, dynamic> out;
+    if (raw is List && raw.isNotEmpty) {
+      out = Map<String, dynamic>.from(raw.first as Map);
+    } else if (raw is Map) {
+      out = Map<String, dynamic>.from(raw);
+    } else {
+      out = const <String, dynamic>{};
+    }
+    final replacementCaseId = out['replacement_case_id']?.toString().trim();
+    if (replacementCaseId != null && replacementCaseId.isNotEmpty) {
+      await _logAdminAction(
+        action: 'replacement_approved',
+        entity: 'replacement_case',
+        entityId: replacementCaseId,
+        message: 'Replacement approval workflow executed for return $returnId',
+      );
+    } else {
+      await _logAdminAction(
+        action: 'replacement_approved',
+        entity: 'return',
+        entityId: returnId,
+        message: 'Replacement approval workflow executed for $returnId',
+      );
+    }
+    return out;
+  }
+
+  Future<String> ensureReplacementCaseForReturn({
+    required String returnId,
+  }) async {
+    final out = await approveReplacementReturn(returnId: returnId);
+    final caseId = out['replacement_case_id']?.toString().trim() ?? '';
+    if (caseId.isEmpty) {
+      throw const RepositoryException(
+        'Replacement case could not be created. Please verify migrations are applied.',
+      );
+    }
+    return caseId;
+  }
+
+  Future<void> linkReverseShipmentToReplacementCase({
+    required String replacementCaseId,
+    required String reverseShipmentId,
+  }) async {
+    await setReplacementLogistics(
+      replacementCaseId: replacementCaseId,
+      logisticsMode: 'shiprocket',
+      reverseShipmentId: reverseShipmentId,
+      reverseStatus: 'scheduled',
+    );
+    await _logAdminAction(
+      action: 'replacement_logistics_updated',
+      entity: 'replacement_case',
+      entityId: replacementCaseId,
+      message: 'Reverse shipment linked to replacement case',
+    );
+  }
+
+  Future<String> upsertReplacementPickup({
+    required String replacementCaseId,
+    required String status,
+    DateTime? scheduledAt,
+    String? failureCode,
+    String? failureReason,
+    String? trackingUrl,
+  }) async {
+    await _requireAdmin();
+    final res = await client.rpc(
+      'admin_upsert_replacement_pickup',
+      params: {
+        'p_replacement_case_id': replacementCaseId,
+        'p_status': status,
+        'p_scheduled_at': scheduledAt?.toUtc().toIso8601String(),
+        'p_failure_code': failureCode,
+        'p_failure_reason': failureReason,
+        'p_tracking_url': trackingUrl,
+      },
+    );
+    await _logAdminAction(
+      action: 'replacement_pickup_upsert',
+      entity: 'replacement_case',
+      entityId: replacementCaseId,
+      message: 'Replacement pickup status updated to $status',
+    );
+    return res?.toString() ?? '';
+  }
+
+  Future<void> setReplacementLogistics({
+    required String replacementCaseId,
+    String? logisticsMode,
+    String? forwardShipmentId,
+    String? reverseShipmentId,
+    String? forwardStatus,
+    String? reverseStatus,
+    String? forwardTrackingUrl,
+    String? reverseTrackingUrl,
+  }) async {
+    await _requireAdmin();
+    await client.rpc(
+      'admin_set_replacement_logistics',
+      params: {
+        'p_replacement_case_id': replacementCaseId,
+        'p_logistics_mode': logisticsMode,
+        'p_forward_shipment_id': forwardShipmentId,
+        'p_reverse_shipment_id': reverseShipmentId,
+        'p_forward_status': forwardStatus,
+        'p_reverse_status': reverseStatus,
+        'p_forward_tracking_url': forwardTrackingUrl,
+        'p_reverse_tracking_url': reverseTrackingUrl,
+      },
+    );
+    await _logAdminAction(
+      action: 'replacement_logistics_updated',
+      entity: 'replacement_case',
+      entityId: replacementCaseId,
+      message: 'Replacement logistics updated for case $replacementCaseId',
+    );
   }
 
   Future<void> updateReturnStatus({

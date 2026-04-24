@@ -170,6 +170,76 @@ function mapShiprocketStatus(statusRaw: string): {
   return { shipmentStatus: "in_transit", deliveryStatus: "in_transit", orderStatus: null };
 }
 
+function mapReplacementForwardStatus(deliveryStatus: string): string {
+  const s = deliveryStatus.trim().toLowerCase();
+  if (s === "created" || s === "shipped") return "created";
+  if (s === "in_transit") return "in_transit";
+  if (s === "out_for_delivery") return "out_for_delivery";
+  if (s === "delivered") return "delivered";
+  if (s === "cancelled") return "cancelled";
+  if (s === "rto_initiated" || s === "rto_completed") return "rto";
+  return "failed";
+}
+
+function mapReplacementReverseStatus(shipmentStatusRaw: string): string {
+  const s = shipmentStatusRaw.trim().toUpperCase();
+  if (!s) return "pending";
+  if (s.includes("DELIVERED")) return "returned";
+  if (s.includes("PICKED") || s.includes("PICKUP")) return "picked_up";
+  if (s.includes("OUT_FOR_DELIVERY")) return "out_for_pickup";
+  if (s.includes("IN_TRANSIT") || s.includes("SHIPPED")) return "in_transit";
+  if (s.includes("NEW") || s.includes("CREATED") || s.includes("AWB")) return "scheduled";
+  if (s.includes("CANCEL") || s.includes("VOID")) return "cancelled";
+  return "failed";
+}
+
+async function updateReplacementLogisticsFromWebhook(
+  admin: ReturnType<typeof createClient>,
+  params: {
+    shipmentId: string;
+    awbCode: string;
+    trackingUrl: string;
+    mappedDeliveryStatus: string;
+    mappedShipmentStatus: string;
+    rawStatus: string;
+  },
+) {
+  const { shipmentId, awbCode, trackingUrl, mappedDeliveryStatus, mappedShipmentStatus, rawStatus } = params;
+  if (!shipmentId) return;
+
+  const byForward = await admin
+    .from("replacement_cases")
+    .select("id")
+    .eq("forward_shipment_id", shipmentId)
+    .limit(1)
+    .maybeSingle();
+  if (!byForward.error && byForward.data?.id) {
+    await admin.rpc("admin_set_replacement_logistics", {
+      p_replacement_case_id: byForward.data.id,
+      p_logistics_mode: "shiprocket",
+      p_forward_awb_code: awbCode || null,
+      p_forward_tracking_url: trackingUrl || null,
+      p_forward_status: mapReplacementForwardStatus(mappedDeliveryStatus),
+    });
+  }
+
+  const byReverse = await admin
+    .from("replacement_cases")
+    .select("id")
+    .eq("reverse_shipment_id", shipmentId)
+    .limit(1)
+    .maybeSingle();
+  if (!byReverse.error && byReverse.data?.id) {
+    await admin.rpc("admin_set_replacement_logistics", {
+      p_replacement_case_id: byReverse.data.id,
+      p_logistics_mode: "shiprocket",
+      p_reverse_awb_code: awbCode || null,
+      p_reverse_tracking_url: trackingUrl || null,
+      p_reverse_status: mapReplacementReverseStatus(rawStatus || mappedShipmentStatus),
+    });
+  }
+}
+
 const deliveryStatusPriority: Record<string, number> = {
   created: 1,
   shipped: 2,
@@ -534,6 +604,15 @@ Deno.serve(async (req) => {
       return ok({ ok: false, received: true, ignored: "db_update_failed" });
     }
     devLog("shiprocket_webhook_db_update_executed", { order_id: matchOrder.id });
+
+    await updateReplacementLogisticsFromWebhook(admin, {
+      shipmentId,
+      awbCode,
+      trackingUrl,
+      mappedDeliveryStatus: mapped.deliveryStatus,
+      mappedShipmentStatus: mapped.shipmentStatus,
+      rawStatus: statusRaw,
+    });
 
     await insertStatusNotificationIfNeeded(admin, matchOrder, mapped.deliveryStatus);
     await writeWebhookLog(admin, {
