@@ -101,6 +101,7 @@ class _HeroBannersTab extends ConsumerWidget {
                   ? const Center(child: Text('No banners. Add one to show the carousel.'))
                   : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      buildDefaultDragHandles: false,
                       itemCount: rows.length,
                       onReorder: (oldIndex, newIndex) async {
                         final updated = [...rows];
@@ -131,7 +132,13 @@ class _HeroBannersTab extends ConsumerWidget {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.drag_indicator),
+                                ReorderableDragStartListener(
+                                  index: i,
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 4),
+                                    child: Icon(Icons.drag_indicator),
+                                  ),
+                                ),
                                 IconButton(
                                   tooltip: 'Edit',
                                   icon: const Icon(Icons.edit_outlined),
@@ -522,6 +529,7 @@ class _TopCategoriesTab extends ConsumerWidget {
                   ? const Center(child: Text('No chips. Add categories for the home row.'))
                   : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      buildDefaultDragHandles: false,
                       itemCount: rows.length,
                       onReorder: (oldIndex, newIndex) async {
                         final updated = [...rows];
@@ -551,7 +559,13 @@ class _TopCategoriesTab extends ConsumerWidget {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.drag_indicator),
+                                ReorderableDragStartListener(
+                                  index: i,
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 4),
+                                    child: Icon(Icons.drag_indicator),
+                                  ),
+                                ),
                                 IconButton(
                                   tooltip: 'Edit',
                                   icon: const Icon(Icons.edit_outlined),

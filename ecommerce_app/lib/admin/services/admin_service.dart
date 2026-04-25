@@ -3046,6 +3046,15 @@ class AdminService {
     return 0;
   }
 
+  Future<int> _firstSortOrderFor(String table) async {
+    final rows = await client.from(table).select('sort_order').order('sort_order', ascending: true).limit(1);
+    if (rows.isNotEmpty) {
+      final v = rows.first['sort_order'];
+      return (v is num ? v.toInt() : 0) - 1;
+    }
+    return 0;
+  }
+
   Future<void> insertHomeHeroBanner({
     required String imageUrl,
     required String redirectType,
@@ -3054,7 +3063,7 @@ class AdminService {
     bool enabled = true,
   }) async {
     await _requireAdmin();
-    final computedSort = sortOrder ?? await _nextSortOrderFor('homepage_hero_banners');
+    final computedSort = sortOrder ?? await _firstSortOrderFor('homepage_hero_banners');
     final row = {
       'image_url': imageUrl,
       'redirect_type': redirectType,
@@ -3160,7 +3169,7 @@ class AdminService {
     bool enabled = true,
   }) async {
     await _requireAdmin();
-    final computedSort = sortOrder ?? await _nextSortOrderFor('homepage_top_categories');
+    final computedSort = sortOrder ?? await _firstSortOrderFor('homepage_top_categories');
     await client.from('homepage_top_categories').insert({
       'label': label,
       'icon_url': iconUrl,
