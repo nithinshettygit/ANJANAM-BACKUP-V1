@@ -5,11 +5,11 @@
 ///
 /// **Email verification / PKCE callback**
 /// - `https://anjanam.app/auth/callback`
-/// - Optional staging: `https://anjanam-app.web.app/auth/callback`
+/// - Optional staging: `https://anjanam.store/auth/callback`
 ///
 /// **Forgot password (opens set-new-password screen)**
 /// - `https://anjanam.app/auth/reset-password`
-/// - Optional: `https://anjanam-app.web.app/auth/reset-password`
+/// - Optional: `https://anjanam.store/auth/reset-password`
 ///
 /// **Mobile-only `redirectTo` (when not using HTTPS App Links)**
 /// - `com.anjanam.app://login-callback/` and `com.anjanam.app://reset-password/`

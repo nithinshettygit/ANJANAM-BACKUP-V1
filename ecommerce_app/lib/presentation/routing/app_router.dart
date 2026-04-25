@@ -139,7 +139,7 @@ class AppRouter {
     final adminUserDetailsRoute = _tryAdminUserDetailsPathRoute(settings);
     if (adminUserDetailsRoute != null) return adminUserDetailsRoute;
     final path = _routePathOnly(settings.name);
-    // Shareable storefront URLs: {STOREFRONT_SHARE_BASE_URL}/product/<id> (default: anjanam-app.web.app)
+    // Shareable storefront URLs: {STOREFRONT_SHARE_BASE_URL}/product/<id> (default: anjanam.store)
     if (path != null && path.startsWith('/product/')) {
       final raw = path.substring('/product/'.length);
       final productId = Uri.decodeComponent(raw);

@@ -6,11 +6,11 @@
 Uri youtubeEmbedContextBaseUri() {
   const raw = String.fromEnvironment(
     'STOREFRONT_SHARE_BASE_URL',
-    defaultValue: 'https://anjanam-app.web.app',
+    defaultValue: 'https://anjanam.store',
   );
   final u = Uri.tryParse(raw.trim());
   if (u == null || u.host.isEmpty) {
-    return Uri.parse('https://anjanam-app.web.app/');
+    return Uri.parse('https://anjanam.store/');
   }
   return Uri(
     scheme: u.scheme.isEmpty ? 'https' : u.scheme,

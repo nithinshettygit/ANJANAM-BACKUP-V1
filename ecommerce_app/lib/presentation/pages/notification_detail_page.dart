@@ -2,6 +2,7 @@ import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/core/notifications/notification_markdown_text.dart';
 import 'package:flutter/material.dart';
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Full-screen read view for a single notification (no deep link).
 class NotificationDetailPage extends StatelessWidget {
@@ -22,11 +23,18 @@ class NotificationDetailPage extends StatelessWidget {
   final String? kindLabel;
   final String? imageUrl;
 
+  static final RegExp _httpUrlRegex = RegExp(
+    r'(https?:\/\/[^\s]+)',
+    caseSensitive: false,
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final formatted = createdAt != null ? _formatLocal(createdAt!) : null;
+    final messageText = message.trim().isEmpty ? 'No additional details.' : message.trim();
+    final detectedUrls = _extractHttpUrls(messageText);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundCream,
@@ -157,9 +165,7 @@ class NotificationDetailPage extends StatelessWidget {
                       child: SelectableText.rich(
                         TextSpan(
                           children: notificationMarkdownSpans(
-                            input: message.trim().isEmpty
-                                ? 'No additional details.'
-                                : message.trim(),
+                            input: messageText,
                             baseStyle: theme.textTheme.bodyLarge?.copyWith(
                               height: 1.55,
                               color: AppColors.textPrimary,
@@ -174,6 +180,43 @@ class NotificationDetailPage extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (detectedUrls.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Links',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...detectedUrls.map(
+                      (url) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openExternalUrl(context, url),
+                          icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                          label: Text(
+                            url,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            foregroundColor: AppColors.brandSaffronDeep,
+                            side: const BorderSide(color: AppColors.borderSubtle),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).maybePop(),
@@ -208,5 +251,30 @@ class NotificationDetailPage extends StatelessWidget {
     final am = l.hour >= 12 ? 'PM' : 'AM';
     final mm = l.minute.toString().padLeft(2, '0');
     return '$mon ${l.day}, ${l.year} · $h:$mm $am';
+  }
+
+  static List<String> _extractHttpUrls(String input) {
+    if (input.isEmpty) return const <String>[];
+    final seen = <String>{};
+    for (final match in _httpUrlRegex.allMatches(input)) {
+      final raw = match.group(0);
+      if (raw == null) continue;
+      final normalized = raw.trim().replaceAll(RegExp(r'[)\],.;:!?]+$'), '');
+      final uri = Uri.tryParse(normalized);
+      if (uri != null && (uri.isScheme('http') || uri.isScheme('https'))) {
+        seen.add(uri.toString());
+      }
+    }
+    return seen.toList(growable: false);
+  }
+
+  static Future<void> _openExternalUrl(BuildContext context, String rawUrl) async {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (ok || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not open link')),
+    );
   }
 }

@@ -32,14 +32,14 @@ class UniversalSharePayload {
 String storefrontShareOrigin() {
   const fromEnv = String.fromEnvironment(
     'STOREFRONT_SHARE_BASE_URL',
-    defaultValue: 'https://anjanam-app.web.app',
+    defaultValue: 'https://anjanam.store',
   );
   if (kIsWeb) {
     final o = Uri.base.origin;
     if (o.isNotEmpty) return o.replaceAll(RegExp(r'/+$'), '');
   }
   final trimmed = fromEnv.trim();
-  return (trimmed.isEmpty ? 'https://anjanam-app.web.app' : trimmed).replaceAll(RegExp(r'/+$'), '');
+  return (trimmed.isEmpty ? 'https://anjanam.store' : trimmed).replaceAll(RegExp(r'/+$'), '');
 }
 
 String universalShareUrl(ShareContentType type, String idOrSlug) {

@@ -13,6 +13,8 @@ bool _isAuthEmailLinkHost(String host) {
   final h = host.toLowerCase();
   return h == 'anjanam.app' ||
       h == 'www.anjanam.app' ||
+      h == 'anjanam.store' ||
+      h == 'www.anjanam.store' ||
       h == 'anjanam-app.web.app' ||
       h == 'anjanam-app.firebaseapp.com';
 }

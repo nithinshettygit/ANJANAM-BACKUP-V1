@@ -7,7 +7,7 @@ import 'auth_redirect_config.dart';
 /// - `--dart-define=STOREFRONT_SHARE_BASE_URL=…` (host is merged in when set)
 ///
 /// **Verified open-in-app** (tap HTTPS link → app): host valid
-/// `/.well-known/assetlinks.json` on each share host (`anjanam-app.web.app`, etc.)
+/// `/.well-known/assetlinks.json` on each share host (`anjanam.store`, etc.)
 /// with `package_name` `com.anjanam.app` and **every** SHA-256 you ship with:
 /// - **Debug** (`flutter run`): local debug keystore — run `gradlew signingReport` → Variant debug.
 /// - **Release** (your upload keystore / local release APK).
@@ -43,10 +43,10 @@ abstract final class StorefrontAppLink {
   static Set<String> _buildHosts() {
     const fromEnv = String.fromEnvironment(
       'STOREFRONT_SHARE_BASE_URL',
-      defaultValue: 'https://anjanam-app.web.app',
+      defaultValue: 'https://anjanam.store',
     );
     final hosts = {
-      'anjanam-app.web.app',
+      'anjanam.store',
       'anjanam-app.firebaseapp.com',
       'anjanam.app',
     };

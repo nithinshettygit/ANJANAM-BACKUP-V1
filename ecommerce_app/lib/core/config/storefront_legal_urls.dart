@@ -25,7 +25,7 @@ String storefrontLegalBaseUrl() {
     final o = Uri.base.origin;
     if (o.isNotEmpty) return o.replaceAll(RegExp(r'/+$'), '');
   }
-  return 'https://anjanam-app.web.app';
+  return 'https://anjanam.store';
 }
 
 String storefrontLegalPath(StorefrontLegalPage page) {
