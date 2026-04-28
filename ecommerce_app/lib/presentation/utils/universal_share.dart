@@ -55,24 +55,9 @@ String universalShareUrl(ShareContentType type, String idOrSlug) {
   }
 }
 
-/// Opens the app without HTTPS App Link verification (custom scheme in [AndroidManifest.xml]).
-String storefrontAppDeepLinkForShare(ShareContentType type, String idOrSlug) {
-  final enc = Uri.encodeComponent(idOrSlug);
-  switch (type) {
-    case ShareContentType.product:
-      return Uri(scheme: 'com.anjanam.app', host: 'product', path: '/$enc').toString();
-    case ShareContentType.video:
-      return Uri(scheme: 'com.anjanam.app', host: 'video', path: '/$enc').toString();
-    case ShareContentType.article:
-      return Uri(scheme: 'com.anjanam.app', host: 'article', path: '/$enc').toString();
-  }
-}
-
 String buildUniversalShareMessage(UniversalSharePayload payload) {
   final link = universalShareUrl(payload.contentType, payload.idOrSlug);
-  final appLink = storefrontAppDeepLinkForShare(payload.contentType, payload.idOrSlug);
-  // Put https:// on its own lines first and again below — many apps only linkify
-  // plain URLs; Instagram photo captions often do not make any URL tappable.
+  // Keep share text HTTPS-only so Android App Links can route reliably.
   switch (payload.contentType) {
     case ShareContentType.product:
       return '$link\n\n'
@@ -83,14 +68,12 @@ String buildUniversalShareMessage(UniversalSharePayload payload) {
       return '$link\n\n'
           '${payload.title}\n'
           'Watch this video on ANJANAM\n\n'
-          '$link\n\n'
-          'Open in ANJANAM app (Android):\n$appLink';
+          '$link';
     case ShareContentType.article:
       return '$link\n\n'
           '${payload.title}\n'
           'Read this article on ANJANAM\n\n'
-          '$link\n\n'
-          'Open in ANJANAM app (Android):\n$appLink';
+          '$link';
   }
 }
 
@@ -99,8 +82,7 @@ Future<void> copyUniversalShareLink(
   UniversalSharePayload payload,
 ) async {
   final link = universalShareUrl(payload.contentType, payload.idOrSlug);
-  final appLink = storefrontAppDeepLinkForShare(payload.contentType, payload.idOrSlug);
-  await Clipboard.setData(ClipboardData(text: '$link\n$appLink'));
+  await Clipboard.setData(ClipboardData(text: link));
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('Link copied to clipboard.')),

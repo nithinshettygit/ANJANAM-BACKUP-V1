@@ -1,0 +1,308 @@
+Nice — now you’ve got a clean system again. Here’s a **simple, structured, copy-paste ready document** of everything you did. You can reuse this anytime after a reinstall.
+
+---
+
+# 📄 ANJANAM PROJECT – FULL SYSTEM SETUP GUIDE (WINDOWS)
+
+## 🧩 1. Install Core Tools
+
+### ✅ Flutter SDK
+
+1. Download Flutter SDK (Windows)
+2. Extract to:
+
+```
+C:\src\flutter
+```
+
+3. Add to PATH:
+
+```
+C:\src\flutter\bin
+```
+
+4. Verify:
+
+```
+flutter doctor
+```
+
+---
+
+### ✅ Node.js (LTS)
+
+1. Install from official site
+2. Verify:
+
+```
+node -v
+npm -v
+```
+
+---
+
+### ✅ Git
+
+1. Install Git
+2. Verify:
+
+```
+git --version
+```
+
+---
+
+## 📱 2. Android Setup
+
+### ✅ Install Android Studio
+
+Install with:
+
+* Android SDK
+* SDK Platform Tools
+* Command-line Tools
+
+---
+
+### ✅ Install Required SDK Components
+
+Open:
+
+```
+Android Studio → More Actions → SDK Manager → SDK Tools
+```
+
+Enable:
+
+* Android SDK Command-line Tools (latest)
+* Android SDK Platform-Tools
+* Android SDK Build-Tools
+
+---
+
+### ✅ Accept Licenses
+
+```
+flutter doctor --android-licenses
+```
+
+Press `y` for all prompts
+
+---
+
+### ✅ Verify
+
+```
+flutter doctor
+```
+
+---
+
+## 🔧 3. Backend & CLI Tools
+
+### ✅ Supabase CLI (Manual Install)
+
+1. Download:
+
+```
+supabase_windows_amd64.tar.gz
+```
+
+2. Extract → get:
+
+```
+supabase.exe
+```
+
+3. Move to:
+
+```
+C:\supabase
+```
+
+4. Add to PATH:
+
+```
+C:\supabase
+```
+
+5. Verify:
+
+```
+supabase --version
+```
+
+---
+
+### ✅ Firebase CLI
+
+Install:
+
+```
+npm install -g firebase-tools
+```
+
+---
+
+### ⚠️ Fix PowerShell Execution Policy
+
+Run PowerShell as Administrator:
+
+```
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+---
+
+### ✅ Login Firebase
+
+```
+firebase login
+```
+
+(If PowerShell fails, use CMD or:)
+
+```
+firebase.cmd login
+```
+
+---
+
+## 📁 4. Project Setup
+
+Navigate to project:
+
+```
+cd D:\ANJANAM-NEW\ecommerce_app
+```
+
+Install dependencies:
+
+```
+flutter pub get
+```
+
+---
+
+## 🔑 5. Config Files Check
+
+Ensure these exist:
+
+```
+lib/firebase_options.dart
+supabase/config.toml
+.firebaserc
+firebase.json
+```
+
+---
+
+### If Firebase config missing:
+
+```
+flutterfire configure
+```
+
+---
+
+## 🔗 6. Supabase Setup
+
+Login:
+
+```
+supabase login
+```
+
+Link project:
+
+```
+supabase link --project-ref YOUR_PROJECT_ID
+```
+
+(Optional)
+
+```
+supabase db push
+```
+
+---
+
+## 🔐 7. Restore Environment Variables
+
+Re-add API keys:
+
+* Razorpay keys
+* Shiprocket API keys
+* Firebase config
+
+Check:
+
+```
+supabase/functions/*/.env
+```
+
+---
+
+developer mode on
+
+
+start ms-settings:developers
+
+
+
+
+## 🚀 8. Run App
+
+```
+flutter run
+```
+
+---
+
+## ✅ 9. Test Flow (Order)
+
+1. App opens
+2. Login works
+3. Products load
+4. Cart works
+5. Checkout works
+6. Payment works
+7. Admin panel works
+8. Shipping works
+
+---
+
+## 🛡️ Notes
+
+* Supabase CLI is NOT installed via npm
+* PowerShell may block scripts → fix via execution policy
+* Windows UAC prompts are normal
+* Always restart terminal after PATH changes
+
+---
+
+## 💾 Backup Recommendation
+
+After setup works:
+
+* Backup full project folder
+* Save `.env` files
+* Store API keys securely
+
+---
+
+## 🔁 Reuse Strategy
+
+Next time after reinstall:
+
+* Follow this document step-by-step
+* Setup will complete in ~30–45 mins
+
+---
+
+If you want, I can convert this into a **one-click setup script** or a **Notion/README format for your team**.
+
+
+
+
+

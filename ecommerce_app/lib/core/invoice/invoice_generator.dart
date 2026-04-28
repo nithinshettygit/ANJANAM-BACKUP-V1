@@ -9,11 +9,24 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+
 export 'invoice_preview.dart';
 
 /// Builds a single-page invoice PDF for an [Order] and its line items.
+/// Keeps generation admin-only via existing call sites.
 class InvoiceGenerator {
   InvoiceGenerator();
+
+  static const String _brandName = 'Anjanam';
+  static const String _brandTagline = 'Internal delivery invoice';
+  static const String _brandPhone = '+91 81291 07108';
+  static const String _brandEmail = 'support.anjanam@gmail.com';
+  static const int _maxInvoiceItemRows = 8;
+
+  static const String _warehouseLine1 = 'Anjanam Warehouse';
+  static const String _warehouseLine2 = 'Perne Village, Perne Post';
+  static const String _warehouseLine3 = 'Bantwal Taluk, D.K.';
+  static const String _warehouseLine4 = 'Karnataka, India 574325';
 
   /// Generates PDF bytes. Pass [shipping] when available so the bill-to block is complete.
   Future<Uint8List> generateInvoicePdf(
@@ -24,32 +37,57 @@ class InvoiceGenerator {
     final doc = pw.Document();
     final theme = await _buildInvoicePdfTheme();
     final logo = await _loadInvoiceLogo();
-    // Use shared formatter (no intl locale init; DateFormat('…', 'en_IN') throws otherwise).
-    final dateStr = formatOrderDetailsDateTime(order.createdAt);
-    final invoiceNo = formatOrderIdDisplay(order.id);
+
+    final orderDate = formatOrderDetailsDateTime(order.createdAt);
+    final invoiceDate = formatOrderDetailsDateTime(DateTime.now());
+    final invoiceNo = 'INV-${formatOrderIdDisplay(order.id)}';
+    final shippingInfo = _shippingAddress(shipping);
+    final paymentInfo = _paymentInfo(order);
+    final orderUrl = Uri(
+      scheme: 'https',
+      host: 'anjanam.store',
+      pathSegments: ['order', order.id],
+    ).toString();
 
     doc.addPage(
-      pw.MultiPage(
+      pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
+        margin: const pw.EdgeInsets.fromLTRB(24, 20, 24, 20),
         theme: theme,
-        build: (context) => [
-          _header(invoiceNo, order.id, dateStr, logo: logo),
-          pw.SizedBox(height: 20),
-          _sectionTitle('CUSTOMER DETAILS'),
-          _customerBlock(shipping),
-          pw.SizedBox(height: 16),
-          _sectionTitle('ITEMS'),
-          _itemsTable(items),
-          pw.SizedBox(height: 16),
-          _sectionTitle('ORDER SUMMARY'),
-          _summaryRows(order),
-          pw.SizedBox(height: 16),
-          _sectionTitle('PAYMENT INFORMATION'),
-          _paymentBlock(order),
-          pw.SizedBox(height: 28),
-          _footer(),
-        ],
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _header(logo: logo),
+            pw.SizedBox(height: 8),
+            _invoiceMeta(
+              invoiceNo: invoiceNo,
+              orderId: order.id,
+              invoiceDate: invoiceDate,
+              orderDate: orderDate,
+            ),
+            pw.SizedBox(height: 8),
+            _addressBlocks(shippingInfo),
+            pw.SizedBox(height: 8),
+            _sectionTitle('Products'),
+            _itemsTable(items),
+            pw.SizedBox(height: 8),
+            _sectionTitle('Pricing Summary'),
+            _summaryRows(order),
+            pw.SizedBox(height: 6),
+            pw.Text(
+              'Prices are inclusive of all taxes.',
+              style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700),
+            ),
+            pw.SizedBox(height: 8),
+            _sectionTitle('Payment Information'),
+            _paymentBlock(paymentInfo),
+            pw.SizedBox(height: 8),
+            _sectionTitle('Order Verification'),
+            _qrBlock(orderUrl),
+            pw.Spacer(),
+            _footer(),
+          ],
+        ),
       ),
     );
 
@@ -95,153 +133,189 @@ class InvoiceGenerator {
     }
   }
 
-  pw.Widget _header(
-    String invoiceShort,
-    String orderId,
-    String orderDate, {
-    pw.MemoryImage? logo,
-  }) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            if (logo != null)
-              pw.Container(
-                width: 52,
-                height: 52,
-                padding: const pw.EdgeInsets.all(4),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.white,
-                  borderRadius: pw.BorderRadius.circular(10),
-                  border: pw.Border.all(color: PdfColors.teal200, width: 0.7),
-                ),
-                child: pw.ClipRRect(
-                  horizontalRadius: 6,
-                  verticalRadius: 6,
-                  child: pw.Image(logo, fit: pw.BoxFit.contain),
-                ),
-              )
-            else
-              pw.Container(
-                width: 52,
-                height: 52,
-                alignment: pw.Alignment.center,
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.teal50,
-                  borderRadius: pw.BorderRadius.circular(10),
-                ),
-                child: pw.Text(
-                  'A',
-                  style: pw.TextStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.teal800,
-                  ),
-                ),
+  pw.Widget _header({pw.MemoryImage? logo}) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(10),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 0.8),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          if (logo != null)
+            pw.Container(
+              width: 48,
+              height: 48,
+              padding: const pw.EdgeInsets.all(3),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.black, width: 0.6),
               ),
-            pw.SizedBox(width: 12),
-            pw.Expanded(
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    'ANJANAM',
-                    style: pw.TextStyle(
-                      fontSize: 22,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.teal800,
-                    ),
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    'Tax Invoice',
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      color: PdfColors.teal700,
-                    ),
-                  ),
-                ],
+              child: pw.Image(logo, fit: pw.BoxFit.contain),
+            )
+          else
+            pw.Container(
+              width: 48,
+              height: 48,
+              alignment: pw.Alignment.center,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.black, width: 0.6),
+              ),
+              child: pw.Text(
+                'A',
+                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
               ),
             ),
-          ],
-        ),
-        pw.SizedBox(height: 14),
-        pw.Container(
-          width: double.infinity,
-          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.teal50,
-            borderRadius: pw.BorderRadius.circular(8),
-            border: pw.Border.all(color: PdfColors.teal200, width: 0.6),
-          ),
-        ),
-        pw.SizedBox(height: 4),
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Column(
+          pw.SizedBox(width: 10),
+          pw.Expanded(
+            child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  'Invoice #: INV-$invoiceShort',
-                  style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                  _brandName,
+                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
                 ),
+                pw.SizedBox(height: 2),
+                pw.Text(_brandTagline, style: const pw.TextStyle(fontSize: 9)),
                 pw.SizedBox(height: 6),
-                pw.Text('Order ID', style: _labelStyle()),
-                pw.Text(orderId, style: _valueStyle()),
+                pw.Text('Phone: $_brandPhone', style: const pw.TextStyle(fontSize: 9)),
+                pw.Text('Email: $_brandEmail', style: const pw.TextStyle(fontSize: 9)),
               ],
             ),
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: [
-                pw.Text('Order Date', style: _labelStyle()),
-                pw.Text(orderDate, style: _valueStyle()),
-              ],
+          ),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 0.8),
             ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  pw.Widget _sectionTitle(String text) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 6),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(
-          fontSize: 10,
-          fontWeight: pw.FontWeight.bold,
-          color: PdfColors.teal900,
-          letterSpacing: 0.6,
-        ),
+            child: pw.Text(
+              'INVOICE',
+              style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  pw.Widget _customerBlock(OrderShippingInfo? s) {
-    final name = _trimOrDash(s?.fullName);
-    final phone = _trimOrDash(s?.phone);
-    final addr = _trimOrDash(s?.addressLine);
-    final city = _trimOrDash(s?.city);
-    final pin = _trimOrDash(s?.postalCode);
+  pw.Widget _invoiceMeta({
+    required String invoiceNo,
+    required String orderId,
+    required String invoiceDate,
+    required String orderDate,
+  }) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(10),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 0.8),
+      ),
+      child: pw.Row(
+        children: [
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                _kvLine('Invoice Number', invoiceNo),
+                _kvLine('Order ID', orderId),
+              ],
+            ),
+          ),
+          pw.SizedBox(width: 18),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                _kvLine('Invoice Date', invoiceDate),
+                _kvLine('Order Date', orderDate),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    return pw.Column(
+  pw.Widget _sectionTitle(String text) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+      child: pw.Text(
+        text.toUpperCase(),
+        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, letterSpacing: 0.5),
+      ),
+    );
+  }
+
+  pw.Widget _addressBlocks(_ShippingAddress shipping) {
+    return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        _kvLine('Customer Name', name),
-        _kvLine('Phone', phone),
-        _kvLine('Shipping Address', addr),
-        _kvLine('City', city),
-        _kvLine('Postal Code', pin),
+        pw.Expanded(
+          child: _addressCard(
+            title: 'Customer Details',
+            lines: [
+              ['Name', shipping.name],
+              ['Phone', shipping.phone],
+            ],
+          ),
+        ),
+        pw.SizedBox(width: 8),
+        pw.Expanded(
+          child: _addressCard(
+            title: 'Deliver To',
+            lines: [
+              ['Address', shipping.address],
+              ['Pincode', shipping.pincode],
+              ['State', shipping.state],
+            ],
+          ),
+        ),
+        pw.SizedBox(width: 8),
+        pw.Expanded(
+          child: _addressCard(
+            title: 'Warehouse / Return Address',
+            lines: const [
+              ['', _warehouseLine1],
+              ['', _warehouseLine2],
+              ['', _warehouseLine3],
+              ['', _warehouseLine4],
+            ],
+          ),
+        ),
       ],
     );
   }
 
+  pw.Widget _addressCard({
+    required String title,
+    required List<List<String>> lines,
+  }) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(6),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 0.7),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(title, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 4),
+          for (final line in lines)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 3),
+              child: line[0].isEmpty
+                  ? pw.Text(line[1], style: const pw.TextStyle(fontSize: 8.5))
+                  : _kvLine(line[0], line[1]),
+            ),
+        ],
+      ),
+    );
+  }
+
   pw.Widget _itemsTable(List<OrderItem> items) {
-    final data = items
+    final visibleItems = items.take(_maxInvoiceItemRows).toList();
+    final overflowCount = items.length - visibleItems.length;
+    final data = visibleItems
         .map(
           (i) => [
             i.title,
@@ -251,22 +325,29 @@ class InvoiceGenerator {
           ],
         )
         .toList();
+    if (overflowCount > 0) {
+      final hiddenQty = items.skip(_maxInvoiceItemRows).fold<int>(0, (sum, i) => sum + i.quantity);
+      final hiddenTotal =
+          items.skip(_maxInvoiceItemRows).fold<double>(0, (sum, i) => sum + i.lineTotal);
+      data.add([
+        '+ $overflowCount more item(s)',
+        '$hiddenQty',
+        '-',
+        _money(hiddenTotal),
+      ]);
+    }
 
     return pw.TableHelper.fromTextArray(
       headers: const [
-        'Product Name',
-        'Qty',
+        'Item Name',
+        'Quantity',
         'Unit Price',
         'Total',
       ],
       data: data,
-      headerStyle: pw.TextStyle(
-        fontWeight: pw.FontWeight.bold,
-        fontSize: 9,
-        color: PdfColors.white,
-      ),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.teal700),
-      cellHeight: 28,
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+      cellHeight: 18,
       cellAlignments: {
         0: pw.Alignment.centerLeft,
         1: pw.Alignment.center,
@@ -274,63 +355,125 @@ class InvoiceGenerator {
         3: pw.Alignment.centerRight,
       },
       headerAlignment: pw.Alignment.centerLeft,
-      cellStyle: const pw.TextStyle(fontSize: 9),
-      border: null,
+      cellStyle: const pw.TextStyle(fontSize: 8.2),
+      border: pw.TableBorder.all(color: PdfColors.black, width: 0.4),
       oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
     );
   }
 
   pw.Widget _summaryRows(Order order) {
-    final delivery = order.deliveryFee ?? 0;
-    return pw.Column(
+    final subtotal = order.subtotal;
+    const discount = 0.0;
+    final shipping = order.deliveryFee ?? 0.0;
+    final total = order.grandTotal;
+    return pw.Row(
       children: [
-        _summaryLine('Subtotal', formatInrAmountPdfSafe(order.subtotal)),
-        _summaryLine(
-          'Delivery Fee',
-          delivery <= 0 ? 'FREE' : formatInrAmountPdfSafe(delivery),
+        pw.Spacer(),
+        pw.Container(
+          width: 250,
+          padding: const pw.EdgeInsets.all(6),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black, width: 0.7),
+          ),
+          child: pw.Column(
+            children: [
+              _summaryLine('Subtotal', _money(subtotal)),
+              _summaryLine('Discount', _money(discount)),
+              _summaryLine('Shipping Charges', shipping <= 0 ? 'FREE' : _money(shipping)),
+              pw.Divider(thickness: 0.5, color: PdfColors.black),
+              _summaryLine('Final Total', _money(total), bold: true),
+            ],
+          ),
         ),
-        pw.Divider(thickness: 0.5),
-        _summaryLine('Total Amount', formatInrAmountPdfSafe(order.grandTotal), bold: true),
       ],
     );
   }
 
-  pw.Widget _paymentBlock(Order order) {
-    final isCod = order.paymentMethod == OrderPaymentMethod.cod;
-    final method = isCod ? 'Cash on Delivery' : order.paymentMethod.displayLabel;
-    final status = isCod && order.paymentStatus == OrderPaymentStatus.pending
-        ? 'Pending Payment'
-        : order.paymentStatus.displayLabel;
-    final rz = order.razorpayPaymentId?.trim();
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        _kvLine('Payment Method', method),
-        _kvLine('Payment Status', status),
-        if (!isCod && rz != null && rz.isNotEmpty) _kvLine('Razorpay Payment ID', rz),
-      ],
-    );
-  }
-
-  pw.Widget _footer() {
-    return pw.Center(
-      child: pw.Text(
-        'Thank you for shopping with ANJANAM',
-        style: pw.TextStyle(
-          fontSize: 10,
-          fontStyle: pw.FontStyle.italic,
-          color: PdfColors.grey700,
-        ),
-        textAlign: pw.TextAlign.center,
+  pw.Widget _paymentBlock(_PaymentInfo payment) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(6),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 0.7),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _kvLine('Payment Method', payment.method),
+          _kvLine('Payment Status', payment.status),
+          if (payment.reference != null) _kvLine('Reference', payment.reference!),
+        ],
       ),
     );
   }
 
-  static pw.TextStyle _labelStyle() =>
-      const pw.TextStyle(fontSize: 8, color: PdfColors.grey700);
+  pw.Widget _qrBlock(String orderUrl) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(6),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 0.7),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.BarcodeWidget(
+            barcode: pw.Barcode.qrCode(),
+            data: orderUrl,
+            width: 78,
+            height: 78,
+          ),
+          pw.SizedBox(width: 10),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Scan to open order',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(orderUrl, style: const pw.TextStyle(fontSize: 7.8)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  static pw.TextStyle _valueStyle() =>
-      pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.normal);
+  pw.Widget _footer() {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 4),
+      padding: const pw.EdgeInsets.only(top: 6),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(top: pw.BorderSide(color: PdfColors.black, width: 0.7)),
+      ),
+      child: pw.Column(
+        children: [
+          pw.Text(
+            'This is a computer-generated invoice.',
+            style: const pw.TextStyle(fontSize: 8),
+            textAlign: pw.TextAlign.center,
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            'For internal use only.',
+            style: const pw.TextStyle(fontSize: 8),
+            textAlign: pw.TextAlign.center,
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            'Thank you - $_brandName',
+            style: const pw.TextStyle(fontSize: 8),
+            textAlign: pw.TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.TextStyle _labelStyle() => const pw.TextStyle(fontSize: 8.8, color: PdfColors.grey800);
+
+  static pw.TextStyle _valueStyle() => const pw.TextStyle(fontSize: 8.8);
 
   static pw.Widget _kvLine(String label, String value) {
     return pw.Padding(
@@ -339,9 +482,14 @@ class InvoiceGenerator {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.SizedBox(
-            width: 120,
-            child: pw.Text(label, style: _labelStyle()),
+            width: 92,
+            child: pw.Text(
+              '$label :',
+              style: _labelStyle(),
+              maxLines: 1,
+            ),
           ),
+          pw.SizedBox(width: 8),
           pw.Expanded(child: pw.Text(value, style: _valueStyle())),
         ],
       ),
@@ -350,21 +498,21 @@ class InvoiceGenerator {
 
   static pw.Widget _summaryLine(String label, String value, {bool bold = false}) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(
             label,
             style: pw.TextStyle(
-              fontSize: bold ? 11 : 10,
+              fontSize: bold ? 10 : 9,
               fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
             ),
           ),
           pw.Text(
             value,
             style: pw.TextStyle(
-              fontSize: bold ? 11 : 10,
+              fontSize: bold ? 10 : 9,
               fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
             ),
           ),
@@ -378,5 +526,76 @@ class InvoiceGenerator {
     return t.isEmpty ? '-' : t;
   }
 
+  _ShippingAddress _shippingAddress(OrderShippingInfo? s) {
+    final state = _guessStateFromAddress(_trimOrDash(s?.addressLine), _trimOrDash(s?.city));
+    return _ShippingAddress(
+      name: _trimOrDash(s?.fullName),
+      phone: _trimOrDash(s?.phone),
+      address: _trimOrDash(s?.addressLine),
+      pincode: _trimOrDash(s?.postalCode),
+      state: state,
+    );
+  }
+
+  static String _guessStateFromAddress(String addressLine, String city) {
+    if (addressLine == '-' && city == '-') return '-';
+    final cleaned = addressLine.replaceAll('\n', ',');
+    final parts = cleaned
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (parts.isNotEmpty) {
+      final last = parts.last;
+      final hasDigits = RegExp(r'\d').hasMatch(last);
+      if (!hasDigits && last.length >= 3) return last;
+      if (parts.length >= 2) {
+        final prev = parts[parts.length - 2];
+        if (!RegExp(r'\d').hasMatch(prev) && prev.length >= 3) return prev;
+      }
+    }
+    return city == '-' ? '-' : city;
+  }
+
+  _PaymentInfo _paymentInfo(Order order) {
+    final isCod = order.paymentMethod == OrderPaymentMethod.cod;
+    final method = isCod ? 'COD' : 'Online';
+    final status = order.paymentStatus == OrderPaymentStatus.paid ? 'Paid' : 'Pending';
+    final ref = order.razorpayPaymentId?.trim();
+    return _PaymentInfo(
+      method: method,
+      status: status,
+      reference: isCod || ref == null || ref.isEmpty ? null : ref,
+    );
+  }
+
   static String _money(double amount) => formatInrAmountPdfSafe(amount);
+}
+
+class _ShippingAddress {
+  final String name;
+  final String phone;
+  final String address;
+  final String pincode;
+  final String state;
+
+  const _ShippingAddress({
+    required this.name,
+    required this.phone,
+    required this.address,
+    required this.pincode,
+    required this.state,
+  });
+}
+
+class _PaymentInfo {
+  final String method;
+  final String status;
+  final String? reference;
+
+  const _PaymentInfo({
+    required this.method,
+    required this.status,
+    this.reference,
+  });
 }

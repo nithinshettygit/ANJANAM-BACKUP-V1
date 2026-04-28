@@ -187,6 +187,23 @@ class AppRouter {
         ),
       );
     }
+    if (path != null && path.startsWith('/order/')) {
+      final raw = path.substring('/order/'.length);
+      final orderId = Uri.decodeComponent(raw);
+      if (orderId.isNotEmpty) {
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => AuthGuard(
+            child: _OrderDeepLinkResolver(orderId: orderId),
+          ),
+        );
+      }
+      return MaterialPageRoute(
+        builder: (_) => const _RouteErrorPage(
+          message: 'Missing order id for order link.',
+        ),
+      );
+    }
     switch (path) {
       case '/':
       case null:
@@ -600,6 +617,51 @@ class _SharedVideoRoutePage extends ConsumerWidget {
           return const Scaffold(body: Center(child: Text('Video not found.')));
         }
         return VideoPlayerPage(video: video);
+      },
+    );
+  }
+}
+
+class _OrderDeepLinkResolver extends StatefulWidget {
+  final String orderId;
+
+  const _OrderDeepLinkResolver({required this.orderId});
+
+  @override
+  State<_OrderDeepLinkResolver> createState() => _OrderDeepLinkResolverState();
+}
+
+class _OrderDeepLinkResolverState extends State<_OrderDeepLinkResolver> {
+  late final Future<bool> _isAdminFuture = _checkIsAdmin();
+
+  Future<bool> _checkIsAdmin() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) return false;
+    try {
+      final profile = await client.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      final role = profile?['role']?.toString().toLowerCase().trim();
+      return role == 'admin' || role == 'super_admin';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _isAdminFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final isAdmin = snapshot.data == true;
+        if (isAdmin) {
+          return AdminOrderDetailsPage(orderId: widget.orderId);
+        }
+        return OrderDetailsPage(orderId: widget.orderId);
       },
     );
   }

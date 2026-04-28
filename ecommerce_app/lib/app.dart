@@ -70,7 +70,7 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
       final nav = notificationNavigatorKey.currentState;
       if (nav == null || !nav.mounted) return;
       ref.invalidate(productDetailsProvider(productId));
-      nav.pushNamed('/catalog/details', arguments: productId);
+      nav.pushNamed('/product/${Uri.encodeComponent(productId)}');
     });
   }
 
