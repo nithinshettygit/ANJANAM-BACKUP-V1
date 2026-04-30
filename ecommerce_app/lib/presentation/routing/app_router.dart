@@ -38,6 +38,7 @@ import '../pages/wishlist_page.dart';
 import '../pages/write_review_page.dart';
 import '../pages/request_return_page.dart';
 import 'auth_guard.dart';
+import '../pages/order_invoice_deeplink_page.dart';
 import '../../features/order_history/domain/entities/order.dart';
 
 /// Strips `?query` and a trailing `/` from route names (Flutter web passes `/auth/callback?code=...`).
@@ -193,9 +194,7 @@ class AppRouter {
       if (orderId.isNotEmpty) {
         return MaterialPageRoute(
           settings: settings,
-          builder: (_) => AuthGuard(
-            child: _OrderDeepLinkResolver(orderId: orderId),
-          ),
+          builder: (_) => OrderInvoiceDeepLinkPage(orderId: orderId),
         );
       }
       return MaterialPageRoute(

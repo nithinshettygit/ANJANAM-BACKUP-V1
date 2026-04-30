@@ -1,8 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Required for push notifications on Android 13+. -->
+
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- Required for network calls (Supabase, FCM, etc.). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
@@ -11,6 +11,7 @@
         android:fullBackupContent="false"
         android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -20,129 +21,97 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-            <!-- Specifies an Android theme to apply to this Activity as soon as
-                 the Android process has started. This theme is visible to the user
-                 while the Flutter UI initializes. After that, this theme continues
-                 to determine the Window background behind the Flutter UI. -->
+
             <meta-data
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"/>
+
+            <!-- Launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Supabase email confirm / password recovery: scheme/host must match
-                 lib/core/config/auth_redirect_config.dart (AuthRedirectConfig.androidScheme / androidHost). -->
+
+            <!-- Custom scheme (internal deep links) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="com.anjanam.app" android:host="login-callback"/>
             </intent-filter>
+
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="com.anjanam.app" android:host="reset-password"/>
             </intent-filter>
-            <!-- Product deep link: com.anjanam.app://product/<id> (works as soon as app is installed; no assetlinks.json). -->
+
+            <!-- Internal deep links -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="com.anjanam.app" android:host="product" android:pathPrefix="/"/>
             </intent-filter>
+
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="com.anjanam.app" android:host="video" android:pathPrefix="/"/>
             </intent-filter>
+
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="com.anjanam.app" android:host="article" android:pathPrefix="/"/>
             </intent-filter>
-            <!-- Storefront HTTPS App Links: product / video / article.
-                 Opens in app when installed if Digital Asset Links verify on each host
-                 (/.well-known/assetlinks.json). Re-add anjanam.app / www when domain is ready. -->
+
+            <!-- ✅ HTTPS App Links (ONLY your real domain) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <!-- Product links -->
-                <data
-                    android:scheme="https"
-                    android:host="anjanam.store"
-                    android:pathPrefix="/product"/>
-                <data
-                    android:scheme="https"
-                    android:host="anjanam-app.firebaseapp.com"
-                    android:pathPrefix="/product"/>
-                <!-- Video links -->
-                <data
-                    android:scheme="https"
-                    android:host="anjanam.store"
-                    android:pathPrefix="/video"/>
-                <data
-                    android:scheme="https"
-                    android:host="anjanam-app.firebaseapp.com"
-                    android:pathPrefix="/video"/>
-                <!-- Article links -->
-                <data
-                    android:scheme="https"
-                    android:host="anjanam.store"
-                    android:pathPrefix="/article"/>
-                <data
-                    android:scheme="https"
-                    android:host="anjanam-app.firebaseapp.com"
-                    android:pathPrefix="/article"/>
+
+                <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/product"/>
+                <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/video"/>
+                <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/article"/>
             </intent-filter>
-            <!-- Supabase email verify + password reset: canonical `/auth/*` plus legacy `/auth-callback`, `/reset-password`. -->
+
+            <!-- Auth links (ONLY your domain) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="anjanam.app" android:pathPrefix="/auth"/>
-                <data android:scheme="https" android:host="anjanam.app" android:path="/auth-callback"/>
-                <data android:scheme="https" android:host="anjanam.app" android:path="/reset-password"/>
-                <data android:scheme="https" android:host="www.anjanam.app" android:pathPrefix="/auth"/>
-                <data android:scheme="https" android:host="www.anjanam.app" android:path="/auth-callback"/>
-                <data android:scheme="https" android:host="www.anjanam.app" android:path="/reset-password"/>
+
                 <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/auth"/>
                 <data android:scheme="https" android:host="anjanam.store" android:path="/auth-callback"/>
                 <data android:scheme="https" android:host="anjanam.store" android:path="/reset-password"/>
-                <data android:scheme="https" android:host="anjanam-app.firebaseapp.com" android:pathPrefix="/auth"/>
-                <data android:scheme="https" android:host="anjanam-app.firebaseapp.com" android:path="/auth-callback"/>
-                <data android:scheme="https" android:host="anjanam-app.firebaseapp.com" android:path="/reset-password"/>
             </intent-filter>
+
         </activity>
-        <!-- Don't delete the meta-data below.
-             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="high_importance_channel" />
-        <!-- Helps FCM system notifications show a valid icon in the status bar. -->
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />
-    </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
 
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    </application>
+
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- mailto / tel for url_launcher (package visibility on API 30+). -->
         <intent>
             <action android:name="android.intent.action.SENDTO"/>
             <data android:scheme="mailto"/>
@@ -152,4 +121,5 @@
             <data android:scheme="tel"/>
         </intent>
     </queries>
+
 </manifest>
