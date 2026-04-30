@@ -98,9 +98,13 @@ class _ProductQuestionsSectionState extends ConsumerState<ProductQuestionsSectio
         _initialLoading = false;
       });
     } catch (e) {
+      // Avoid showing raw backend exceptions in the UI (permission errors, RPC hints, etc).
+      // Log for debugging but keep user-facing copy clean.
+      // ignore: avoid_print
+      debugPrint('Product Q&A fetch failed: $e');
       if (!mounted) return;
       setState(() {
-        _listError = e.toString();
+        _listError = 'Unable to load questions right now.';
         _initialLoading = false;
       });
     }
@@ -260,9 +264,19 @@ class _ProductQuestionsSectionState extends ConsumerState<ProductQuestionsSectio
             ),
           )
         else if (_listError != null)
-          Text(
-            _listError!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _listError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: _reloadList,
+                child: const Text('Retry'),
+              ),
+            ],
           )
         else if (_items.isEmpty)
           Text(

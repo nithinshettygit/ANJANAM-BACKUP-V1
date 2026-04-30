@@ -112,9 +112,11 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
         _initialLoading = false;
       });
     } catch (e) {
+      // Keep backend details out of the storefront UI.
+      debugPrint('Product reviews fetch failed: $e');
       if (!mounted) return;
       setState(() {
-        _listError = e.toString();
+        _listError = 'Unable to load reviews right now.';
         _initialLoading = false;
       });
     }
@@ -145,11 +147,12 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
         _loadingMore = false;
       });
     } catch (e) {
+      debugPrint('Product reviews load-more failed: $e');
       if (!mounted) return;
       setState(() {
         _loadingMore = false;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load more reviews: $e')),
+          const SnackBar(content: Text('Could not load more reviews right now.')),
         );
       });
     }
@@ -276,7 +279,20 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
         if (_initialLoading)
           const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
         else if (_listError != null)
-          Text(_listError!, style: TextStyle(color: Theme.of(context).colorScheme.error))
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _listError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: _reloadList,
+                child: const Text('Retry'),
+              ),
+            ],
+          )
         else if (_items.isEmpty && product.totalReviews > 0)
           Text(
             'No reviews yet.',
