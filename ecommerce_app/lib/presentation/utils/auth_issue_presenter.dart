@@ -1,5 +1,7 @@
+import 'package:ecommerce_app/core/auth/blocked_account_gate.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Where the auth error was surfaced (affects titles and secondary actions).
 enum AuthIssueFlow { login, signup, signOut, passwordReset }
@@ -49,6 +51,15 @@ Future<void> presentAuthIssue(
   required AuthIssueFlow flow,
   required VoidCallback onRetry,
 }) async {
+  if (error.kind == AuthFailureKind.accountSuspended) {
+    final container = ProviderScope.containerOf(context, listen: false);
+    await container.read(blockedAccountGateProvider).presentRestricted(
+          detection: null,
+          message: error.message,
+        );
+    return;
+  }
+
   final theme = Theme.of(context);
   final scheme = theme.colorScheme;
 
@@ -123,7 +134,7 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
         case AuthFailureKind.accountExists:
           return 'Account already exists';
         case AuthFailureKind.accountSuspended:
-          return 'Account suspended';
+          return 'Account restricted';
         case AuthFailureKind.weakPassword:
           return 'Password requirements';
         case AuthFailureKind.network:
@@ -142,7 +153,7 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
         case AuthFailureKind.network:
           return 'Connection problem';
         case AuthFailureKind.accountSuspended:
-          return 'Account suspended';
+          return 'Account restricted';
         case AuthFailureKind.sessionExpired:
           return 'Session ended';
         case AuthFailureKind.rateLimited:
@@ -153,7 +164,7 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
     case AuthIssueFlow.passwordReset:
       switch (kind) {
         case AuthFailureKind.accountSuspended:
-          return 'Account suspended';
+          return 'Account restricted';
         case AuthFailureKind.weakPassword:
           return 'Password requirements';
         case AuthFailureKind.sessionExpired:

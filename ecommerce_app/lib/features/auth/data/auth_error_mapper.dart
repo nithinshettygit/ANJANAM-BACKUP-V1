@@ -1,3 +1,4 @@
+import 'package:ecommerce_app/core/auth/blocked_account_codes.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/network/network_request_guard.dart';
 import 'package:gotrue/gotrue.dart' as gt;
@@ -58,7 +59,7 @@ AuthException _fromPlainText(String raw, {required bool isSignUp}) {
         lower.contains('account is blocked') ||
         lower.contains('account has been suspended')) {
       return const AuthException(
-        'Your account has been suspended. Please contact support for assistance.',
+        BlockedAccountCopy.screenMessage,
         kind: AuthFailureKind.accountSuspended,
       );
     }
@@ -170,12 +171,15 @@ AuthException? _fromGotrue(Object error, {required bool isSignUp}) {
         );
       }
     } else {
-      if (code == 'user_blocked' ||
+      if (BlockedAccountCodes.matches(code) ||
+          code == 'user_blocked' ||
           code == 'account_blocked' ||
+          code == 'admin_blocked' ||
           msg.contains('suspended') ||
-          msg.contains('blocked')) {
+          msg.contains('blocked') ||
+          msg.contains('disabled')) {
         return const AuthException(
-          'Your account has been suspended. Please contact support for assistance.',
+          BlockedAccountCopy.screenMessage,
           kind: AuthFailureKind.accountSuspended,
         );
       }

@@ -1,16 +1,39 @@
+import 'package:ecommerce_app/core/auth/account_blocking.dart';
+import 'package:ecommerce_app/core/auth/blocked_account_gate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:ecommerce_app/features/auth/state/auth_session_provider.dart';
 import '../providers/is_admin_provider.dart';
 
-class AdminGuard extends ConsumerWidget {
+class AdminGuard extends ConsumerStatefulWidget {
   final Widget child;
 
   const AdminGuard({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminGuard> createState() => _AdminGuardState();
+}
+
+class _AdminGuardState extends ConsumerState<AdminGuard> {
+  bool _blockedCheckDone = false;
+
+  Future<void> _checkBlockedAdmin() async {
+    if (_blockedCheckDone) return;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    _blockedCheckDone = true;
+    final detection = await fetchOwnAccountRestriction(
+      Supabase.instance.client,
+      userId: userId,
+    );
+    if (!mounted || detection == null) return;
+    await ref.read(blockedAccountGateProvider).presentRestricted(detection: detection);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(authSessionProvider);
     return session.when(
       data: (user) {
@@ -20,6 +43,7 @@ class AdminGuard extends ConsumerWidget {
             message: 'Redirecting to login...',
           );
         }
+        _checkBlockedAdmin();
         final isAdminAsync = ref.watch(isAdminProvider);
         return isAdminAsync.when(
           data: (isAdmin) {
@@ -29,7 +53,7 @@ class AdminGuard extends ConsumerWidget {
                 message: 'Admin access required. Redirecting...',
               );
             }
-            return child;
+            return widget.child;
           },
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, __) => const _GuardRedirect(

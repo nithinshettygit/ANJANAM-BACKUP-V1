@@ -1,6 +1,7 @@
+import 'package:ecommerce_app/core/auth/account_blocking.dart';
+import 'package:ecommerce_app/core/auth/blocked_account_gate.dart';
 import 'package:ecommerce_app/features/auth/domain/entities/app_user.dart';
 import 'package:ecommerce_app/features/auth/state/auth_session_provider.dart';
-import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -51,29 +52,15 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
     if (userId == null) return;
     _statusCheckInFlight = true;
     try {
-      final row = await Supabase.instance.client
-          .from('profiles')
-          .select('status, blocked_reason')
-          .eq('id', userId)
-          .maybeSingle();
-      if (!mounted) return;
-      if (!isBlockedStatusValue(row?['status']?.toString())) return;
+      final detection = await fetchOwnAccountRestriction(
+        Supabase.instance.client,
+        userId: userId,
+      );
+      if (!mounted || detection == null) return;
 
       _handledBlockedAccount = true;
-      final message = blockedAccountMessageWithReason(
-        row?['blocked_reason']?.toString(),
-      );
-      try {
-        await Supabase.instance.client.auth.signOut();
-      } catch (_) {}
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AuthGuard.loginRouteName,
-        (route) => false,
-      );
+      final gate = ref.read(blockedAccountGateProvider);
+      await gate.presentRestricted(detection: detection);
     } catch (_) {
       // Ignore transient lookup failures and keep guard behavior unchanged.
     } finally {

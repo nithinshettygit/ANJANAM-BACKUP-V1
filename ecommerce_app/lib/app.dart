@@ -23,6 +23,7 @@ import 'features/auth/domain/entities/app_user.dart';
 import 'features/auth/state/auth_session_provider.dart';
 import 'features/notifications/data/services/supabase_device_token_service.dart';
 import 'features/notifications/state/notifications_controller.dart';
+import 'core/auth/blocked_account_gate.dart';
 import 'presentation/routing/app_router.dart';
 
 /// Web cold-load: use the browser path (e.g. /product/<id>) instead of defaulting to / only.
@@ -160,6 +161,9 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     super.didChangeDependencies();
     if (_authListenAttached) return;
     _authListenAttached = true;
+
+    // Central blocked-account gate (used by NetworkRequestGuard + auth flows).
+    ref.watch(blockedAccountGateProvider);
 
     // Sync FCM token whenever user signs in.
     ref.listenManual<AsyncValue<AppUser?>>(authSessionProvider, (previous, next) {

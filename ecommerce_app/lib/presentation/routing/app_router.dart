@@ -14,6 +14,7 @@ import '../pages/cart_page.dart';
 import '../pages/checkout_page.dart';
 import '../pages/customer_details_page.dart';
 import '../pages/login_page.dart';
+import '../pages/account_restricted_page.dart';
 import '../pages/auth_choice_page.dart';
 import '../pages/phone_login_page.dart';
 import '../pages/main_shell.dart';
@@ -214,6 +215,23 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => const _RouteErrorPage(
             message: 'This route is unavailable in release builds.',
+          ),
+        );
+      case '/account-restricted':
+        final args = settings.arguments;
+        String? message;
+        String? blockedReason;
+        String? errorCode;
+        if (args is Map) {
+          message = args['message']?.toString();
+          blockedReason = args['blockedReason']?.toString();
+          errorCode = args['errorCode']?.toString();
+        }
+        return MaterialPageRoute(
+          builder: (_) => AccountRestrictedPage(
+            message: message,
+            blockedReason: blockedReason,
+            errorCode: errorCode,
           ),
         );
       case '/login':

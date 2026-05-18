@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/formatting/estimated_delivery_format.dart';
 import 'package:ecommerce_app/core/invoice/invoice_generator.dart';
+import 'package:ecommerce_app/core/shipping_label/shipping_label_data.dart';
+import 'package:ecommerce_app/core/shipping_label/shipping_label_preview.dart';
+import 'package:ecommerce_app/core/shipping_label/shipping_label_service.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
@@ -69,6 +72,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     _subscribeOrderRealtime();
   }
   bool _refundBusy = false;
+  bool _labelDownloadBusy = false;
 
   @override
   void dispose() {
@@ -1098,6 +1102,38 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       city: d.shippingCity,
       postalCode: d.shippingPostalCode,
     );
+  }
+
+  Future<void> _onDownloadShippingLabel(
+    BuildContext context,
+    AdminOrderDetails details,
+  ) async {
+    if (_labelDownloadBusy) return;
+    setState(() => _labelDownloadBusy = true);
+    try {
+      final service = ShippingLabelService();
+      final bytes = await service.generatePdfForAdminOrder(details);
+      if (!context.mounted) return;
+      await previewShippingLabelPdf(
+        bytes,
+        name: 'label_${formatOrderIdDisplay(details.order.id)}',
+      );
+    } on ShippingLabelException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    } catch (e, st) {
+      debugPrint('Admin shipping label: $e\n$st');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Shipping label could not be generated.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _labelDownloadBusy = false);
+    }
   }
 
   Future<void> _onDownloadAdminInvoice(
@@ -2303,8 +2339,27 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                   formatInrAmount(order.totalAmount),
                                   emphasize: true,
                                 ),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _labelDownloadBusy
+                                        ? null
+                                        : () => _onDownloadShippingLabel(context, details),
+                                    icon: _labelDownloadBusy
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : const Icon(Icons.local_shipping_outlined, size: 20),
+                                    label: Text(
+                                      _labelDownloadBusy ? 'Generating label…' : 'Download Label',
+                                    ),
+                                  ),
+                                ),
                                 if (details.items.isNotEmpty) ...[
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 8),
                                   SizedBox(
                                     width: double.infinity,
                                     child: OutlinedButton.icon(

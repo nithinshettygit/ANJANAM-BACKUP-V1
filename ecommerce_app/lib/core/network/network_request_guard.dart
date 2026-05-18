@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
+import '../auth/blocked_account_gate.dart';
 import '../errors/app_exception.dart';
 
 class NetworkRequestGuard {
@@ -49,7 +50,10 @@ class NetworkRequestGuard {
           throw const NetworkException(timeoutMessage);
         }
       } catch (e, st) {
-        if (!_isTransientNetworkError(e)) rethrow;
+        if (!_isTransientNetworkError(e)) {
+          await BlockedAccountGate.rethrowIfHandled(e);
+          rethrow;
+        }
         _debugLog(operation, e, st, attempt);
         if (attempt > retries) {
           throw const NetworkException(noInternetMessage);

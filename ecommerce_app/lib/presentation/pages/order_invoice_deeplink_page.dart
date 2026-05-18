@@ -3,6 +3,8 @@ import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/features/auth/state/auth_session_provider.dart';
 import 'package:ecommerce_app/presentation/pages/order_details_page.dart';
+import 'package:ecommerce_app/core/auth/blocked_account_gate.dart';
+import 'package:ecommerce_app/presentation/pages/account_restricted_page.dart';
 import 'package:ecommerce_app/presentation/widgets/error_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -140,11 +142,12 @@ class _OrderInvoiceDeepLinkPageState extends ConsumerState<OrderInvoiceDeepLinkP
               final err = snapshot.error;
               if (err is AuthException) {
                 if (err.kind == AuthFailureKind.accountSuspended) {
-                  return ErrorScreen(
-                    title: 'Account suspended',
-                    message: err.message,
-                    icon: Icons.block_outlined,
-                  );
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    ref.read(blockedAccountGateProvider).presentRestricted(
+                          message: err.message,
+                        );
+                  });
+                  return AccountRestrictedPage(message: err.message);
                 }
                 return ErrorScreen(
                   title: 'Login required',
