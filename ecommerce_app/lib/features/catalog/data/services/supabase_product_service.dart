@@ -222,12 +222,17 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
       List<String> overlapTags = const [],
       required int fetchLimit,
     }) async {
-      dynamic buildQuery({required bool usePopularity}) {
+      // Prefer payment_mode when migration 092 is applied; fall back so catalog
+      // still works against production DBs that only have migrations through 091.
+      const colsWithMode =
+          'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions, payment_mode';
+      const colsWithoutMode =
+          'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions';
+
+      dynamic buildQuery({required bool usePopularity, required String columns}) {
         dynamic q = client
             .from('products')
-            .select(
-              'id, title, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions',
-            )
+            .select(columns)
             .eq('is_active', true)
             .neq('id', currentProductId);
         if (categoryEquals != null && categoryEquals.isNotEmpty) {
@@ -245,18 +250,26 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
             .limit(fetchLimit);
       }
 
+      Future<List<Product>> run(String columns, {required bool usePopularity}) async {
+        final rows = await guard(() => buildQuery(usePopularity: usePopularity, columns: columns).timeout(_fetchTimeout));
+        return (rows as List)
+            .cast<Map<String, dynamic>>()
+            .map((e) => ProductModel.fromJson(e).toEntity())
+            .toList();
+      }
+
       try {
-        final rows = await guard(() => buildQuery(usePopularity: true).timeout(_fetchTimeout));
-        return (rows as List)
-            .cast<Map<String, dynamic>>()
-            .map((e) => ProductModel.fromJson(e).toEntity())
-            .toList();
+        return await run(colsWithMode, usePopularity: true);
       } catch (_) {
-        final rows = await guard(() => buildQuery(usePopularity: false).timeout(_fetchTimeout));
-        return (rows as List)
-            .cast<Map<String, dynamic>>()
-            .map((e) => ProductModel.fromJson(e).toEntity())
-            .toList();
+        try {
+          return await run(colsWithoutMode, usePopularity: true);
+        } catch (_) {
+          try {
+            return await run(colsWithMode, usePopularity: false);
+          } catch (_) {
+            return await run(colsWithoutMode, usePopularity: false);
+          }
+        }
       }
     }
 
@@ -380,7 +393,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
   @override
   Future<Product> fetchProductById(String productId) async {
     const kDetailCols =
-        'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions, product_variants(*)';
+        'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, average_rating, total_reviews, total_written_reviews, weight, dimensions, payment_mode, product_variants(*)';
     try {
       final data = await guard(
         () => client
@@ -397,7 +410,7 @@ class SupabaseProductService extends SupabaseServiceBase implements ProductRepos
           () => client
               .from('products')
               .select(
-                'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, weight, dimensions, product_variants(*)',
+                'id, title, description, price, currency, image_urls, category, tags, inventory_count, available_stock, created_at, display_discount_percent, weight, dimensions, payment_mode, product_variants(*)',
               )
               .eq('id', productId)
               .eq('is_active', true)

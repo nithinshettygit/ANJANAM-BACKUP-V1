@@ -1,0 +1,55 @@
+# ANJANAM — https://anjanam.store
+User-agent: *
+Allow: /
+Allow: /product/
+Allow: /video/
+Allow: /article/
+Allow: /privacy-policy
+Allow: /terms
+Allow: /refund-policy
+Allow: /support
+Allow: /about
+Allow: /delete-account
+Allow: /llms.txt
+
+Disallow: /admin
+Disallow: /checkout
+Disallow: /cart
+Disallow: /login
+Disallow: /signup
+Disallow: /auth
+Disallow: /auth-callback
+Disallow: /reset-password
+
+# AI crawlers — allow public storefront and policy pages
+User-agent: GPTBot
+Allow: /
+Allow: /about
+Allow: /llms.txt
+Allow: /support
+Disallow: /admin
+Disallow: /checkout
+Disallow: /cart
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /about
+Allow: /llms.txt
+Allow: /support
+Disallow: /admin
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /about
+Allow: /llms.txt
+Allow: /support
+Disallow: /admin
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /about
+Allow: /llms.txt
+Allow: /support
+Disallow: /admin
+
+Sitemap: https://anjanam.store/sitemap.xml

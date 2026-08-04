@@ -205,7 +205,7 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
   Widget build(BuildContext context) {
     final wishlist = ref.watch(wishlistProvider);
     final cart = ref.watch(
-      cartControllerProvider.select((async) => async.value),
+      cartControllerProvider.select((async) => async.valueOrNull),
     );
     final cartItemCount = cart?.items.fold<int>(0, (sum, e) => sum + e.quantity) ?? 0;
 
@@ -264,7 +264,7 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                 Expanded(
                   flex: 4,
                   child: Material(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.55),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(24),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(24),

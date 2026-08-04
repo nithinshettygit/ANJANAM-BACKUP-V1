@@ -1,5 +1,6 @@
 /// Client-side validation aligned with common ecommerce auth expectations.
 /// Server/Supabase may enforce stricter rules; these avoid obviously weak input.
+library;
 
 final RegExp _emailLoose = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 

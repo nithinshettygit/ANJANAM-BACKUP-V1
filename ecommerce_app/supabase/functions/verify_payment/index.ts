@@ -260,21 +260,38 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Pre-conversion safety check to avoid race-condition status update attempts.
+    // Pre-conversion safety check (mirrors convert_order_reservation_to_deduction).
+    // Variant lines must use product_variants stock/reserved — not parent inventory_count.
     try {
       const stockRows = await supabase
         .from("order_items")
-        .select("product_id, quantity, products!order_items_product_id_fkey(inventory_count)")
+        .select(
+          "product_id, variant_id, quantity, products!order_items_product_id_fkey(inventory_count, reserved_quantity), product_variants(stock_quantity, reserved_quantity)",
+        )
         .eq("order_id", orderId);
       if (!stockRows.error && stockRows.data) {
         let insufficient = false;
         for (const row of stockRows.data) {
           const qty = Number((row as any).quantity ?? 0);
-          const product = (row as any).products;
-          const inv = Number((product?.inventory_count) ?? 0);
-          if (!Number.isFinite(inv) || inv < qty) {
-            insufficient = true;
-            break;
+          if (!Number.isFinite(qty) || qty <= 0) continue;
+
+          const variantId = ((row as any).variant_id ?? "").toString().trim();
+          if (variantId) {
+            const variant = (row as any).product_variants;
+            const stock = Number(variant?.stock_quantity ?? 0);
+            const reserved = Number(variant?.reserved_quantity ?? 0);
+            if (!Number.isFinite(stock) || !Number.isFinite(reserved) || stock < qty || reserved < qty) {
+              insufficient = true;
+              break;
+            }
+          } else {
+            const product = (row as any).products;
+            const inv = Number(product?.inventory_count ?? 0);
+            const reserved = Number(product?.reserved_quantity ?? 0);
+            if (!Number.isFinite(inv) || !Number.isFinite(reserved) || inv < qty || reserved < qty) {
+              insufficient = true;
+              break;
+            }
           }
         }
         if (insufficient) {

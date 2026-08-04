@@ -60,6 +60,9 @@ class RazorpayService {
         onPaymentSuccess,
     void Function(String message)? onPaymentError,
     void Function(String walletName)? onExternalWallet,
+    /// Modal closed without a success/failure terminal event. Do not treat as
+    /// hard fail — UPI/QR may still capture; keep gateway ids and poll.
+    void Function()? onPaymentDismissed,
   }) {
     if (_keyId.isEmpty) {
       onPaymentError?.call(
@@ -85,6 +88,7 @@ class RazorpayService {
         onPaymentSuccess: onPaymentSuccess,
         onPaymentError: onPaymentError,
         onExternalWallet: onExternalWallet,
+        onPaymentDismissed: onPaymentDismissed,
       );
     }).catchError((Object e, StackTrace st) {
       if (kDebugMode) {
@@ -108,6 +112,7 @@ class RazorpayService {
         onPaymentSuccess,
     void Function(String message)? onPaymentError,
     void Function(String walletName)? onExternalWallet,
+    void Function()? onPaymentDismissed,
   }) async {
     if (_keyId.isEmpty) {
       onPaymentError?.call(
@@ -143,6 +148,7 @@ class RazorpayService {
       onPaymentSuccess: onPaymentSuccess,
       onPaymentError: onPaymentError,
       onExternalWallet: onExternalWallet,
+      onPaymentDismissed: onPaymentDismissed,
     );
   }
 
@@ -156,6 +162,7 @@ class RazorpayService {
         onPaymentSuccess,
     void Function(String message)? onPaymentError,
     void Function(String walletName)? onExternalWallet,
+    void Function()? onPaymentDismissed,
   }) {
     final Razorpay = js_util.getProperty(html.window, 'Razorpay');
     if (Razorpay == null) {
@@ -199,8 +206,10 @@ class RazorpayService {
     });
 
     final ondismiss = js_util.allowInterop((dynamic _) {
+      // Soft dismiss only: do not completeError / set [completed]. Success may
+      // still arrive after UPI/QR, and checkout must keep polling with ids intact.
       if (!completed) {
-        completeError('Payment was cancelled.');
+        onPaymentDismissed?.call();
       }
     });
 

@@ -438,15 +438,15 @@ class _QuickActionBox extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isOrders = title.toLowerCase().contains('order');
     final accent = isOrders ? const Color(0xFF1E88E5) : const Color(0xFFE53935);
-    final chipBg = accent.withOpacity(0.14);
+    final chipBg = accent.withValues(alpha: 0.14);
     return Material(
-      color: scheme.surface.withOpacity(0.42),
+      color: scheme.surface.withValues(alpha: 0.42),
       elevation: 2,
-      shadowColor: accent.withOpacity(0.18),
+      shadowColor: accent.withValues(alpha: 0.18),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: accent.withOpacity(0.35),
+          color: accent.withValues(alpha: 0.35),
         ),
       ),
       clipBehavior: Clip.antiAlias,

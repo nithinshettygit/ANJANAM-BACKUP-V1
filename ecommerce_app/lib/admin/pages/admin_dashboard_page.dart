@@ -240,7 +240,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                                 scrollDirection: Axis.horizontal,
                                 child: DataTable(
                                   headingRowColor: WidgetStateProperty.all(
-                                    AppColors.deepGold.withOpacity(0.08),
+                                    AppColors.deepGold.withValues(alpha: 0.08),
                                   ),
                                   columns: const [
                                     DataColumn(label: Text('Product')),
@@ -289,7 +289,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                                 scrollDirection: Axis.horizontal,
                                 child: DataTable(
                                   headingRowColor: WidgetStateProperty.all(
-                                    AppColors.deepGold.withOpacity(0.08),
+                                    AppColors.deepGold.withValues(alpha: 0.08),
                                   ),
                                   columns: const [
                                     DataColumn(label: Text('Order ID')),

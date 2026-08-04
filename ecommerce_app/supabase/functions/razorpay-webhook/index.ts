@@ -37,6 +37,45 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** Resolve app order: payment notes first, else DB by Razorpay order_id / payment_id. */
+async function resolveSupabaseOrderId(
+  supabase: ReturnType<typeof createClient>,
+  entity: Record<string, unknown>,
+): Promise<{ orderId: string; source: "payment_notes" | "razorpay_order_id" | "razorpay_payment_id" } | null> {
+  const notes = (entity?.notes ?? {}) as Record<string, unknown>;
+  const fromNotes = (notes?.supabase_order_id ?? "").toString().trim();
+  if (fromNotes) {
+    return { orderId: fromNotes, source: "payment_notes" };
+  }
+
+  const rzpOrderId = (entity?.order_id ?? "").toString().trim();
+  if (rzpOrderId) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("razorpay_order_id", rzpOrderId)
+      .maybeSingle();
+    if (!error && data?.id) {
+      return { orderId: (data.id as string).toString().trim(), source: "razorpay_order_id" };
+    }
+  }
+
+  // Refunds usually expose payment_id; payments use entity.id.
+  const rzpPaymentId = (entity?.payment_id ?? entity?.id ?? "").toString().trim();
+  if (rzpPaymentId) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("razorpay_payment_id", rzpPaymentId)
+      .maybeSingle();
+    if (!error && data?.id) {
+      return { orderId: (data.id as string).toString().trim(), source: "razorpay_payment_id" };
+    }
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   let dedupIdForFailure: string | null = null;
   if (req.method === "OPTIONS") return new Response("ok", { status: 204, headers: corsHeaders });
@@ -62,9 +101,6 @@ Deno.serve(async (req) => {
     const event = (body?.event ?? "").toString().trim();
     const webhookEventId = (body?.payload?.payment?.entity?.id ?? body?.payload?.refund?.entity?.id ?? "").toString().trim();
     const entity = body?.payload?.payment?.entity ?? body?.payload?.refund?.entity ?? {};
-    const notes = entity?.notes ?? {};
-    const orderId = (notes?.supabase_order_id ?? "").toString().trim();
-    if (!orderId) return json(200, { ok: true, ignored: true, reason: "missing_supabase_order_id_note" });
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const nowIso = new Date().toISOString();
@@ -72,6 +108,12 @@ Deno.serve(async (req) => {
       ? `razorpay:${event}:${webhookEventId}`
       : `razorpay:${event}:hash:${await sha256Hex(payload)}`;
     dedupIdForFailure = dedupId;
+
+    const resolved = await resolveSupabaseOrderId(supabase, entity);
+    if (!resolved?.orderId) {
+      return json(200, { ok: true, ignored: true, reason: "order_unresolved" });
+    }
+    const orderId = resolved.orderId;
 
     const { data: existingEvent, error: existingEventErr } = await supabase
       .from("webhook_events")
@@ -143,21 +185,36 @@ Deno.serve(async (req) => {
       const payCurrency = (entity?.currency ?? "").toString().trim().toUpperCase();
       const orderCurrency = (order.currency ?? "INR").toString().trim().toUpperCase();
       if (!payCurrency || payCurrency !== orderCurrency) return await failAndMark(409, "currency_mismatch");
+
       const payOrderId = (entity?.order_id ?? "").toString().trim();
       const dbOrderId = (order.razorpay_order_id ?? "").toString().trim();
-      if (!payOrderId || !dbOrderId || payOrderId !== dbOrderId) return await failAndMark(409, "order_mapping_mismatch");
+      // Hard mismatch only when both sides are set and disagree.
+      if (payOrderId && dbOrderId && payOrderId !== dbOrderId) {
+        return await failAndMark(409, "order_mapping_mismatch");
+      }
+      // Require at least one Razorpay order id for captured payments.
+      if (!payOrderId && !dbOrderId) {
+        return await failAndMark(409, "order_mapping_mismatch");
+      }
+
+      const patch: Record<string, unknown> = {
+        payment_status: "paid",
+        status: "processing",
+        razorpay_payment_id: entity?.id?.toString() ?? null,
+        paid_at: nowIso,
+        payment_verified_at: nowIso,
+        updated_at: nowIso,
+      };
+      // Recover linkage if soft-cancel previously cleared DB id (P1) but payment still references order_*.
+      if (payOrderId && !dbOrderId) {
+        patch.razorpay_order_id = payOrderId;
+      }
 
       const { error: upErr } = await supabase
         .from("orders")
-        .update({
-          payment_status: "paid",
-          status: "processing",
-          razorpay_payment_id: entity?.id?.toString() ?? null,
-          paid_at: nowIso,
-          payment_verified_at: nowIso,
-          updated_at: nowIso,
-        })
-        .eq("id", orderId);
+        .update(patch)
+        .eq("id", orderId)
+        .neq("payment_status", "paid");
       if (upErr) return await failAndMark(500, "order_update_failed");
     } else if (event === "payment.failed") {
       // Do not overwrite orders already marked paid by a successful attempt.
@@ -188,7 +245,7 @@ Deno.serve(async (req) => {
       .update({ status: "succeeded", last_error: null, updated_at: new Date().toISOString() })
       .eq("event_id", dedupId);
 
-    return json(200, { ok: true, event });
+    return json(200, { ok: true, event, resolve_source: resolved.source });
   } catch (e) {
     try {
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";

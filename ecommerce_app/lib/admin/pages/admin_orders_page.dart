@@ -453,8 +453,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                                 Chip(
                                   visualDensity: VisualDensity.compact,
                                   label: const Text('Replacement'),
-                                  backgroundColor: Colors.deepPurple.withOpacity(0.12),
-                                  side: BorderSide(color: Colors.deepPurple.withOpacity(0.35)),
+                                  backgroundColor: Colors.deepPurple.withValues(alpha: 0.12),
+                                  side: BorderSide(color: Colors.deepPurple.withValues(alpha: 0.35)),
                                   labelStyle: TextStyle(
                                     color: Colors.deepPurple.shade700,
                                     fontWeight: FontWeight.w700,
@@ -543,7 +543,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                       ),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(90, 34),
-                        backgroundColor: AppColors.deepGold.withOpacity(0.18),
+                        backgroundColor: AppColors.deepGold.withValues(alpha: 0.18),
                         foregroundColor: AppColors.charcoalBlack,
                       ),
                       child: const Text('View'),
@@ -640,9 +640,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.blueGrey.withOpacity(0.08),
+          color: Colors.blueGrey.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.blueGrey.withOpacity(0.25)),
+          border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.25)),
         ),
         child: Text(
           (isUpdating || isRefunding) ? 'Updating...' : 'Actions',
@@ -712,8 +712,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        backgroundColor: color.withOpacity(0.12),
-        side: BorderSide(color: color.withOpacity(0.35)),
+        backgroundColor: color.withValues(alpha: 0.12),
+        side: BorderSide(color: color.withValues(alpha: 0.35)),
         labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
       ),
     );
@@ -765,8 +765,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     }
     return Chip(
       label: Text(label),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }
@@ -778,8 +778,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     final label = isCod ? 'COD' : 'ONLINE';
     return Chip(
       label: Text(label),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
     );
   }
@@ -810,8 +810,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     };
     return Chip(
       label: Text(label),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }
@@ -837,8 +837,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     final suffix = (o.shipmentId ?? '').trim().isNotEmpty ? ' • ID set' : '';
     return Chip(
       label: Text('$label$suffix'),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }
@@ -872,8 +872,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     }
     return Chip(
       label: Text(label),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }

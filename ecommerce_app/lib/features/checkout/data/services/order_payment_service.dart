@@ -430,6 +430,11 @@ class OrderPaymentService extends SupabaseServiceBase {
       if (m.contains('order_not_found') || m.contains('forbidden')) {
         throw const ValidationException('Could not update this order.');
       }
+      if (m.contains('cod_not_allowed')) {
+        throw const ValidationException(
+          'This product is available only via online payment.',
+        );
+      }
       throw RepositoryException(e.message.trim().isNotEmpty ? e.message : e.toString());
     }
   }

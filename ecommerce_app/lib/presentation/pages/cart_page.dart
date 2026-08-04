@@ -267,7 +267,7 @@ class _CartItemTile extends ConsumerWidget {
                         color: Theme.of(context)
                             .colorScheme
                             .surfaceContainerHighest
-                            .withOpacity(0.45),
+                            .withValues(alpha: 0.45),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
@@ -284,7 +284,7 @@ class _CartItemTile extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: AppColors.priceText.withOpacity(0.12),
+                              color: AppColors.priceText.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(

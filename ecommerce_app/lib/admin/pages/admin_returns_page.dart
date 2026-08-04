@@ -955,8 +955,8 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     }
     return Chip(
       label: Text(_statusLabel(status)),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600),
     );
   }
@@ -967,8 +967,8 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     final color = isCod ? Colors.amber.shade800 : Colors.green.shade700;
     return Chip(
       label: Text(isCod ? 'COD' : 'ONLINE'),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
     );
   }
@@ -1003,8 +1003,8 @@ class _AdminReturnsPageState extends ConsumerState<AdminReturnsPage> {
     }
     return Chip(
       label: Text(label),
-      backgroundColor: color.withOpacity(0.12),
-      side: BorderSide(color: color.withOpacity(0.35)),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.35)),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600),
     );
   }

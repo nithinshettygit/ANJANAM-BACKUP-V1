@@ -2,7 +2,6 @@ import 'package:ecommerce_app/core/checkout/checkout_telemetry.dart';
 import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../cart/domain/entities/cart_item.dart';
 import '../../../cart/domain/repositories/cart_repository.dart';
@@ -21,17 +20,14 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
 
   final CartRepository _cartRepository;
 
-  /// Release builds must use [place_order_checkout] only. Set only for emergency
-  /// local/staging: `--dart-define=ALLOW_LEGACY_CHECKOUT=true`
-  static const bool _allowLegacyCheckoutInRelease = bool.fromEnvironment(
+  /// Legacy client inserts trust cart prices and skip reservation — off by default
+  /// in **all** build modes. Emergency only: `--dart-define=ALLOW_LEGACY_CHECKOUT=true`
+  static const bool _allowLegacyCheckout = bool.fromEnvironment(
     'ALLOW_LEGACY_CHECKOUT',
     defaultValue: false,
   );
 
-  static bool get _legacyCheckoutFallbackEnabled {
-    if (kReleaseMode) return _allowLegacyCheckoutInRelease;
-    return true;
-  }
+  static bool get _legacyCheckoutFallbackEnabled => _allowLegacyCheckout;
 
   /// PostgREST / Postgres signals that the RPC is missing or not exposed.
   static bool _isRpcMissingPostgrest(PostgrestException e) {
@@ -129,6 +125,9 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
     }
     if (m.contains('currency_mismatch')) {
       return 'Your cart mixes currencies; remove items and try again.';
+    }
+    if (m.contains('cod_not_allowed')) {
+      return 'This product is available only via online payment.';
     }
     if (m.contains('invalid_product_id')) {
       return 'Invalid product in your order.';

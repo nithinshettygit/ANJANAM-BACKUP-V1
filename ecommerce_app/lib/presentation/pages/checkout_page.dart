@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ecommerce_app/core/errors/app_exception.dart';
+import 'package:ecommerce_app/features/catalog/domain/entities/product_payment_mode.dart';
 import 'package:ecommerce_app/core/payments/razorpay_service.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
@@ -15,6 +16,7 @@ import 'package:ecommerce_app/features/checkout/domain/shipping_details.dart';
 import 'package:ecommerce_app/features/checkout/data/services/order_payment_web_console_stub.dart'
     if (dart.library.html) 'package:ecommerce_app/features/checkout/data/services/order_payment_web_console_web.dart';
 import 'package:ecommerce_app/features/checkout/state/checkout_actions_controller.dart';
+import 'package:ecommerce_app/features/checkout/state/checkout_payment_modes_provider.dart';
 import 'package:ecommerce_app/features/checkout/state/checkout_pricing_provider.dart';
 import 'package:ecommerce_app/features/checkout/state/order_payment_provider.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
@@ -298,6 +300,33 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     required List<UserAddress> saved,
   }) async {
     if (_checkoutFlowLock) return;
+
+    final modesKey = checkoutPaymentModesFamilyKey(items.map((e) => e.productId));
+    Map<String, ProductPaymentMode> modes;
+    try {
+      modes = await ref.read(checkoutPaymentModesProvider(modesKey).future).timeout(
+            const Duration(seconds: 15),
+          );
+    } on TimeoutException {
+      modes = {};
+    }
+    if (!checkoutCodAllowed(modes) &&
+        _paymentMethod == _CheckoutPaymentMethod.cod) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            content: Text(
+              items.length == 1
+                  ? ProductPaymentModeMessages.onlineOnlyCheckout
+                  : ProductPaymentModeMessages.onlineOnlyCart,
+            ),
+          ),
+        );
+        setState(() => _paymentMethod = _CheckoutPaymentMethod.razorpay);
+      }
+      return;
+    }
 
     final useForm =
         _showNewAddressForm || saved.isEmpty || _selectedAddressId == null;
@@ -610,9 +639,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         } catch (e) {
           if (checkoutResolved) return;
           if (mounted) {
-            setState(() => _checkoutPhase = _CheckoutPhase.idle);
-            _releaseCheckoutLock();
             if (e is AuthException) {
+              setState(() => _checkoutPhase = _CheckoutPhase.idle);
+              _releaseCheckoutLock();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   behavior: SnackBarBehavior.fixed,
@@ -620,27 +649,15 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 ),
               );
               Navigator.of(context).pushNamed('/login');
+              if (!completer.isCompleted) completer.complete();
             } else {
-              // For web QR/UPI flows callback can arrive before capture/webhook;
-              // keep waiting for status polling instead of hard-failing immediately.
-              if (!kIsWeb) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    behavior: SnackBarBehavior.fixed,
-                    content: Text(
-                      'Payment went through but we could not update your order. '
-                      'Save this reference for support: $paymentId. Details: $e',
-                    ),
-                  ),
-                );
-                Navigator.of(context).pushReplacementNamed('/orders');
-              }
+              // Verify can fail after a real capture (race / transient Edge).
+              // Keep confirming; status polling recovers paid / failed / timeout.
+              setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
             }
           } else {
             _releaseCheckoutLock();
           }
-        } finally {
-          if (!kIsWeb && !completer.isCompleted) completer.complete();
         }
       },
       onPaymentError: (message) async {
@@ -649,21 +666,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           razorpayPrecheckFailed = true;
         }
         if (!mounted || checkoutResolved) return;
-        if (kIsWeb) {
-          final lower = message.toLowerCase();
-          final userCancelled = lower.contains('cancel') ||
-              lower.contains('dismiss') ||
-              lower.contains('closed');
-          if (userCancelled) {
-            try {
-              await paymentSvc.updatePaymentStatus(
-                orderId: order.id,
-                paymentStatus: 'failed',
-              );
-            } catch (_) {}
-            await completeFailed('Payment cancelled by user.');
-            return;
+        final lower = message.toLowerCase();
+        // Soft cancel/dismiss must never mark failed or end polling.
+        // Marking failed forces create_payment_order to mint a new Razorpay order
+        // while a late UPI/QR capture on the first order can still succeed.
+        final userCancelled = lower.contains('cancel') ||
+            lower.contains('dismiss') ||
+            lower.contains('closed');
+        if (userCancelled) {
+          if (mounted) {
+            setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
           }
+          return;
+        }
+        if (kIsWeb) {
           if (_razorpayWebInfrastructureError(lower)) {
             await completeFailed(
               'Payment could not open. In Razorpay Dashboard, remove any localhost '
@@ -675,16 +691,23 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           // Bank or wallet errors after UI opened: polling remains source of truth.
           return;
         }
-        setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
-        try {
-          await paymentSvc.updatePaymentStatus(
-            orderId: order.id,
-            paymentStatus: 'failed',
-          );
-        } catch (_) {
-          // Order may stay pending; UI still shows failure.
+        // Mobile non-cancel: keep pending + poll (parity with web). Do not
+        // client-mark failed — that opens a double-charge window on retry.
+        // Hard config/validation errors cannot capture; fail closed immediately.
+        if (lower.contains('not configured') ||
+            lower.contains('too small to charge') ||
+            lower.contains('checkout is not available')) {
+          await completeFailed(message);
+          return;
         }
-        await completeFailed(message);
+        if (mounted) {
+          setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
+        }
+      },
+      onPaymentDismissed: () {
+        // Modal closed; UPI/QR may still capture. Keep razorpay_order_id + poll.
+        if (!mounted || checkoutResolved) return;
+        setState(() => _checkoutPhase = _CheckoutPhase.confirmingPayment);
       },
       onExternalWallet: (_) {},
     );
@@ -694,7 +717,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       setState(() => _checkoutPhase = _CheckoutPhase.idle);
     }
 
-    if (kIsWeb && !razorpayPrecheckFailed) {
+    if (!razorpayPrecheckFailed) {
       unawaited(() async {
         try {
           final status = await _pollPaymentStatus(orderId: order.id);
@@ -779,7 +802,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     return Positioned.fill(
       child: AbsorbPointer(
         child: Material(
-          color: Colors.black.withOpacity(0.45),
+          color: Colors.black.withValues(alpha: 0.45),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 320),
@@ -968,7 +991,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                           width: selected ? 2 : 1,
                         ),
                         color: selected
-                            ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.25)
+                            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25)
                             : null,
                       ),
                       child: Row(
@@ -1038,7 +1061,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
                 ),
                 child: Row(
                   children: [
@@ -1188,6 +1211,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     required CheckoutPricingRules pricing,
     required String accountEmail,
     required List<UserAddress> saved,
+    required bool codAllowed,
     String? buyNowHint,
   }) {
     final subtotal = items.fold<double>(0, (s, e) => s + e.lineTotal);
@@ -1306,40 +1330,66 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   ),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Payment method',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            RadioListTile<_CheckoutPaymentMethod>(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Razorpay'),
-              subtitle: const Text(
-                'Card, UPI, net banking, wallets\n'
-                'Do not close/refresh until order confirmation is shown.',
+            if (!codAllowed) ...[
+              Text(
+                'Payment',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
-              value: _CheckoutPaymentMethod.razorpay,
-              groupValue: _paymentMethod,
-              onChanged: paymentLocked
-                  ? null
-                  : (v) {
-                      if (v == null) return;
-                      setState(() => _paymentMethod = v);
-                    },
-            ),
-            RadioListTile<_CheckoutPaymentMethod>(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Cash on Delivery'),
-              subtitle: const Text('Pay when your order arrives'),
-              value: _CheckoutPaymentMethod.cod,
-              groupValue: _paymentMethod,
-              onChanged: paymentLocked
-                  ? null
-                  : (v) {
-                      if (v == null) return;
-                      setState(() => _paymentMethod = v);
-                    },
-            ),
+              const SizedBox(height: 4),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.credit_card_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                title: const Text('Online payment (Razorpay)'),
+                subtitle: Text(
+                  items.length == 1
+                      ? ProductPaymentModeMessages.onlineOnlyCheckout
+                      : ProductPaymentModeMessages.onlineOnlyCart,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ] else ...[
+              Text(
+                'Payment method',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              RadioListTile<_CheckoutPaymentMethod>(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Razorpay'),
+                subtitle: const Text(
+                  'Card, UPI, net banking, wallets\n'
+                  'Do not close/refresh until order confirmation is shown.',
+                ),
+                value: _CheckoutPaymentMethod.razorpay,
+                groupValue: _paymentMethod,
+                onChanged: paymentLocked
+                    ? null
+                    : (v) {
+                        if (v == null) return;
+                        setState(() => _paymentMethod = v);
+                      },
+              ),
+              RadioListTile<_CheckoutPaymentMethod>(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Cash on Delivery'),
+                subtitle: const Text('Pay when your order arrives'),
+                value: _CheckoutPaymentMethod.cod,
+                groupValue: _paymentMethod,
+                onChanged: paymentLocked
+                    ? null
+                    : (v) {
+                        if (v == null) return;
+                        setState(() => _paymentMethod = v);
+                      },
+              ),
+            ],
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -1387,6 +1437,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   }) {
     final addressesAsync = ref.watch(userAddressesProvider);
     final pricingAsync = ref.watch(checkoutPricingRulesProvider);
+    final modesKey = checkoutPaymentModesFamilyKey(items.map((e) => e.productId));
+    final modesAsync = ref.watch(checkoutPaymentModesProvider(modesKey));
 
     return addressesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -1397,6 +1449,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       data: (saved) {
         _maybeSeedCheckoutUi(saved);
 
+        final codAllowed = modesAsync.maybeWhen(
+          data: checkoutCodAllowed,
+          orElse: () => true,
+        );
+
         return pricingAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, __) => _buildLayout(
@@ -1404,6 +1461,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             saved: saved,
             pricing: CheckoutPricingRules.fallback,
             accountEmail: accountEmail,
+            codAllowed: codAllowed,
             buyNowHint: buyNowHint,
           ),
           data: (pricing) => _buildLayout(
@@ -1411,6 +1469,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             saved: saved,
             pricing: pricing,
             accountEmail: accountEmail,
+            codAllowed: codAllowed,
             buyNowHint: buyNowHint,
           ),
         );
@@ -1423,8 +1482,17 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     required List<UserAddress> saved,
     required CheckoutPricingRules pricing,
     required String accountEmail,
+    required bool codAllowed,
     String? buyNowHint,
   }) {
+    if (!codAllowed && _paymentMethod == _CheckoutPaymentMethod.cod) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_paymentMethod != _CheckoutPaymentMethod.cod) return;
+        setState(() => _paymentMethod = _CheckoutPaymentMethod.razorpay);
+      });
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 900;
@@ -1434,6 +1502,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           pricing: pricing,
           accountEmail: accountEmail,
           saved: saved,
+          codAllowed: codAllowed,
           buyNowHint: buyNowHint,
         );
 

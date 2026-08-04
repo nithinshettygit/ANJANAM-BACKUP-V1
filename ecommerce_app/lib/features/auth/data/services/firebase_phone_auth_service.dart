@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -155,6 +156,12 @@ class FirebasePhoneAuthService {
       throw const AuthException('Unable to establish app session for phone user.');
     }
 
+    await ensureUserIsNotBlocked(
+      _supabase,
+      userId: user.id,
+      signOutIfBlocked: true,
+    );
+
     await _syncProfileForPhoneAuth(
       userId: user.id,
       phone: phone,
@@ -213,6 +220,15 @@ class FirebasePhoneAuthService {
     if (response.status < 200 || response.status >= 300) {
       final data = response.data;
       final msg = data is Map ? (data['error']?.toString() ?? 'phone_bridge_failed') : 'phone_bridge_failed';
+      if (msg == 'account_blocked' ||
+          (data is Map &&
+              (data['error_code']?.toString() == 'USER_BLOCKED' ||
+                  data['error_code']?.toString() == 'ADMIN_BLOCKED'))) {
+        final reason = data is Map ? data['message']?.toString() : null;
+        throw AuthException(
+          blockedAccountMessageWithReason(reason),
+        );
+      }
       throw AuthException('Phone bridge failed: $msg');
     }
     final data = response.data;

@@ -201,7 +201,7 @@ class PageEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: iconSize ?? 44, color: scheme.primary.withOpacity(0.85)),
+            Icon(icon, size: iconSize ?? 44, color: scheme.primary.withValues(alpha: 0.85)),
             const SizedBox(height: 12),
             Text(
               title,

@@ -1,3 +1,4 @@
+import 'product_payment_mode.dart';
 import 'product_variant.dart';
 
 class Product {
@@ -27,6 +28,8 @@ class Product {
   /// Phase 1: at most one [variantType] across all variants (enforced in DB).
   final List<ProductVariant> variants;
 
+  final ProductPaymentMode paymentMode;
+
   const Product({
     required this.id,
     required this.title,
@@ -46,7 +49,10 @@ class Product {
     this.shippingWeightKg,
     this.shippingDimensionsCm,
     this.variants = const [],
+    this.paymentMode = ProductPaymentMode.both,
   });
+
+  bool get allowsCod => paymentMode.allowsCod;
 
   int? get sellableStock => availableStock ?? inventoryCount;
 

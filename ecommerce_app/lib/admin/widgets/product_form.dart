@@ -152,6 +152,7 @@ class _ProductFormState extends ConsumerState<ProductForm> {
   late bool _isPopular;
   late bool _isRecommended;
   late bool _isFestivalSpecial;
+  late String _paymentMode;
 
   late final TextEditingController _newVariantTypeCtrl;
   final List<_VariantLineEdit> _variantLines = [];
@@ -178,6 +179,7 @@ class _ProductFormState extends ConsumerState<ProductForm> {
     _isPopular = p?.isPopular ?? false;
     _isRecommended = p?.isRecommended ?? false;
     _isFestivalSpecial = p?.isFestivalSpecial ?? false;
+    _paymentMode = p?.paymentMode == 'online_only' ? 'online_only' : 'both';
 
     _newVariantTypeCtrl = TextEditingController(
       text: widget.initialVariants.isNotEmpty ? widget.initialVariants.first.variantType : 'size',
@@ -376,6 +378,28 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                 },
               ),
               const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _paymentMode,
+                decoration: const InputDecoration(
+                  labelText: 'Payment mode',
+                  helperText: 'Controls COD vs online-only at checkout.',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'both',
+                    child: Text('COD + Online (default)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'online_only',
+                    child: Text('Only Online Payment'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() => _paymentMode = v);
+                },
+              ),
+              const SizedBox(height: 12),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 initiallyExpanded: _variantLines.isNotEmpty,
@@ -450,7 +474,7 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.45),
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -1113,6 +1137,7 @@ class _ProductFormState extends ConsumerState<ProductForm> {
       isPopular: _isPopular,
       isRecommended: _isRecommended,
       isFestivalSpecial: _isFestivalSpecial,
+      paymentMode: _paymentMode,
       variants: variants,
     );
     setState(() => _saving = true);
@@ -1245,7 +1270,7 @@ class _AdminProductImageTile extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.marigoldOrange.withOpacity(0.95),
+                    color: AppColors.marigoldOrange.withValues(alpha: 0.95),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
@@ -1281,7 +1306,7 @@ class _AdminProductImageTile extends StatelessWidget {
               child: Icon(
                 Icons.drag_indicator,
                 size: 20,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 shadows: const [
                   Shadow(color: Colors.black45, blurRadius: 4),
                 ],
@@ -1308,7 +1333,7 @@ class _AddImageTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.surfaceContainerHighest.withOpacity(0.45),
+      color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1317,7 +1342,7 @@ class _AddImageTile extends StatelessWidget {
           child: Icon(
             Icons.add_photo_alternate_outlined,
             size: 36,
-            color: enabled ? scheme.primary : scheme.onSurfaceVariant.withOpacity(0.38),
+            color: enabled ? scheme.primary : scheme.onSurfaceVariant.withValues(alpha: 0.38),
           ),
         ),
       ),

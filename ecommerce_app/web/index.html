@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -17,16 +17,21 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="ANJANAM — shop, orders, and store admin.">
-  <meta property="og:title" content="ANJANAM">
-  <meta property="og:description" content="Discover products, videos, and articles on ANJANAM.">
+  <meta name="description" content="ANJANAM — shop products, digital articles, videos, books, and music online in India. Secure Razorpay checkout on web and Android.">
+  <meta name="robots" content="index,follow">
+  <meta name="keywords" content="ANJANAM, online shopping, ecommerce India, digital articles, videos, books, music, Razorpay">
+  <link rel="canonical" href="https://anjanam.store/">
+  <meta property="og:title" content="ANJANAM — Shop Online in India">
+  <meta property="og:description" content="Discover products, articles, videos, books, and music on ANJANAM. Shop on the web or Android app.">
   <meta property="og:image" content="https://anjanam.store/icons/Icon-512.png">
-  <meta property="og:url" content="https://anjanam.app">
+  <meta property="og:url" content="https://anjanam.store/">
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ANJANAM">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="ANJANAM">
-  <meta name="twitter:description" content="Discover products, videos, and articles on ANJANAM.">
+  <meta name="twitter:title" content="ANJANAM — Shop Online in India">
+  <meta name="twitter:description" content="Discover products, articles, videos, books, and music on ANJANAM.">
   <meta name="twitter:image" content="https://anjanam.store/icons/Icon-512.png">
 
   <!-- iOS meta tags & icons -->
@@ -38,8 +43,33 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>ANJANAM</title>
+  <title>ANJANAM — Shop Online in India</title>
   <link rel="manifest" href="manifest.json">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "ANJANAM",
+    "url": "https://anjanam.store",
+    "logo": "https://anjanam.store/icons/Icon-512.png",
+    "email": "support@anjanam.store"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "ANJANAM",
+    "url": "https://anjanam.store",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://anjanam.store/search?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+  <!-- Per-route OG tags for /product, /video, /article share links (before Flutter loads). -->
+  <script src="seo-bootstrap.js" defer></script>
   <!-- Razorpay Standard Checkout (Flutter web uses checkout.js; see lib/core/payments/razorpay_service_web.dart). -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" crossorigin="anonymous" referrerpolicy="strict-origin-when-cross-origin"></script>
 </head>

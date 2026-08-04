@@ -24,9 +24,8 @@ class _InvoiceGateDecision {
 
   const _InvoiceGateDecision({required this.kind, required this.isAdmin});
 
-  const _InvoiceGateDecision.allowed({required bool isAdmin})
-      : kind = _InvoiceGateDecisionKind.allowed,
-        isAdmin = isAdmin;
+  const _InvoiceGateDecision.allowed({required this.isAdmin})
+      : kind = _InvoiceGateDecisionKind.allowed;
   const _InvoiceGateDecision.notLoggedIn()
       : kind = _InvoiceGateDecisionKind.notLoggedIn,
         isAdmin = false;

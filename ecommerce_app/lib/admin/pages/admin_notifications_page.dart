@@ -179,7 +179,7 @@ class _AdminNotificationsPageState extends ConsumerState<AdminNotificationsPage>
                 ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _kind,
+                initialValue: _kind,
                 decoration: const InputDecoration(
                   labelText: 'Type',
                   border: OutlineInputBorder(),
@@ -272,7 +272,7 @@ class _AdminNotificationsPageState extends ConsumerState<AdminNotificationsPage>
               const SizedBox(height: 12),
               if (!_fullScreenOnly)
               DropdownButtonFormField<String>(
-                value: _presetId,
+                initialValue: _presetId,
                 decoration: const InputDecoration(
                   labelText: 'Redirect destination',
                   border: OutlineInputBorder(),

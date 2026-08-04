@@ -39,7 +39,7 @@ class WishlistPage extends ConsumerWidget {
 
     final wishlistIds = wishlistState.value ?? {};
     final cart = ref.watch(
-      cartControllerProvider.select((async) => async.value),
+      cartControllerProvider.select((async) => async.valueOrNull),
     );
 
     if (wishlistIds.isEmpty) {

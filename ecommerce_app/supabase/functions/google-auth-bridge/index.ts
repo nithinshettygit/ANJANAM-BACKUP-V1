@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     let profile = null;
     const byFirebase = await admin
       .from("profiles")
-      .select("id, email, full_name")
+      .select("id, email, full_name, status, blocked_reason, role")
       .eq("firebase_uid", firebaseUid)
       .maybeSingle();
     if (byFirebase.data) {
@@ -136,11 +136,27 @@ Deno.serve(async (req) => {
     } else {
       const byEmail = await admin
         .from("profiles")
-        .select("id, email, full_name")
+        .select("id, email, full_name, status, blocked_reason, role")
         .ilike("email", email)
         .maybeSingle();
       if (byEmail.data) profile = byEmail.data;
     }
+
+    const refuseIfBlocked = (row: Record<string, unknown> | null) => {
+      if (!row) return null;
+      const st = String(row.status ?? "active").trim().toLowerCase();
+      if (st !== "blocked") return null;
+      const role = String(row.role ?? "customer").trim().toLowerCase();
+      const reason = String(row.blocked_reason ?? "").trim();
+      return json(403, {
+        error: "account_blocked",
+        error_code: role === "admin" || role === "super_admin" ? "ADMIN_BLOCKED" : "USER_BLOCKED",
+        message: reason || "User is blocked by admin",
+        blocked_reason: reason || null,
+      });
+    };
+    const blockedEarly = refuseIfBlocked(profile as Record<string, unknown> | null);
+    if (blockedEarly) return blockedEarly;
 
     let authUserId = String(profile?.id ?? "").trim();
     if (!authUserId) {
@@ -168,6 +184,15 @@ Deno.serve(async (req) => {
       }
       authUserId = created.data.user.id;
     } else {
+      const byId = await admin
+        .from("profiles")
+        .select("id, status, blocked_reason, role")
+        .eq("id", authUserId)
+        .maybeSingle();
+      const blockedBeforeRotate = refuseIfBlocked(
+        (byId.data ?? null) as Record<string, unknown> | null,
+      );
+      if (blockedBeforeRotate) return blockedBeforeRotate;
       await admin.auth.admin.updateUserById(authUserId, {
         password: bridgePassword,
         email_confirm: true,
@@ -186,6 +211,16 @@ Deno.serve(async (req) => {
       },
       { onConflict: "id" },
     );
+
+    const statusRecheck = await admin
+      .from("profiles")
+      .select("id, status, blocked_reason, role")
+      .eq("id", authUserId)
+      .maybeSingle();
+    const blockedLate = refuseIfBlocked(
+      (statusRecheck.data ?? null) as Record<string, unknown> | null,
+    );
+    if (blockedLate) return blockedLate;
 
     const tokenRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: "POST",

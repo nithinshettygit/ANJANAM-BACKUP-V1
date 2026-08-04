@@ -34,7 +34,7 @@ class OrderItemModel {
         : <String>[];
 
     final rawVid = json['variant_id'] ?? json['variantId'];
-    final vid = rawVid == null ? null : rawVid.toString().trim();
+    final vid = rawVid?.toString().trim();
 
     return OrderItemModel(
       id: () {

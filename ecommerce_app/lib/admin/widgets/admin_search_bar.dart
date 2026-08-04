@@ -192,7 +192,7 @@ class _AdminSearchBarState extends ConsumerState<AdminSearchBar> {
               hintText: 'Search products, orders & users',
               hintStyle: TextStyle(
                 fontSize: 13,
-                color: AppColors.warmGray.withOpacity(0.9),
+                color: AppColors.warmGray.withValues(alpha: 0.9),
               ),
               prefixIcon: const Icon(Icons.search, size: 20),
               suffixIcon: _controller.text.isEmpty
@@ -319,7 +319,7 @@ class _OverlayResults extends StatelessWidget {
         item.subtitle,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontSize: 12, color: AppColors.warmGray.withOpacity(0.95)),
+        style: TextStyle(fontSize: 12, color: AppColors.warmGray.withValues(alpha: 0.95)),
       ),
       onTap: () => onSelect(type, item.id),
     );

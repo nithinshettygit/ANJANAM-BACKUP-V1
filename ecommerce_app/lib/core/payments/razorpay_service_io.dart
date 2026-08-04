@@ -35,6 +35,8 @@ class RazorpayService {
         onPaymentSuccess,
     void Function(String message)? onPaymentError,
     void Function(String walletName)? onExternalWallet,
+    /// Web modal soft-dismiss; unused on mobile (cancel arrives via [onPaymentError]).
+    void Function()? onPaymentDismissed,
   }) {
     if (_keyId.isEmpty) {
       onPaymentError?.call(
@@ -121,6 +123,7 @@ class RazorpayService {
         onPaymentSuccess,
     void Function(String message)? onPaymentError,
     void Function(String walletName)? onExternalWallet,
+    void Function()? onPaymentDismissed,
   }) async {
     openCheckout(
       amountPaise: amountPaise,
@@ -131,6 +134,7 @@ class RazorpayService {
       onPaymentSuccess: onPaymentSuccess,
       onPaymentError: onPaymentError,
       onExternalWallet: onExternalWallet,
+      onPaymentDismissed: onPaymentDismissed,
     );
   }
 

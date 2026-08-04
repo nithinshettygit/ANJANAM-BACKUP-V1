@@ -1,9 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:ecommerce_app/core/constants/app_currency.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
+import 'package:ecommerce_app/features/auth/state/auth_session_provider.dart';
 import '../data/services/supabase_cart_service.dart';
 import '../domain/entities/cart.dart';
 import '../domain/repositories/cart_repository.dart';
+
+const _kGuestEmptyCart = Cart(
+  id: '',
+  items: [],
+  currency: kAppCurrencyCode,
+);
 
 final cartRepositoryProvider = Provider<CartRepository>(
   (ref) => SupabaseCartService(ref.watch(supabaseClientProvider)),
@@ -14,6 +22,10 @@ class CartController extends AsyncNotifier<Cart> {
 
   @override
   Future<Cart> build() async {
+    final auth = ref.watch(authSessionProvider);
+    if (auth.isLoading || auth.value == null) {
+      return _kGuestEmptyCart;
+    }
     return _repo.getCart();
   }
 
@@ -63,14 +75,14 @@ final cartControllerProvider =
 
 /// Sum of line quantities — use for cart badges (rebuilds only when [Cart] value changes).
 final cartTotalQuantityProvider = Provider<int>((ref) {
-  final cart = ref.watch(cartControllerProvider.select((a) => a.value));
+  final cart = ref.watch(cartControllerProvider.select((a) => a.valueOrNull));
   if (cart == null) return 0;
   return cart.items.fold<int>(0, (s, e) => s + e.quantity);
 });
 
 /// Distinct SKUs in cart (optional: “3 products” style).
 final cartLineCountProvider = Provider<int>((ref) {
-  final cart = ref.watch(cartControllerProvider.select((a) => a.value));
+  final cart = ref.watch(cartControllerProvider.select((a) => a.valueOrNull));
   return cart?.items.length ?? 0;
 });
 

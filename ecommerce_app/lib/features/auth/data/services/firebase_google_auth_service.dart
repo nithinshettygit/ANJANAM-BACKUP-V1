@@ -1,3 +1,4 @@
+import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/core/network/network_request_guard.dart';
 import 'package:ecommerce_app/features/auth/domain/entities/app_user.dart';
@@ -125,6 +126,12 @@ class FirebaseGoogleAuthService {
       throw const sb.AuthException('Unable to create app session for Google user.');
     }
 
+    await ensureUserIsNotBlocked(
+      _supabase,
+      userId: authUser.id,
+      signOutIfBlocked: true,
+    );
+
     await _upsertGoogleProfile(
       userId: authUser.id,
       firebaseUid: firebaseUser.uid,
@@ -167,6 +174,15 @@ class FirebaseGoogleAuthService {
     if (response.status < 200 || response.status >= 300) {
       final data = response.data;
       final msg = data is Map ? (data['error']?.toString() ?? 'google_bridge_failed') : 'google_bridge_failed';
+      if (msg == 'account_blocked' ||
+          (data is Map &&
+              (data['error_code']?.toString() == 'USER_BLOCKED' ||
+                  data['error_code']?.toString() == 'ADMIN_BLOCKED'))) {
+        final reason = data is Map ? data['message']?.toString() : null;
+        throw sb.AuthException(
+          blockedAccountMessageWithReason(reason),
+        );
+      }
       throw sb.AuthException('Google bridge failed: $msg');
     }
     final data = response.data;

@@ -1,13 +1,20 @@
 {
-    "name": "ANJANAM",
+    "name": "ANJANAM — Shop Online",
     "short_name": "ANJANAM",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#fa7800",
-    "description": "ANJANAM shop and store tools.",
+    "description": "Shop products, articles, videos, books, and music on ANJANAM. Indian ecommerce with secure Razorpay checkout.",
     "orientation": "portrait-primary",
-    "prefer_related_applications": false,
+    "prefer_related_applications": true,
+    "related_applications": [
+        {
+            "platform": "play",
+            "url": "https://play.google.com/store/apps/details?id=com.anjanam.app",
+            "id": "com.anjanam.app"
+        }
+    ],
     "icons": [
         {
             "src": "icons/Icon-192.png",

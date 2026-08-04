@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
 
 import '../../domain/entities/product.dart';
+import '../../domain/entities/product_payment_mode.dart';
 import '../../domain/entities/product_variant.dart';
 
 /// Data model mapped directly to the `products` table.
@@ -26,6 +27,7 @@ class ProductModel {
   final double? shippingWeightKg;
   final String? shippingDimensionsCm;
   final List<ProductVariant> variants;
+  final ProductPaymentMode paymentMode;
 
   const ProductModel({
     required this.id,
@@ -46,6 +48,7 @@ class ProductModel {
     this.shippingWeightKg,
     this.shippingDimensionsCm,
     this.variants = const [],
+    this.paymentMode = ProductPaymentMode.both,
   });
 
   static List<ProductVariant> _variantsFromJson(
@@ -137,6 +140,7 @@ class ProductModel {
         return t != null && t.isNotEmpty ? t : null;
       }(),
       variants: _variantsFromJson(json, id),
+      paymentMode: ProductPaymentModeDb.fromDb(json['payment_mode']?.toString()),
     );
   }
 
@@ -159,6 +163,7 @@ class ProductModel {
       'total_written_reviews': totalWrittenReviews,
       'weight': shippingWeightKg,
       'dimensions': shippingDimensionsCm,
+      'payment_mode': paymentMode.toDbValue(),
       'product_variants': variants
           .map(
             (v) => {
@@ -198,6 +203,7 @@ class ProductModel {
       shippingWeightKg: shippingWeightKg,
       shippingDimensionsCm: shippingDimensionsCm,
       variants: variants,
+      paymentMode: paymentMode,
     );
   }
 }

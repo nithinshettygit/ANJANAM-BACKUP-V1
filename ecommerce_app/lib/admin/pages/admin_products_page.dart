@@ -490,7 +490,7 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
                     cellBuilder: (p) => Chip(
                       label: Text(p.isActive ? 'Active' : 'Inactive'),
                       backgroundColor:
-                          p.isActive ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.2),
+                          p.isActive ? Colors.green.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
                     ),
                   ),
                   AdminTableColumn<AdminProduct>(
@@ -857,7 +857,7 @@ Widget _noPhotoBadge() {
     height: 32,
     alignment: Alignment.center,
     decoration: BoxDecoration(
-      color: Colors.grey.withOpacity(0.16),
+      color: Colors.grey.withValues(alpha: 0.16),
       borderRadius: BorderRadius.circular(8),
     ),
     child: const Text(

@@ -53,7 +53,8 @@ class HomeRecommendedProductCard extends ConsumerWidget {
     final inCart = ref.watch(
       cartControllerProvider.select(
         (asyncCart) =>
-            asyncCart.value?.items.any((e) => e.productId == product.id) ?? false,
+            asyncCart.valueOrNull?.items.any((e) => e.productId == product.id) ??
+            false,
       ),
     );
     final imageUrl = product.imageUrls.isNotEmpty ? product.imageUrls.first : null;

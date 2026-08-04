@@ -209,10 +209,8 @@ function buildShiprocketCancelledPatch(order: {
     last_tracking_update: nowIso,
   };
   const ord = (order.status ?? "").toString().trim().toLowerCase();
-  const dm = (order.delivery_method ?? "").toString().trim().toLowerCase();
-  if (ord === "cancelled" && dm === "shiprocket_delivery") {
-    patch.status = "processing";
-  } else if (ord === "shipped" || ord === "out_for_delivery") {
+  // Never revive a cancelled order to processing when clearing Shiprocket.
+  if (ord === "shipped" || ord === "out_for_delivery") {
     patch.status = "packed";
   }
   return patch;

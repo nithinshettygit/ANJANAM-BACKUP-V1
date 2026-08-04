@@ -1,3 +1,4 @@
+import 'package:ecommerce_app/core/web/web_seo.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -81,6 +82,23 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     } catch (_) {
       if (!context.mounted) return;
       await showUniversalShareSheet(context, payload: payload);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      final video = widget.video;
+      WebSeo.updateSharePage(
+        title: '${video.title} — ANJANAM',
+        description: (video.description?.trim().isNotEmpty ?? false)
+            ? video.description!.trim()
+            : 'Watch ${video.title} on ANJANAM.',
+        path: '/video/${video.id}',
+        imageUrl: video.effectiveThumbnailUrl,
+        ogType: 'video.other',
+      );
     }
   }
 

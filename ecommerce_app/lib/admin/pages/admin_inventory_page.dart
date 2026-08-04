@@ -427,8 +427,8 @@ class _AdminInventoryPageState extends ConsumerState<AdminInventoryPage> {
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                               decoration: BoxDecoration(
                                 color: usesProductImage
-                                    ? Colors.grey.withOpacity(0.14)
-                                    : AppColors.forestGreen.withOpacity(0.14),
+                                    ? Colors.grey.withValues(alpha: 0.14)
+                                    : AppColors.forestGreen.withValues(alpha: 0.14),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
@@ -803,7 +803,7 @@ class _AdminInventoryPageState extends ConsumerState<AdminInventoryPage> {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
-      selectedColor: AppColors.marigoldOrange.withOpacity(0.28),
+      selectedColor: AppColors.marigoldOrange.withValues(alpha: 0.28),
     );
   }
 }
@@ -821,7 +821,7 @@ Widget _noPhotoBadge() {
     height: 32,
     alignment: Alignment.center,
     decoration: BoxDecoration(
-      color: Colors.grey.withOpacity(0.16),
+      color: Colors.grey.withValues(alpha: 0.16),
       borderRadius: BorderRadius.circular(8),
     ),
     child: const Text(
@@ -867,7 +867,7 @@ class _InventoryAlertCard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: avatarR,
-              backgroundColor: color.withOpacity(0.15),
+              backgroundColor: color.withValues(alpha: 0.15),
               child: Icon(Icons.warning_amber_rounded, color: color, size: iconS),
             ),
             SizedBox(width: ultraCompact ? 6 : (compact ? 8 : 10)),

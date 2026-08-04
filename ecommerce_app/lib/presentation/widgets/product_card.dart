@@ -157,7 +157,7 @@ class _ProductCardState extends State<ProductCard> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.errorRed.withOpacity(0.95),
+                          color: AppColors.errorRed.withValues(alpha: 0.95),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
@@ -209,7 +209,7 @@ class _ProductCardState extends State<ProductCard> {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.forestGreen.withOpacity(0.16),
+                                color: AppColors.forestGreen.withValues(alpha: 0.16),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -348,7 +348,7 @@ class _ProductCardState extends State<ProductCard> {
                                 height: btnHeight,
                                 child: Material(
                                   color: blockBuy
-                                      ? Theme.of(context).disabledColor.withOpacity(0.35)
+                                      ? Theme.of(context).disabledColor.withValues(alpha: 0.35)
                                       : AppColors.marigoldOrange,
                                   borderRadius: BorderRadius.circular(18),
                                   child: InkWell(
@@ -366,7 +366,7 @@ class _ProductCardState extends State<ProductCard> {
                                           ? Theme.of(context)
                                               .colorScheme
                                               .onSurface
-                                              .withOpacity(0.38)
+                                              .withValues(alpha: 0.38)
                                           : AppColors.charcoalBlack,
                                     ),
                                   ),
@@ -382,7 +382,7 @@ class _ProductCardState extends State<ProductCard> {
                                 height: btnHeight,
                                 child: Material(
                                   color: widget.isInCart
-                                      ? AppColors.forestGreen.withOpacity(0.85)
+                                      ? AppColors.forestGreen.withValues(alpha: 0.85)
                                       : AppColors.deepGold,
                                   borderRadius: BorderRadius.circular(18),
                                   child: InkWell(

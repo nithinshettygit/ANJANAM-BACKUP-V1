@@ -69,7 +69,7 @@
                 <data android:scheme="com.anjanam.app" android:host="article" android:pathPrefix="/"/>
             </intent-filter>
 
-            <!-- ✅ HTTPS App Links (ONLY your real domain) -->
+            <!-- HTTPS App Links — anjanam.store (primary share & storefront domain) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -78,9 +78,10 @@
                 <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/product"/>
                 <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/video"/>
                 <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/article"/>
+                <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/order"/>
             </intent-filter>
 
-            <!-- Auth links (ONLY your domain) -->
+            <!-- Auth links — anjanam.store -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -89,6 +90,21 @@
                 <data android:scheme="https" android:host="anjanam.store" android:pathPrefix="/auth"/>
                 <data android:scheme="https" android:host="anjanam.store" android:path="/auth-callback"/>
                 <data android:scheme="https" android:host="anjanam.store" android:path="/reset-password"/>
+            </intent-filter>
+
+            <!-- HTTPS App Links — anjanam.app (auth & legacy share URLs) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+
+                <data android:scheme="https" android:host="anjanam.app" android:pathPrefix="/product"/>
+                <data android:scheme="https" android:host="anjanam.app" android:pathPrefix="/video"/>
+                <data android:scheme="https" android:host="anjanam.app" android:pathPrefix="/article"/>
+                <data android:scheme="https" android:host="anjanam.app" android:pathPrefix="/order"/>
+                <data android:scheme="https" android:host="anjanam.app" android:pathPrefix="/auth"/>
+                <data android:scheme="https" android:host="anjanam.app" android:path="/auth-callback"/>
+                <data android:scheme="https" android:host="anjanam.app" android:path="/reset-password"/>
             </intent-filter>
 
         </activity>

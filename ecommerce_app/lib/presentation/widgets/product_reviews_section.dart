@@ -566,7 +566,7 @@ class _ReviewTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.forestGreen.withOpacity(0.15),
+              color: AppColors.forestGreen.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
@@ -595,7 +595,7 @@ class _ReviewTile extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.55),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(

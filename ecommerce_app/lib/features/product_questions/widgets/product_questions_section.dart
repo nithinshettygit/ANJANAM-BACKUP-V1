@@ -517,8 +517,8 @@ class _AnswerLine extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: answer.isAdmin
-                          ? AppColors.marigoldOrange.withOpacity(0.2)
-                          : AppColors.forestGreen.withOpacity(0.14),
+                          ? AppColors.marigoldOrange.withValues(alpha: 0.2)
+                          : AppColors.forestGreen.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(

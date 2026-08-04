@@ -124,7 +124,7 @@ class _ProductImageCarouselState extends State<ProductImageCarousel> {
                             borderRadius: BorderRadius.circular(4),
                             color: active
                                 ? Colors.white
-                                : Colors.white.withOpacity(0.45),
+                                : Colors.white.withValues(alpha: 0.45),
                           ),
                         );
                       }),

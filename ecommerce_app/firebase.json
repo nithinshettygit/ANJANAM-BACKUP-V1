@@ -36,6 +36,33 @@
         ]
       },
       {
+        "source": "/robots.txt",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "text/plain; charset=utf-8"
+          }
+        ]
+      },
+      {
+        "source": "/sitemap.xml",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/xml; charset=utf-8"
+          }
+        ]
+      },
+      {
+        "source": "/llms.txt",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "text/plain; charset=utf-8"
+          }
+        ]
+      },
+      {
         "source": "/flutter_service_worker.js",
         "headers": [
           {
@@ -46,6 +73,15 @@
       },
       {
         "source": "/flutter_bootstrap.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/seo-bootstrap.js",
         "headers": [
           {
             "key": "Cache-Control",
@@ -97,6 +133,14 @@
       {
         "source": "/support",
         "destination": "/support/index.html"
+      },
+      {
+        "source": "/delete-account",
+        "destination": "/delete-account/index.html"
+      },
+      {
+        "source": "/about",
+        "destination": "/about/index.html"
       },
       {
         "source": "**",

@@ -22,7 +22,7 @@ class CartItemModel {
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) {
     final rawVid = json['variant_id'] ?? json['variantId'];
-    final vid = rawVid == null ? null : rawVid.toString().trim();
+    final vid = rawVid?.toString().trim();
     return CartItemModel(
       cartId: (json['cart_id'] ?? json['cartId'] ?? '').toString(),
       productId: (json['product_id'] ?? json['productId'] ?? '').toString(),

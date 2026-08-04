@@ -90,7 +90,11 @@ class AppEnv {
     required String explicitFromDefine,
   }) {
     final explicit = _cleanDefine(explicitFromDefine);
-    if (explicit.isNotEmpty) return explicit;
+    if (explicit.isNotEmpty) {
+      final rewritten = _normalizeFunctionsBaseUrl(explicit);
+      if (rewritten.isNotEmpty) return rewritten;
+      return explicit;
+    }
     final u = Uri.tryParse(_cleanDefine(supabaseUrl));
     if (u == null || !u.hasScheme || u.host.isEmpty) return '';
     final host = u.host.toLowerCase();
@@ -98,6 +102,31 @@ class AppEnv {
     final ref = host.split('.').first;
     if (ref.isEmpty || ref == 'supabase') return '';
     return '${u.scheme}://$ref.supabase.co/functions/v1';
+  }
+
+  /// Fixes legacy `https://<ref>.functions.supabase.co` (missing `/functions/v1`
+  /// path on project host) used in some local build env files.
+  static String _normalizeFunctionsBaseUrl(String raw) {
+    final u = Uri.tryParse(raw);
+    if (u == null || !u.hasScheme || u.host.isEmpty) return '';
+    final host = u.host.toLowerCase();
+    // https://xxxx.functions.supabase.co[/...] -> https://xxxx.supabase.co/functions/v1
+    if (host.endsWith('.functions.supabase.co')) {
+      final ref = host.split('.').first;
+      if (ref.isEmpty) return '';
+      return '${u.scheme}://$ref.supabase.co/functions/v1';
+    }
+    if (host.endsWith('.supabase.co')) {
+      final path = u.path.replaceAll(RegExp(r'/+$'), '');
+      if (path.isEmpty || path == '/') {
+        return '${u.scheme}://${u.host}/functions/v1';
+      }
+      if (!path.contains('/functions/v1')) {
+        return '${u.scheme}://${u.host}/functions/v1';
+      }
+      return '${u.scheme}://${u.host}/functions/v1';
+    }
+    return raw;
   }
 
   static AppEnv fromEnvironment() {

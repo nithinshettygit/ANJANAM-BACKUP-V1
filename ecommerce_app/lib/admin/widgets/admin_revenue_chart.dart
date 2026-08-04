@@ -64,7 +64,7 @@ class AdminRevenueChart extends StatelessWidget {
                             barWidth: 3,
                             belowBarData: BarAreaData(
                               show: true,
-                              color: AppColors.deepGold.withOpacity(0.15),
+                              color: AppColors.deepGold.withValues(alpha: 0.15),
                             ),
                           ),
                         ],

@@ -18,6 +18,7 @@ import 'package:ecommerce_app/presentation/utils/cart_feedback_snackbar.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
 import 'package:ecommerce_app/presentation/utils/storefront_product_navigation.dart';
+import 'package:ecommerce_app/core/web/web_seo.dart';
 import 'package:ecommerce_app/presentation/utils/universal_share.dart';
 import 'package:ecommerce_app/presentation/widgets/home_product_discovery_card.dart';
 import 'package:ecommerce_app/presentation/widgets/product_image_carousel.dart';
@@ -139,7 +140,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
   /// Web visitors who opened a shared `/product/...` link (no in-app back stack).
   Widget _webStoreEngagementBanner(BuildContext context) {
     return Material(
-      color: AppColors.marigoldOrange.withOpacity(0.16),
+      color: AppColors.marigoldOrange.withValues(alpha: 0.16),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () => _navigateWebProductVisitorToHome(context),
@@ -228,7 +229,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
         final displayProduct = _displayProduct(product, sv);
         final isWishlisted = ref.watch(wishlistProvider).contains(product.id);
         final cart = ref.watch(
-          cartControllerProvider.select((async) => async.value),
+          cartControllerProvider.select((async) => async.valueOrNull),
         );
         final inCart = cart?.items.any((e) {
               if (e.productId != product.id) return false;
@@ -239,6 +240,17 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
         final outOfStock = productIsOutOfStock(displayProduct);
         final stockBanner = productStockBannerText(displayProduct);
         final shareImageUrl = _resolveShareImageUrl(product, sv, displayProduct);
+        if (kIsWeb) {
+          WebSeo.updateSharePage(
+            title: '${product.title} — ANJANAM',
+            description: product.description.isNotEmpty
+                ? product.description
+                : 'Shop ${product.title} on ANJANAM.',
+            path: '/product/${product.id}',
+            imageUrl: shareImageUrl,
+            ogType: 'product',
+          );
+        }
         final pricing = ProductPriceDisplay.forProduct(
           product,
           hidePromoWhenOutOfStock: true,
@@ -415,7 +427,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                           onSelected: oosV
                                               ? null
                                               : (_) => setState(() => _selectedVariantId = v.id),
-                                          selectedColor: AppColors.marigoldOrange.withOpacity(0.35),
+                                          selectedColor: AppColors.marigoldOrange.withValues(alpha: 0.35),
                                           disabledColor:
                                               Theme.of(context).colorScheme.surfaceContainerHighest,
                                         );
@@ -434,7 +446,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: Theme.of(context).colorScheme.surfaceContainerHighest
-                                  .withOpacity(0.45),
+                                  .withValues(alpha: 0.45),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Row(
@@ -520,7 +532,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: AppColors.forestGreen.withOpacity(0.16),
+                            color: AppColors.forestGreen.withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -540,13 +552,13 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
                             color: outOfStock
-                                ? AppColors.errorRed.withOpacity(0.12)
-                                : AppColors.marigoldOrange.withOpacity(0.16),
+                                ? AppColors.errorRed.withValues(alpha: 0.12)
+                                : AppColors.marigoldOrange.withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: outOfStock
-                                  ? AppColors.errorRed.withOpacity(0.5)
-                                  : AppColors.marigoldOrange.withOpacity(0.6),
+                                  ? AppColors.errorRed.withValues(alpha: 0.5)
+                                  : AppColors.marigoldOrange.withValues(alpha: 0.6),
                             ),
                           ),
                           child: Text(
@@ -738,7 +750,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                 color: Theme.of(context).colorScheme.surface,
                 border: Border(
                   top: BorderSide(
-                    color: Theme.of(context).dividerColor.withOpacity(0.5),
+                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                   ),
                 ),
               ),
@@ -1209,7 +1221,7 @@ class _SuggestionSkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.65);
+    final base = Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65);
     return SizedBox(
       width: width,
       child: Card(

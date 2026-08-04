@@ -169,7 +169,11 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
 
   @override
   Widget build(BuildContext context) {
-    final showBackButton = widget.fromLogout;
+    // Web/iPad: AuthGuard often uses pushReplacement, so there is no stack to pop
+    // and Safari/PWA chrome may not offer a useful back. Always expose an in-app
+    // back that returns to the storefront. Android stays unchanged (back only
+    // after explicit logout).
+    final showBackButton = kIsWeb || widget.fromLogout;
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,

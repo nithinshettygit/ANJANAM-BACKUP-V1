@@ -2,7 +2,6 @@ import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/network/network_request_guard.dart';
 import 'package:ecommerce_app/core/auth/account_blocking.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
-import 'package:gotrue/gotrue.dart' show AuthApiException, UserAttributes;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../domain/entities/app_user.dart';
 import '../../domain/repositories/auth_repository.dart';

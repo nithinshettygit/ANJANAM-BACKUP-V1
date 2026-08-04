@@ -256,7 +256,7 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
             },
             child: Container(
               decoration: BoxDecoration(
-                color: selected ? AppColors.deepGold.withOpacity(0.14) : Colors.white,
+                color: selected ? AppColors.deepGold.withValues(alpha: 0.14) : Colors.white,
                 borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

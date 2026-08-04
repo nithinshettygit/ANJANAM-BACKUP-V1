@@ -137,7 +137,7 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
   Widget build(BuildContext context) {
     final wishlist = ref.watch(wishlistProvider);
     final cart = ref.watch(
-      cartControllerProvider.select((async) => async.value),
+      cartControllerProvider.select((async) => async.valueOrNull),
     );
     final suggestionState = ref.watch(searchSuggestionsProvider);
 

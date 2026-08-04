@@ -178,7 +178,7 @@ class _PriorityDot extends StatelessWidget {
     };
     return CircleAvatar(
       radius: 10,
-      backgroundColor: color.withOpacity(0.15),
+      backgroundColor: color.withValues(alpha: 0.15),
       child: Icon(Icons.notifications_active_rounded, size: 12, color: color),
     );
   }

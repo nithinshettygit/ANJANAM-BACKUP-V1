@@ -2,7 +2,6 @@ import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/features/search/models/product_suggestion.dart';
 import 'package:ecommerce_app/features/search/services/supabase_search_suggestions_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod/riverpod.dart' show Notifier;
 
 final searchSuggestionsServiceProvider =
     Provider<SupabaseSearchSuggestionsService>((ref) {
@@ -25,8 +24,7 @@ class SearchSuggestionsUiState {
   });
 }
 
-/// Riverpod 3: use [Notifier], not `AutoDisposeNotifier` (removed). Auto-dispose comes from [NotifierProvider.autoDispose].
-class SearchSuggestionsNotifier extends Notifier<SearchSuggestionsUiState> {
+class SearchSuggestionsNotifier extends AutoDisposeNotifier<SearchSuggestionsUiState> {
   int _generation = 0;
   String? _cachedQuery;
   List<ProductSuggestion>? _cachedSuggestions;

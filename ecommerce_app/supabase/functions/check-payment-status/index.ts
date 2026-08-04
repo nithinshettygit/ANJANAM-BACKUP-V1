@@ -20,9 +20,10 @@ function json(status: number, body: Record<string, unknown>) {
 function normalizePaymentStatus(params: { paymentStatus: string; orderStatus: string }): "pending" | "paid" | "failed" {
   const paymentStatus = params.paymentStatus.toLowerCase().trim();
   const orderStatus = params.orderStatus.toLowerCase().trim();
-  if (paymentStatus === "paid" || orderStatus === "paid" || orderStatus === "processing") {
-    return "paid";
-  }
+
+  // Inventory / auto-refund failure must win over payment_status=paid.
+  // verify_payment can set payment_status=paid while status is
+  // payment_failed_inventory / out_of_stock_after_payment (refund initiated).
   if (
     paymentStatus === "failed" ||
     orderStatus === "payment_failed" ||
@@ -31,6 +32,11 @@ function normalizePaymentStatus(params: { paymentStatus: string; orderStatus: st
   ) {
     return "failed";
   }
+
+  if (paymentStatus === "paid" || orderStatus === "paid" || orderStatus === "processing") {
+    return "paid";
+  }
+
   return "pending";
 }
 

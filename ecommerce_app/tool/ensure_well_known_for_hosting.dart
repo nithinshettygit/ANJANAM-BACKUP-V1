@@ -1,7 +1,8 @@
 // Run before `firebase deploy` (hosting.predeploy in firebase.json).
 // 1) Copies web/.well-known/assetlinks.json → build/web/.well-known/
 // 2) Copies static legal/support HTML pages → build/web/...
-// 3) Copies web/app-config.json → build/web/ if present (web runtime Supabase config).
+// 3) Copies SEO assets (robots.txt, sitemap.xml, llms.txt, seo-bootstrap.js)
+// 4) Copies web/app-config.json → build/web/ if present (web runtime Supabase config).
 import 'dart:io';
 
 void main() {
@@ -29,8 +30,15 @@ void main() {
   assetDst.writeAsBytesSync(assetSrc.readAsBytesSync());
   stdout.writeln('Copied assetlinks.json -> ${assetDst.path}');
 
-  const legalDirs = ['privacy-policy', 'terms', 'refund-policy', 'support'];
-  for (final name in legalDirs) {
+  const staticHtmlDirs = [
+    'privacy-policy',
+    'terms',
+    'refund-policy',
+    'support',
+    'delete-account',
+    'about',
+  ];
+  for (final name in staticHtmlDirs) {
     final srcHtml = File.fromUri(root.uri.resolve('web/$name/index.html'));
     if (!srcHtml.existsSync()) {
       stderr.writeln('Missing ${srcHtml.path}');
@@ -41,5 +49,19 @@ void main() {
     dstHtml.parent.createSync(recursive: true);
     dstHtml.writeAsBytesSync(srcHtml.readAsBytesSync());
     stdout.writeln('Copied $name/index.html -> ${dstHtml.path}');
+  }
+
+  const seoRootFiles = ['robots.txt', 'sitemap.xml', 'llms.txt', 'seo-bootstrap.js'];
+  for (final name in seoRootFiles) {
+    final src = File.fromUri(root.uri.resolve('web/$name'));
+    if (!src.existsSync()) {
+      stderr.writeln('Missing ${src.path}');
+      exitCode = 1;
+      return;
+    }
+    final dst = File.fromUri(root.uri.resolve('build/web/$name'));
+    dst.parent.createSync(recursive: true);
+    dst.writeAsBytesSync(src.readAsBytesSync());
+    stdout.writeln('Copied $name -> ${dst.path}');
   }
 }

@@ -450,7 +450,7 @@ class _OfflineBanner extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.16),
+                color: Colors.white.withValues(alpha: 0.16),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 19),
@@ -488,7 +488,7 @@ class _OfflineBanner extends StatelessWidget {
               style: FilledButton.styleFrom(
                 visualDensity: VisualDensity.compact,
                 minimumSize: const Size(64, 34),
-                backgroundColor: Colors.white.withOpacity(0.95),
+                backgroundColor: Colors.white.withValues(alpha: 0.95),
                 foregroundColor: scheme.error,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
               ),

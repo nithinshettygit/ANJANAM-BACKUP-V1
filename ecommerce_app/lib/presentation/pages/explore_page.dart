@@ -58,7 +58,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
         kIsWeb && screenW >= 1100 ? 40.0 : 12.0;
     final wishlistCount = ref.watch(wishlistProvider).length;
     final cart = ref.watch(
-      cartControllerProvider.select((async) => async.value),
+      cartControllerProvider.select((async) => async.valueOrNull),
     );
     final cartItemCount = cart?.items.fold<int>(0, (sum, e) => sum + e.quantity) ?? 0;
 

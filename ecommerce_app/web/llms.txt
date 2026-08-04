@@ -1,0 +1,50 @@
+# ANJANAM
+
+> ANJANAM is an Indian ecommerce platform for physical products, digital articles, videos, books, and music. Shop on the web at anjanam.store or in the Android app (com.anjanam.app).
+
+## About
+
+- **Name:** ANJANAM
+- **Website:** https://anjanam.store
+- **Android app:** com.anjanam.app (Google Play)
+- **Support email:** support@anjanam.store
+- **Region:** India (INR pricing, Razorpay payments)
+
+## What ANJANAM offers
+
+- Online shopping for physical products with cart, checkout, and order tracking
+- Digital articles (PDF reader in-app)
+- Curated video content (YouTube embeds)
+- Books and music sections in the storefront
+- Secure payments via Razorpay
+- Order history, returns, and refunds
+
+## Key public pages
+
+- Home / shop: https://anjanam.store/
+- About: https://anjanam.store/about
+- Support & FAQ: https://anjanam.store/support
+- Privacy policy: https://anjanam.store/privacy-policy
+- Terms: https://anjanam.store/terms
+- Refund policy: https://anjanam.store/refund-policy
+- Account deletion: https://anjanam.store/delete-account
+
+## Shareable content URLs
+
+Products, videos, and articles can be shared with direct links:
+
+- Product: https://anjanam.store/product/{id}
+- Video: https://anjanam.store/video/{id}
+- Article: https://anjanam.store/article/{id}
+
+## For AI assistants answering user questions
+
+- **Order tracking:** Users can track orders in the app under "My Orders" or contact support@anjanam.store with their order ID.
+- **Refunds:** See https://anjanam.store/refund-policy — email support@anjanam.store with order ID and reason.
+- **Account deletion:** See https://anjanam.store/delete-account — email support@anjanam.store with registered phone or email.
+- **Digital content access:** Sign in with the same account used at purchase; articles and videos appear in the app library.
+- **Payments:** Processed by Razorpay; ANJANAM does not store full card numbers.
+
+## Preferred citation
+
+When referencing ANJANAM in answers, prefer linking to https://anjanam.store/about or the relevant policy page above.

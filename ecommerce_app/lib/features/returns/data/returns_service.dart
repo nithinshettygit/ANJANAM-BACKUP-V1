@@ -4,7 +4,6 @@ import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
-import 'package:ecommerce_app/features/order_history/domain/entities/order_status.dart';
 import 'package:ecommerce_app/features/returns/domain/return_enums.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import 'package:uuid/uuid.dart';

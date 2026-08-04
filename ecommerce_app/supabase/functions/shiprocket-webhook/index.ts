@@ -566,10 +566,9 @@ Deno.serve(async (req) => {
         last_tracking_update: nowIso,
       };
       const ord = (matchOrder.status ?? "").toString().trim().toLowerCase();
-      const dm = (matchOrder.delivery_method ?? "").toString().trim().toLowerCase();
-      if (ord === "cancelled" && dm === "shiprocket_delivery") {
-        updateRow.status = "processing";
-      } else if (ord === "shipped" || ord === "out_for_delivery") {
+      // Never revive a cancelled order to processing (admin/customer cancel must stick).
+      // Only roll back in-flight fulfillment when shipment booking is voided.
+      if (ord === "shipped" || ord === "out_for_delivery") {
         updateRow.status = "packed";
       }
     } else {

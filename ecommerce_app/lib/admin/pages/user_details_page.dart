@@ -229,8 +229,8 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
                                       user.status == 'blocked' ? 'Blocked' : 'Active',
                                     ),
                                     backgroundColor: user.status == 'blocked'
-                                        ? Colors.red.withOpacity(0.14)
-                                        : Colors.green.withOpacity(0.14),
+                                        ? Colors.red.withValues(alpha: 0.14)
+                                        : Colors.green.withValues(alpha: 0.14),
                                     side: BorderSide.none,
                                     visualDensity: VisualDensity.compact,
                                   ),
@@ -242,8 +242,8 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
                                       onPressed: _isUpdatingStatus ? null : () => _toggleUserBlock(user),
                                       style: FilledButton.styleFrom(
                                         backgroundColor: user.status == 'blocked'
-                                            ? Colors.green.withOpacity(0.18)
-                                            : Colors.red.withOpacity(0.18),
+                                            ? Colors.green.withValues(alpha: 0.18)
+                                            : Colors.red.withValues(alpha: 0.18),
                                         foregroundColor: AppColors.charcoalBlack,
                                       ),
                                       child: Text(
@@ -258,8 +258,8 @@ class _AdminUserDetailsPageState extends ConsumerState<AdminUserDetailsPage> {
                                       onPressed: _isUpdatingRole ? null : () => _toggleUserRole(user),
                                       style: FilledButton.styleFrom(
                                         backgroundColor: user.role.toLowerCase() == 'admin'
-                                            ? Colors.orange.withOpacity(0.20)
-                                            : Colors.blue.withOpacity(0.18),
+                                            ? Colors.orange.withValues(alpha: 0.20)
+                                            : Colors.blue.withValues(alpha: 0.18),
                                         foregroundColor: AppColors.charcoalBlack,
                                       ),
                                       child: Text(

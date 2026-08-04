@@ -296,8 +296,8 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                         u.status == 'blocked' ? 'Blocked' : 'Active',
                       ),
                       backgroundColor: u.status == 'blocked'
-                          ? Colors.red.withOpacity(0.14)
-                          : Colors.green.withOpacity(0.14),
+                          ? Colors.red.withValues(alpha: 0.14)
+                          : Colors.green.withValues(alpha: 0.14),
                       side: BorderSide.none,
                       visualDensity: VisualDensity.compact,
                     ),
@@ -319,7 +319,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                       };
                       return Chip(
                         label: Text(label),
-                        backgroundColor: color.withOpacity(0.14),
+                        backgroundColor: color.withValues(alpha: 0.14),
                         side: BorderSide.none,
                         visualDensity: VisualDensity.compact,
                       );
@@ -342,8 +342,8 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(120, 34),
                           backgroundColor: promote
-                              ? Colors.blue.withOpacity(0.18)
-                              : Colors.orange.withOpacity(0.20),
+                              ? Colors.blue.withValues(alpha: 0.18)
+                              : Colors.orange.withValues(alpha: 0.20),
                           foregroundColor: AppColors.charcoalBlack,
                         ),
                         child: Text(
@@ -371,8 +371,8 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(98, 34),
                           backgroundColor: isBlocked
-                              ? Colors.green.withOpacity(0.18)
-                              : Colors.red.withOpacity(0.18),
+                              ? Colors.green.withValues(alpha: 0.18)
+                              : Colors.red.withValues(alpha: 0.18),
                           foregroundColor: AppColors.charcoalBlack,
                         ),
                         child: Text(
@@ -391,7 +391,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                       ),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(90, 34),
-                        backgroundColor: AppColors.deepGold.withOpacity(0.18),
+                        backgroundColor: AppColors.deepGold.withValues(alpha: 0.18),
                         foregroundColor: AppColors.charcoalBlack,
                       ),
                       child: const Text('Details'),

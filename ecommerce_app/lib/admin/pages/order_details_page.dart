@@ -1525,7 +1525,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                 if (_shiprocketShipmentCancelledAwaitingChoice(details)) ...[
                                   const SizedBox(height: 8),
                                   Material(
-                                    color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.35),
+                                    color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35),
                                     borderRadius: BorderRadius.circular(8),
                                     child: Padding(
                                       padding: const EdgeInsets.all(10),
@@ -1851,9 +1851,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                   ),
                                   _AdminShipmentReadOnlyLine(
                                     label: 'Package weight (kg)',
-                                    value: details.packageWeightKg == null
-                                        ? null
-                                        : details.packageWeightKg!.toString(),
+                                    value: details.packageWeightKg?.toString(),
                                   ),
                                   _AdminShipmentReadOnlyLine(
                                     label: 'Package dimensions (cm)',

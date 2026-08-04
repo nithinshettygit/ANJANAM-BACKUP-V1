@@ -301,7 +301,7 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                         dataRowMaxHeight: 62,
                         headingRowHeight: 52,
                         headingRowColor:
-                            WidgetStateProperty.all(AppColors.deepGold.withOpacity(0.08)),
+                            WidgetStateProperty.all(AppColors.deepGold.withValues(alpha: 0.08)),
                         sortColumnIndex: _sortColumnIndex,
                         sortAscending: _sortAscending,
                         columns: [

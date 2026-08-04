@@ -405,7 +405,7 @@ class _AdminReviewTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: row.isVisible
-                      ? Colors.green.withOpacity(0.14)
+                      ? Colors.green.withValues(alpha: 0.14)
                       : Theme.of(context).colorScheme.errorContainer,
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -429,7 +429,7 @@ class _AdminReviewTile extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(

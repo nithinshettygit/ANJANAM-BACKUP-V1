@@ -1,4 +1,6 @@
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
+import 'package:ecommerce_app/core/web/web_seo.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ecommerce_app/features/articles/pages/secure_article_reader_page.dart';
 import 'package:ecommerce_app/features/articles/providers/articles_providers.dart';
 import 'package:ecommerce_app/presentation/utils/universal_share.dart';
@@ -91,6 +93,17 @@ class ArticleDetailPage extends ConsumerWidget {
           ),
         ),
         data: (article) {
+          if (kIsWeb && article != null) {
+            WebSeo.updateSharePage(
+              title: '${article.title} — ANJANAM',
+              description: article.description.isNotEmpty
+                  ? article.description
+                  : 'Read ${article.title} on ANJANAM.',
+              path: '/article/${article.id}',
+              imageUrl: article.coverImageUrl,
+              ogType: 'article',
+            );
+          }
           if (article == null) {
             return const Center(child: Text('Article not found.'));
           }

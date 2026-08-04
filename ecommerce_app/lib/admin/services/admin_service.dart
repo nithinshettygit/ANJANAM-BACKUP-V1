@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:convert';
 
 import 'package:ecommerce_app/core/config/app_env.dart';
@@ -110,6 +109,7 @@ class AdminProduct {
   final bool isPopular;
   final bool isRecommended;
   final bool isFestivalSpecial;
+  final String paymentMode;
 
   const AdminProduct({
     required this.id,
@@ -133,6 +133,7 @@ class AdminProduct {
     this.isPopular = false,
     this.isRecommended = false,
     this.isFestivalSpecial = false,
+    this.paymentMode = 'both',
   });
 
   int get sellableStock => availableStock ?? (inventoryCount - reservedQuantity).clamp(0, 1 << 30);
@@ -179,6 +180,10 @@ class AdminProduct {
       isPopular: readBool(json['is_popular']),
       isRecommended: readBool(json['is_recommended']),
       isFestivalSpecial: readBool(json['is_festival_special']),
+      paymentMode: () {
+        final v = json['payment_mode']?.toString().trim().toLowerCase();
+        return v == 'online_only' ? 'online_only' : 'both';
+      }(),
     );
   }
 }
@@ -631,6 +636,7 @@ class ProductUpsertInput {
   final bool isRecommended;
   final bool isFestivalSpecial;
   final List<AdminVariantUpsert> variants;
+  final String paymentMode;
 
   const ProductUpsertInput({
     required this.title,
@@ -650,6 +656,7 @@ class ProductUpsertInput {
     this.isRecommended = false,
     this.isFestivalSpecial = false,
     this.variants = const [],
+    this.paymentMode = 'both',
   });
 }
 
@@ -1080,7 +1087,7 @@ class AdminService {
       data = await client
           .from('products')
           .select(
-              'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special')
+              'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode')
           .order('created_at', ascending: false);
     } catch (_) {
       data = await client
@@ -1115,8 +1122,16 @@ class AdminService {
       'is_popular': input.isPopular,
       'is_recommended': input.isRecommended,
       'is_festival_special': input.isFestivalSpecial,
+      'payment_mode': input.paymentMode == 'online_only' ? 'online_only' : 'both',
     };
-    final created = await client.from('products').insert(row).select('id').single();
+    late final Map<String, dynamic> created;
+    try {
+      created = await client.from('products').insert(row).select('id').single();
+    } catch (_) {
+      // Production DB may not have migration 092 yet — create without payment_mode.
+      row.remove('payment_mode');
+      created = await client.from('products').insert(row).select('id').single();
+    }
     final productId = (created['id'] ?? '').toString();
     await replaceProductVariants(productId, input.variants);
     await _logAdminAction(
@@ -1260,6 +1275,7 @@ class AdminService {
       'is_popular': input.isPopular,
       'is_recommended': input.isRecommended,
       'is_festival_special': input.isFestivalSpecial,
+      'payment_mode': input.paymentMode == 'online_only' ? 'online_only' : 'both',
     };
     // Prevent accidental variant data loss when a caller submits an empty list
     // without loading existing variants first.
@@ -1274,7 +1290,13 @@ class AdminService {
       // Reset reservation bucket to avoid stale pending holds distorting availability.
       updateRow['reserved_quantity'] = 0;
     }
-    await client.from('products').update(updateRow).eq('id', productId);
+    try {
+      await client.from('products').update(updateRow).eq('id', productId);
+    } catch (_) {
+      // Production DB may not have migration 092 yet — update without payment_mode.
+      updateRow.remove('payment_mode');
+      await client.from('products').update(updateRow).eq('id', productId);
+    }
 
     await replaceProductVariants(productId, variantsToPersist);
 
@@ -2141,8 +2163,11 @@ class AdminService {
           'p_notes': notes,
         },
       );
-    } catch (_) {
-      await client.from('orders').update({'status': normalizedStatus}).eq('id', orderId);
+    } on PostgrestException catch (e) {
+      // Never fall back to raw orders.update — that bypasses lifecycle checks.
+      throw RepositoryException(
+        e.message.trim().isNotEmpty ? e.message : e.toString(),
+      );
     }
     final isCancelled = normalizedStatus == 'cancelled';
     final message = isCancelled

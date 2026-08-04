@@ -34,7 +34,7 @@ class ProductQuantityStepper extends StatelessWidget {
     final canInc = enabled && quantity < maxQuantity;
 
     return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.6),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
       borderRadius: BorderRadius.circular(h / 2),
       child: SizedBox(
         height: h,

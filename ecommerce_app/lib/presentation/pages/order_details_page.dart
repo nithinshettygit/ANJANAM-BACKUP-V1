@@ -410,7 +410,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                 if (order.status == OrderStatus.cancelRequested) ...[
                   const SizedBox(height: 12),
                   Material(
-                    color: scheme.secondaryContainer.withOpacity(0.45),
+                    color: scheme.secondaryContainer.withValues(alpha: 0.45),
                     borderRadius: BorderRadius.circular(12),
                     child: Padding(
                       padding: const EdgeInsets.all(14),
@@ -436,7 +436,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                 if (order.status == OrderStatus.cancelled) ...[
                   const SizedBox(height: 12),
                   Material(
-                    color: scheme.errorContainer.withOpacity(0.35),
+                    color: scheme.errorContainer.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(12),
                     child: Padding(
                       padding: const EdgeInsets.all(14),
@@ -465,7 +465,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                               'Refund processing (if applicable). Online refunds are initiated automatically; '
                               'timelines depend on your bank or card issuer.',
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: scheme.onErrorContainer.withOpacity(0.9),
+                                    color: scheme.onErrorContainer.withValues(alpha: 0.9),
                                   ),
                             ),
                           ],
@@ -798,7 +798,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                           ),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: scheme.error,
-                            side: BorderSide(color: scheme.error.withOpacity(0.5)),
+                            side: BorderSide(color: scheme.error.withValues(alpha: 0.5)),
                           ),
                         ),
                     ],
@@ -1043,8 +1043,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
         return;
       }
 
-      if (kIsWeb) {
-        unawaited(() async {
+      unawaited(() async {
           try {
             final status = await _pollRetryPaymentStatus(orderId: widget.orderId);
             if (paymentResolved) return;
@@ -1082,7 +1081,6 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
             // Poll loop already tolerates transient failures.
           }
         }());
-      }
 
       svc.openCheckout(
         amountPaise: (order.grandTotal * 100).round(),
@@ -1111,48 +1109,39 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                   ),
                 );
                 Navigator.of(context).pushNamed('/login');
-              } else if (!kIsWeb) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    behavior: SnackBarBehavior.fixed,
-                    content: Text(
-                      'Payment succeeded but we could not update the order. '
-                      'Save this id for support: $paymentId. ($e)',
-                    ),
-                  ),
-                );
+                if (!completer.isCompleted) completer.complete();
               }
+              // Else: leave unresolved; status polling recovers capture/webhook races.
             }
-          } finally {
-            if (!kIsWeb && !completer.isCompleted) completer.complete();
           }
         },
         onPaymentError: (message) async {
           if (paymentResolved) return;
-          if (kIsWeb) {
-            final lower = message.toLowerCase();
-            final userCancelled = lower.contains('cancel') ||
-                lower.contains('dismiss') ||
-                lower.contains('closed');
-            if (userCancelled) {
-              try {
-                await paymentSvc.updatePaymentStatus(
-                  orderId: widget.orderId,
-                  paymentStatus: 'failed',
-                );
-              } catch (_) {}
-              await markFailedUi('Payment cancelled by user.');
-            }
-            // On web, non-cancel callbacks can be early while UPI collect continues.
+          final lower = message.toLowerCase();
+          final userCancelled = lower.contains('cancel') ||
+              lower.contains('dismiss') ||
+              lower.contains('closed');
+          if (userCancelled) {
+            // Soft cancel: keep pending + razorpay_*; polling is source of truth.
+            // Never client-mark failed — retry would mint a new Razorpay order
+            // while a late capture on the first order can still succeed.
             return;
           }
-          try {
-            await paymentSvc.updatePaymentStatus(
-              orderId: widget.orderId,
-              paymentStatus: 'failed',
-            );
-          } catch (_) {}
-          await markFailedUi('Payment failed. Please try again.');
+          if (kIsWeb) {
+            // Non-cancel callbacks can be early while UPI collect continues.
+            return;
+          }
+          // Mobile non-cancel: keep pending + poll (parity with web). Hard
+          // config/validation errors cannot capture; fail closed immediately.
+          if (lower.contains('not configured') ||
+              lower.contains('too small to charge') ||
+              lower.contains('checkout is not available')) {
+            await markFailedUi(message);
+            return;
+          }
+        },
+        onPaymentDismissed: () {
+          // Modal closed; capture may still complete — leave pending + poll.
         },
         onExternalWallet: (_) {},
       );
@@ -1904,7 +1893,7 @@ class _RetryPaymentCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: EdgeInsets.zero,
-      color: scheme.errorContainer.withOpacity(0.25),
+      color: scheme.errorContainer.withValues(alpha: 0.25),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -2305,7 +2294,7 @@ class _ReturnTrackingCard extends StatelessWidget {
     if (record.status == ReturnWorkflowStatus.rejected) {
       return Card(
         margin: EdgeInsets.zero,
-        color: scheme.errorContainer.withOpacity(0.35),
+        color: scheme.errorContainer.withValues(alpha: 0.35),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(

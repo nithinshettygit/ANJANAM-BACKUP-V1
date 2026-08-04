@@ -216,7 +216,24 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mobile Login')),
+      appBar: AppBar(
+        title: const Text('Mobile Login'),
+        // Web/iPad only: always show back (stack may be empty after auth redirect).
+        leading: kIsWeb
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                onPressed: () {
+                  final nav = Navigator.of(context);
+                  if (nav.canPop()) {
+                    nav.pop();
+                  } else {
+                    nav.pushReplacementNamed('/');
+                  }
+                },
+              )
+            : null,
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
