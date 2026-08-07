@@ -50,6 +50,8 @@ Future<void> presentAuthIssue(
   required AuthException error,
   required AuthIssueFlow flow,
   required VoidCallback onRetry,
+  /// When email send is capped, prefer this over leaving the page (e.g. [LoginPage] / [SignupPage]).
+  VoidCallback? onContinueWithGoogle,
 }) async {
   if (error.kind == AuthFailureKind.accountSuspended) {
     final container = ProviderScope.containerOf(context, listen: false);
@@ -65,13 +67,25 @@ Future<void> presentAuthIssue(
 
   final title = _titleFor(error.kind, flow);
   final secondary = _secondaryFor(context, error.kind, flow);
+  final googleAction = _googleActionFor(
+    context,
+    kind: error.kind,
+    flow: flow,
+    onContinueWithGoogle: onContinueWithGoogle,
+  );
 
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) {
       return AlertDialog(
-        icon: Icon(Icons.gpp_maybe_outlined, color: scheme.error, size: 32),
+        icon: Icon(
+          error.kind == AuthFailureKind.emailSendLimited
+              ? Icons.mark_email_unread_outlined
+              : Icons.gpp_maybe_outlined,
+          color: scheme.error,
+          size: 32,
+        ),
         title: Text(title),
         content: SingleChildScrollView(
           child: Text(
@@ -93,13 +107,21 @@ Future<void> presentAuthIssue(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Close'),
           ),
-          if (_showRetry(error.kind, flow))
+          if (_showRetry(error.kind, flow) && googleAction == null)
             FilledButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
                 onRetry();
               },
               child: Text(_retryLabel(error.kind, flow)),
+            ),
+          if (googleAction != null)
+            FilledButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                googleAction();
+              },
+              child: const Text('Continue with Google'),
             ),
         ],
       );
@@ -109,6 +131,8 @@ Future<void> presentAuthIssue(
 
 bool _showRetry(AuthFailureKind kind, AuthIssueFlow flow) {
   if (kind == AuthFailureKind.accountSuspended) return false;
+  // Immediate retry just hits the same mail cap again.
+  if (kind == AuthFailureKind.emailSendLimited) return false;
   if (flow == AuthIssueFlow.signOut) return true;
   if (flow == AuthIssueFlow.passwordReset) return true;
   if (kind == AuthFailureKind.emailNotConfirmed) return true;
@@ -140,7 +164,9 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
         case AuthFailureKind.network:
           return 'Connection problem';
         case AuthFailureKind.rateLimited:
-          return 'Service limit reached';
+          return 'Please try later';
+        case AuthFailureKind.emailSendLimited:
+          return 'Confirmation email delayed';
         default:
           return 'Registration could not be completed';
       }
@@ -158,6 +184,8 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
           return 'Session ended';
         case AuthFailureKind.rateLimited:
           return 'Please wait';
+        case AuthFailureKind.emailSendLimited:
+          return 'Email delayed';
         default:
           return 'Sign-in could not be completed';
       }
@@ -173,6 +201,8 @@ String _titleFor(AuthFailureKind kind, AuthIssueFlow flow) {
           return 'Connection problem';
         case AuthFailureKind.rateLimited:
           return 'Please wait';
+        case AuthFailureKind.emailSendLimited:
+          return 'Email delayed';
         default:
           return 'Could not update password';
       }
@@ -184,6 +214,26 @@ class _Secondary {
   final VoidCallback onPressed;
 
   const _Secondary({required this.label, required this.onPressed});
+}
+
+/// Opens Google via page callback, or lands on the auth chooser (Google CTA).
+VoidCallback? _googleActionFor(
+  BuildContext context, {
+  required AuthFailureKind kind,
+  required AuthIssueFlow flow,
+  VoidCallback? onContinueWithGoogle,
+}) {
+  if (kind != AuthFailureKind.emailSendLimited) return null;
+  if (flow != AuthIssueFlow.signup &&
+      flow != AuthIssueFlow.login &&
+      flow != AuthIssueFlow.passwordReset) {
+    return null;
+  }
+  if (onContinueWithGoogle != null) return onContinueWithGoogle;
+  return () => Navigator.of(context).pushNamedAndRemoveUntil(
+        '/login',
+        (route) => false,
+      );
 }
 
 _Secondary? _secondaryFor(
@@ -202,11 +252,26 @@ _Secondary? _secondaryFor(
       if (kind == AuthFailureKind.accountSuspended) {
         return null;
       }
+      if (kind == AuthFailureKind.emailSendLimited) {
+        return _Secondary(
+          label: 'Back to options',
+          onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                '/login',
+                (route) => false,
+              ),
+        );
+      }
       return null;
     case AuthIssueFlow.signup:
       if (kind == AuthFailureKind.accountExists) {
         return _Secondary(
           label: 'Go to sign in',
+          onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+        );
+      }
+      if (kind == AuthFailureKind.emailSendLimited) {
+        return _Secondary(
+          label: 'Back to sign in',
           onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
         );
       }

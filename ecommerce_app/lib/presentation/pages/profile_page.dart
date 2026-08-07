@@ -963,7 +963,7 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
                   children: [
                     TextFormField(
                       controller: _nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Full Name'),
+                      decoration: const InputDecoration(labelText: 'Full Name *'),
                       validator: (value) =>
                           (value ?? '').trim().isEmpty ? 'Full name is required.' : null,
                     ),
@@ -972,7 +972,7 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
                       controller: _phoneCtrl,
                       keyboardType: TextInputType.phone,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(labelText: 'Phone Number'),
+                      decoration: const InputDecoration(labelText: 'Phone Number *'),
                       validator: (value) => ShippingDetails.isValidIndianPhone((value ?? '').trim())
                           ? null
                           : 'Enter valid 10-digit phone.',
@@ -980,7 +980,7 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _line1Ctrl,
-                      decoration: const InputDecoration(labelText: 'Address Line 1'),
+                      decoration: const InputDecoration(labelText: 'Address Line 1 *'),
                       validator: (value) =>
                           (value ?? '').trim().isEmpty ? 'Address line 1 is required.' : null,
                     ),
@@ -988,23 +988,21 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
                     TextFormField(
                       controller: _line2Ctrl,
                       decoration: const InputDecoration(
-                        labelText: 'Address Line 2 (Landmark / Store / Building)',
+                        labelText:
+                            'Address Line 2 (Landmark / Store / Building) — optional',
                       ),
-                      validator: (value) => (value ?? '').trim().length < 3
-                          ? 'Address line 2 is required for delivery'
-                          : null,
                     ),
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _cityCtrl,
-                      decoration: const InputDecoration(labelText: 'City'),
+                      decoration: const InputDecoration(labelText: 'City *'),
                       validator: (value) =>
                           (value ?? '').trim().isEmpty ? 'City is required.' : null,
                     ),
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _stateCtrl,
-                      decoration: const InputDecoration(labelText: 'State'),
+                      decoration: const InputDecoration(labelText: 'State *'),
                       validator: (value) =>
                           (value ?? '').trim().isEmpty ? 'State is required.' : null,
                     ),
@@ -1013,7 +1011,7 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
                       controller: _postalCtrl,
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(labelText: 'Postal Code'),
+                      decoration: const InputDecoration(labelText: 'Postal Code *'),
                       validator: (value) => ShippingDetails.isValidIndianPostal((value ?? '').trim())
                           ? null
                           : 'Enter valid 6-digit postal code.',
@@ -1021,7 +1019,7 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _countryCtrl,
-                      decoration: const InputDecoration(labelText: 'Country'),
+                      decoration: const InputDecoration(labelText: 'Country *'),
                       validator: (value) =>
                           (value ?? '').trim().isEmpty ? 'Country is required.' : null,
                     ),

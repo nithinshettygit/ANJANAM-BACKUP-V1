@@ -21,6 +21,8 @@ enum AuthFailureKind {
   network,
   sessionExpired,
   rateLimited,
+  /// Confirmation / reset email could not be sent (provider send cap).
+  emailSendLimited,
   unknown,
 }
 

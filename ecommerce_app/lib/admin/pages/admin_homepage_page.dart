@@ -897,6 +897,9 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
       isPopular: isPopular ?? p.isPopular,
       isRecommended: isRecommended ?? p.isRecommended,
       isFestivalSpecial: isFestivalSpecial ?? p.isFestivalSpecial,
+      paymentMode: p.paymentMode,
+      deliveryChargeMode: p.deliveryChargeMode,
+      deliveryChargeInr: p.deliveryChargeInr,
       variants: variants,
     );
   }

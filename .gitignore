@@ -2,15 +2,63 @@
 .DS_Store
 Thumbs.db
 *.log
+*.tmp
+*~
 
-# Cursor / IDE (optional local state)
+# Cursor / IDE local state
 .cursor/
+.idea/
+*.iml
 
 # Supabase CLI local cache (machine-specific)
 ecommerce_app/supabase/.temp/
+
+# --- Secrets & credentials (never push) ---
+**/.env
+**/.env.*
+!**/.env.example
+**/key.properties
+!**/*.example
+**/*.jks
+**/*.keystore
+**/google-services.json
+**/GoogleService-Info.plist
+**/web/app-config.json
+**/tool/web_build.env
+**/eco-muse*.json
+**/*-firebase-adminsdk-*.json
+**/*serviceAccount*.json
+**/*service-account*.json
+**/*.base64.txt
+**/credentials.json
+**/serviceAccountKey.json
+
+# Node / install artifacts
+**/node_modules/
+**/npm-debug.log*
+
+# Flutter / Android / iOS build outputs
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/.gradle/
+**/.cxx/
+**/local.properties
+**/Pods/
+**/ios/Flutter/ephemeral/
+**/macos/Flutter/ephemeral/
 
 # new-app: credentials and scratch (do not commit — restore from Firebase / Play Console)
 new-app/google-services.json
 new-app/anjanam-app-*.json
 new-app/cmd.txt
 new-app/temp.txt
+
+# Release binaries (build scripts produce these locally)
+**/*.apk
+**/*.aab
+**/*.ipa

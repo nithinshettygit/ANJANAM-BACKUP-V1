@@ -27,11 +27,14 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
 /build/
 /coverage/
+**/build/
 
 # Symbolication related
 app.*.symbols
@@ -39,15 +42,20 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android Studio local / generated
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/local.properties
+/android/.gradle/
+/android/captures/
+/android/.cxx/
+/android/app/.cxx/
 
 # Firebase Hosting CLI cache
 .firebase/
 
-# Local env for web builds (copy from tool/web_build.env.example)
+# Local env for web builds (copy from tool/web_build.env.example if present)
 tool/web_build.env
 
 # Web runtime Supabase config (copy from web/app-config.json.example)
@@ -70,9 +78,52 @@ android/key.properties
 **/*.keystore
 !android/key.properties.example
 
-# Google Cloud service account keys (private keys) — never commit
+# Google Cloud / Firebase service account keys (private) — never commit
 eco-muse*.json
+*-firebase-adminsdk-*.json
+*serviceAccount*.json
+*service-account*.json
 *.base64.txt
+**/service-account*.json
 
 # Local ADI registration payload
 assets/adi-registration.properties
+
+# Node (Supabase CLI install) — never commit
+node_modules/
+npm-debug.log*
+yarn-error.log*
+package-lock.json.bak
+
+# iOS generated / machine-local (flutter build regenerates)
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+ios/.symlinks/
+ios/Podfile.lock.bak
+
+# macOS generated
+macos/Flutter/ephemeral/
+macos/Pods/
+
+# Windows / Linux ephemeral
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+
+# Test / coverage / misc tooling
+coverage/
+*.lcov
+.mcp/
+*.canvas.tsx.bak
+
+# Large local dumps / archives
+*.apk
+*.aab
+*.ipa
+*.dSYM.zip
+*.symbols.zip
+
+# Cursor local skill state / agent scratch (if nested under app)
+.cursor/
+*.canvas.local.tsx

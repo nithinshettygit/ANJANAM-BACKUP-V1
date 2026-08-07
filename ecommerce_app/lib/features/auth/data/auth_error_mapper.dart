@@ -227,13 +227,10 @@ bool _isSupabaseEmailOrAuthQuota(String s) {
 }
 
 AuthException _emailQuotaMessage() {
-  return AuthException(
-    'The sign-up service could not send a confirmation email because this project\'s '
-    'email quota has been reached (this is normal on the free tier: only a few emails '
-    'per hour are allowed on the shared mail provider). '
-    'This is not caused by your password. Please wait about an hour and try again, '
-    'or ask the project owner to add a custom SMTP provider in the Supabase Dashboard '
-    'under Authentication → Emails → SMTP Settings.',
-    kind: AuthFailureKind.rateLimited,
+  return const AuthException(
+    'We couldn’t send that email just now. '
+    'Please wait about an hour and try again, '
+    'or continue with Google to sign in without waiting for email verification.',
+    kind: AuthFailureKind.emailSendLimited,
   );
 }

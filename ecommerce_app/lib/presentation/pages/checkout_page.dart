@@ -16,8 +16,10 @@ import 'package:ecommerce_app/features/checkout/domain/shipping_details.dart';
 import 'package:ecommerce_app/features/checkout/data/services/order_payment_web_console_stub.dart'
     if (dart.library.html) 'package:ecommerce_app/features/checkout/data/services/order_payment_web_console_web.dart';
 import 'package:ecommerce_app/features/checkout/state/checkout_actions_controller.dart';
+import 'package:ecommerce_app/features/checkout/state/checkout_delivery_charges_provider.dart';
 import 'package:ecommerce_app/features/checkout/state/checkout_payment_modes_provider.dart';
 import 'package:ecommerce_app/features/checkout/state/checkout_pricing_provider.dart';
+import 'package:ecommerce_app/features/catalog/domain/entities/product_delivery_charge.dart';
 import 'package:ecommerce_app/features/checkout/state/order_payment_provider.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/state/order_history_controller.dart';
@@ -141,17 +143,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     if (_selectedAddressId != null && !_showNewAddressForm) {
       for (final a in saved) {
         if (a.id == _selectedAddressId) {
-          if ((a.addressLine2 ?? '').trim().length < 3) return null;
           return a.toShippingDetails();
         }
       }
     }
     if (_showNewAddressForm || saved.isEmpty) {
+      final line1 = _addressCtrl.text.trim();
+      final line2 = _address2Ctrl.text.trim();
       final s = ShippingDetails(
         fullName: _nameCtrl.text,
         phone: _phoneCtrl.text,
-        addressLine:
-            '${_addressCtrl.text.trim()}, ${_address2Ctrl.text.trim()}',
+        addressLine: [
+          line1,
+          if (line2.isNotEmpty) line2,
+        ].join(', '),
         city: _cityCtrl.text,
         postalCode: _postalCtrl.text,
       );
@@ -336,7 +341,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Please provide a complete delivery address with Address Line 1 and Address Line 2.',
+            'Please complete the required delivery address fields (marked *).',
           ),
           behavior: SnackBarBehavior.fixed,
         ),
@@ -368,7 +373,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 fullName: ship.fullName,
                 phone: ship.phone,
                 addressLine: ship.addressLine,
-                addressLine2: _address2Ctrl.text.trim(),
+                addressLine2: () {
+                  final t = _address2Ctrl.text.trim();
+                  return t.isEmpty ? null : t;
+                }(),
                 city: ship.city,
                 postalCode: ship.postalCode,
                 isDefault: saved.isEmpty,
@@ -905,7 +913,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             fullName: name,
             phone: phone,
             addressLine: addr,
-            addressLine2: addr2,
+            addressLine2: () {
+              final t = addr2.trim();
+              return t.isEmpty ? null : t;
+            }(),
             city: city,
             postalCode: pin,
             isDefault: isDefault,
@@ -1103,7 +1114,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     TextFormField(
                       controller: _nameCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Full name',
+                        labelText: 'Full name *',
                         border: OutlineInputBorder(),
                       ),
                       textCapitalization: TextCapitalization.words,
@@ -1116,7 +1127,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     TextFormField(
                       controller: _phoneCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Phone number (10 digits)',
+                        labelText: 'Phone number (10 digits) *',
                         border: OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.phone,
@@ -1133,7 +1144,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     TextFormField(
                       controller: _addressCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Address Line 1 (House / Street / Area)',
+                        labelText: 'Address Line 1 (House / Street / Area) *',
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 2,
@@ -1146,22 +1157,17 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     TextFormField(
                       controller: _address2Ctrl,
                       decoration: const InputDecoration(
-                        labelText: 'Address Line 2 (Landmark / Store / Building)',
+                        labelText:
+                            'Address Line 2 (Landmark / Store / Building) — optional',
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 2,
-                      validator: (v) {
-                        if (v == null || v.trim().length < 3) {
-                          return 'Required for complete delivery address';
-                        }
-                        return null;
-                      },
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _cityCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'City',
+                        labelText: 'City *',
                         border: OutlineInputBorder(),
                       ),
                       textCapitalization: TextCapitalization.words,
@@ -1174,7 +1180,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     TextFormField(
                       controller: _postalCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'PIN code (6 digits)',
+                        labelText: 'PIN code (6 digits) *',
                         border: OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.number,
@@ -1209,13 +1215,23 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   Widget _summaryPanel({
     required List<CartItem> items,
     required CheckoutPricingRules pricing,
+    required Map<String, ProductDeliveryCharge> deliveryByProduct,
     required String accountEmail,
     required List<UserAddress> saved,
     required bool codAllowed,
     String? buyNowHint,
   }) {
     final subtotal = items.fold<double>(0, (s, e) => s + e.lineTotal);
-    final delivery = pricing.deliveryForSubtotal(subtotal);
+    final delivery = pricing.deliveryForCart(
+      subtotal: subtotal,
+      productModes: items.map((e) {
+        final d = deliveryByProduct[e.productId];
+        return (
+          mode: (d?.mode ?? ProductDeliveryChargeMode.storeDefault).toDbValue(),
+          customFeeInr: d?.customFeeInr,
+        );
+      }),
+    );
     const discount = 0.0;
     final total = subtotal + delivery;
     final canPlace = _canPlaceOrder(items: items, saved: saved, pricingReady: true) &&
@@ -1439,6 +1455,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     final pricingAsync = ref.watch(checkoutPricingRulesProvider);
     final modesKey = checkoutPaymentModesFamilyKey(items.map((e) => e.productId));
     final modesAsync = ref.watch(checkoutPaymentModesProvider(modesKey));
+    final deliveryKey = checkoutDeliveryChargesFamilyKey(items.map((e) => e.productId));
+    final deliveryAsync = ref.watch(checkoutDeliveryChargesProvider(deliveryKey));
 
     return addressesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -1453,6 +1471,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           data: checkoutCodAllowed,
           orElse: () => true,
         );
+        final deliveryByProduct = deliveryAsync.maybeWhen(
+          data: (m) => m,
+          orElse: () => <String, ProductDeliveryCharge>{},
+        );
 
         return pricingAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -1460,6 +1482,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             items: items,
             saved: saved,
             pricing: CheckoutPricingRules.fallback,
+            deliveryByProduct: deliveryByProduct,
             accountEmail: accountEmail,
             codAllowed: codAllowed,
             buyNowHint: buyNowHint,
@@ -1468,6 +1491,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             items: items,
             saved: saved,
             pricing: pricing,
+            deliveryByProduct: deliveryByProduct,
             accountEmail: accountEmail,
             codAllowed: codAllowed,
             buyNowHint: buyNowHint,
@@ -1481,6 +1505,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     required List<CartItem> items,
     required List<UserAddress> saved,
     required CheckoutPricingRules pricing,
+    required Map<String, ProductDeliveryCharge> deliveryByProduct,
     required String accountEmail,
     required bool codAllowed,
     String? buyNowHint,
@@ -1500,6 +1525,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         final summary = _summaryPanel(
           items: items,
           pricing: pricing,
+          deliveryByProduct: deliveryByProduct,
           accountEmail: accountEmail,
           saved: saved,
           codAllowed: codAllowed,
@@ -1743,7 +1769,7 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(
-                  labelText: 'Full name',
+                  labelText: 'Full name *',
                   border: OutlineInputBorder(),
                 ),
                 validator: (v) => (v == null || v.trim().length < 2) ? 'Required' : null,
@@ -1752,7 +1778,7 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
               TextFormField(
                 controller: _phone,
                 decoration: const InputDecoration(
-                  labelText: 'Phone',
+                  labelText: 'Phone *',
                   border: OutlineInputBorder(),
                   counterText: '',
                 ),
@@ -1766,7 +1792,7 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
               TextFormField(
                 controller: _addr,
                 decoration: const InputDecoration(
-                  labelText: 'Address Line 1',
+                  labelText: 'Address Line 1 *',
                   border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
@@ -1777,20 +1803,18 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
               TextFormField(
                 controller: _addr2,
                 decoration: const InputDecoration(
-                  labelText: 'Address Line 2 (Landmark / Store / Building)',
+                  labelText:
+                      'Address Line 2 (Landmark / Store / Building) — optional',
                   border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
                 maxLines: 2,
-                validator: (v) => (v == null || v.trim().length < 3)
-                    ? 'Required for complete delivery address'
-                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _city,
                 decoration: const InputDecoration(
-                  labelText: 'City',
+                  labelText: 'City *',
                   border: OutlineInputBorder(),
                 ),
                 validator: (v) => (v == null || v.trim().length < 2) ? 'Required' : null,
@@ -1799,7 +1823,7 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
               TextFormField(
                 controller: _postal,
                 decoration: const InputDecoration(
-                  labelText: 'PIN',
+                  labelText: 'PIN *',
                   border: OutlineInputBorder(),
                   counterText: '',
                 ),

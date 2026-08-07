@@ -110,6 +110,8 @@ class AdminProduct {
   final bool isRecommended;
   final bool isFestivalSpecial;
   final String paymentMode;
+  final String deliveryChargeMode;
+  final double? deliveryChargeInr;
 
   const AdminProduct({
     required this.id,
@@ -134,6 +136,8 @@ class AdminProduct {
     this.isRecommended = false,
     this.isFestivalSpecial = false,
     this.paymentMode = 'both',
+    this.deliveryChargeMode = 'default',
+    this.deliveryChargeInr,
   });
 
   int get sellableStock => availableStock ?? (inventoryCount - reservedQuantity).clamp(0, 1 << 30);
@@ -184,6 +188,12 @@ class AdminProduct {
         final v = json['payment_mode']?.toString().trim().toLowerCase();
         return v == 'online_only' ? 'online_only' : 'both';
       }(),
+      deliveryChargeMode: () {
+        final v = json['delivery_charge_mode']?.toString().trim().toLowerCase();
+        if (v == 'free' || v == 'custom') return v!;
+        return 'default';
+      }(),
+      deliveryChargeInr: (json['delivery_charge_inr'] as num?)?.toDouble(),
     );
   }
 }
@@ -637,6 +647,9 @@ class ProductUpsertInput {
   final bool isFestivalSpecial;
   final List<AdminVariantUpsert> variants;
   final String paymentMode;
+  /// `default` | `free` | `custom`
+  final String deliveryChargeMode;
+  final double? deliveryChargeInr;
 
   const ProductUpsertInput({
     required this.title,
@@ -657,6 +670,8 @@ class ProductUpsertInput {
     this.isFestivalSpecial = false,
     this.variants = const [],
     this.paymentMode = 'both',
+    this.deliveryChargeMode = 'default',
+    this.deliveryChargeInr,
   });
 }
 
@@ -1087,19 +1102,49 @@ class AdminService {
       data = await client
           .from('products')
           .select(
-              'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode')
+              'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode, delivery_charge_mode, delivery_charge_inr')
           .order('created_at', ascending: false);
     } catch (_) {
-      data = await client
-          .from('products')
-          .select(
-              'id, title, description, category, price, currency, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, is_popular, is_recommended, is_festival_special')
-          .order('created_at', ascending: false);
+      try {
+        data = await client
+            .from('products')
+            .select(
+                'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode')
+            .order('created_at', ascending: false);
+      } catch (_) {
+        data = await client
+            .from('products')
+            .select(
+                'id, title, description, category, price, currency, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, is_popular, is_recommended, is_festival_special')
+            .order('created_at', ascending: false);
+      }
     }
     return (data as List).cast<Map<String, dynamic>>().map((json) {
       final product = AdminProduct.fromJson(json);
       return _normalizeProductImages(product);
     }).toList();
+  }
+
+  /// Maps admin product form delivery fields for insert/update.
+  static Map<String, dynamic> _deliveryChargeWriteFields(ProductUpsertInput input) {
+    final mode = input.deliveryChargeMode.trim().toLowerCase();
+    if (mode == 'free') {
+      return {
+        'delivery_charge_mode': 'free',
+        'delivery_charge_inr': null,
+      };
+    }
+    if (mode == 'custom') {
+      final fee = input.deliveryChargeInr ?? 0;
+      return {
+        'delivery_charge_mode': 'custom',
+        'delivery_charge_inr': fee < 0 ? 0 : fee,
+      };
+    }
+    return {
+      'delivery_charge_mode': 'default',
+      'delivery_charge_inr': null,
+    };
   }
 
   Future<void> createProduct(ProductUpsertInput input, {String? explicitId}) async {
@@ -1123,14 +1168,21 @@ class AdminService {
       'is_recommended': input.isRecommended,
       'is_festival_special': input.isFestivalSpecial,
       'payment_mode': input.paymentMode == 'online_only' ? 'online_only' : 'both',
+      ..._deliveryChargeWriteFields(input),
     };
     late final Map<String, dynamic> created;
     try {
       created = await client.from('products').insert(row).select('id').single();
     } catch (_) {
-      // Production DB may not have migration 092 yet — create without payment_mode.
-      row.remove('payment_mode');
-      created = await client.from('products').insert(row).select('id').single();
+      row.remove('delivery_charge_mode');
+      row.remove('delivery_charge_inr');
+      try {
+        created = await client.from('products').insert(row).select('id').single();
+      } catch (_) {
+        // Production DB may not have migration 092 yet — create without payment_mode.
+        row.remove('payment_mode');
+        created = await client.from('products').insert(row).select('id').single();
+      }
     }
     final productId = (created['id'] ?? '').toString();
     await replaceProductVariants(productId, input.variants);
@@ -1276,6 +1328,7 @@ class AdminService {
       'is_recommended': input.isRecommended,
       'is_festival_special': input.isFestivalSpecial,
       'payment_mode': input.paymentMode == 'online_only' ? 'online_only' : 'both',
+      ..._deliveryChargeWriteFields(input),
     };
     // Prevent accidental variant data loss when a caller submits an empty list
     // without loading existing variants first.
@@ -1293,9 +1346,15 @@ class AdminService {
     try {
       await client.from('products').update(updateRow).eq('id', productId);
     } catch (_) {
-      // Production DB may not have migration 092 yet — update without payment_mode.
-      updateRow.remove('payment_mode');
-      await client.from('products').update(updateRow).eq('id', productId);
+      updateRow.remove('delivery_charge_mode');
+      updateRow.remove('delivery_charge_inr');
+      try {
+        await client.from('products').update(updateRow).eq('id', productId);
+      } catch (_) {
+        // Production DB may not have migration 092 yet — update without payment_mode.
+        updateRow.remove('payment_mode');
+        await client.from('products').update(updateRow).eq('id', productId);
+      }
     }
 
     await replaceProductVariants(productId, variantsToPersist);
@@ -3752,6 +3811,9 @@ class AdminService {
       isPopular: product.isPopular,
       isRecommended: product.isRecommended,
       isFestivalSpecial: product.isFestivalSpecial,
+      paymentMode: product.paymentMode,
+      deliveryChargeMode: product.deliveryChargeMode,
+      deliveryChargeInr: product.deliveryChargeInr,
     );
   }
 

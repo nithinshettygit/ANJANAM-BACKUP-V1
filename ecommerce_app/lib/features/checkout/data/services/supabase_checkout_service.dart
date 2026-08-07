@@ -165,6 +165,41 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
     }
   }
 
+  /// Per-product delivery modes for legacy fee preview (RPC is source of truth).
+  Future<List<({String mode, double? customFeeInr})>> _loadDeliveryModesForItems(
+    List<CartItem> items,
+  ) async {
+    final ids = items
+        .map((e) => e.productId.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return const [];
+    try {
+      final rows = await client
+          .from('products')
+          .select('id, delivery_charge_mode, delivery_charge_inr')
+          .inFilter('id', ids);
+      final byId = <String, ({String mode, double? customFeeInr})>{};
+      for (final row in rows as List) {
+        final m = Map<String, dynamic>.from(row as Map);
+        final id = m['id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        byId[id] = (
+          mode: (m['delivery_charge_mode'] ?? 'default').toString(),
+          customFeeInr: (m['delivery_charge_inr'] as num?)?.toDouble(),
+        );
+      }
+      return items
+          .map(
+            (e) => byId[e.productId] ?? (mode: 'default', customFeeInr: null),
+          )
+          .toList();
+    } catch (_) {
+      return items.map((_) => (mode: 'default', customFeeInr: null)).toList();
+    }
+  }
+
   Future<Map<String, dynamic>> _rpcPlaceOrder({
     required String orderCurrency,
     required List<Map<String, dynamic>> itemsPayload,
@@ -457,7 +492,11 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
     final subtotal =
         checkoutItems.fold<double>(0, (s, e) => s + e.lineTotal);
     final pricing = await _loadPricingRules();
-    final legacyDelivery = pricing.deliveryForSubtotal(subtotal);
+    final deliveryModes = await _loadDeliveryModesForItems(checkoutItems);
+    final legacyDelivery = pricing.deliveryForCart(
+      subtotal: subtotal,
+      productModes: deliveryModes,
+    );
 
     final itemsPayload = checkoutItems
         .map(

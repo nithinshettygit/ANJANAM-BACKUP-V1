@@ -84,6 +84,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
         flow: AuthIssueFlow.signup,
         error: ex,
         onRetry: _submit,
+        onContinueWithGoogle: _submitGoogle,
       );
     }
   }

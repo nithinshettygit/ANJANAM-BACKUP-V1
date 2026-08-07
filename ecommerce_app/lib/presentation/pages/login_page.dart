@@ -144,6 +144,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         flow: AuthIssueFlow.login,
         error: ex,
         onRetry: _submit,
+        onContinueWithGoogle: _submitGoogle,
       );
     }
   }
@@ -273,6 +274,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         flow: AuthIssueFlow.passwordReset,
         error: ex,
         onRetry: _sendPasswordReset,
+        onContinueWithGoogle: _submitGoogle,
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

@@ -153,6 +153,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
   late bool _isRecommended;
   late bool _isFestivalSpecial;
   late String _paymentMode;
+  late String _deliveryChargeMode;
+  late final TextEditingController _deliveryChargeInrCtrl;
 
   late final TextEditingController _newVariantTypeCtrl;
   final List<_VariantLineEdit> _variantLines = [];
@@ -180,6 +182,13 @@ class _ProductFormState extends ConsumerState<ProductForm> {
     _isRecommended = p?.isRecommended ?? false;
     _isFestivalSpecial = p?.isFestivalSpecial ?? false;
     _paymentMode = p?.paymentMode == 'online_only' ? 'online_only' : 'both';
+    final dMode = (p?.deliveryChargeMode ?? 'default').trim().toLowerCase();
+    _deliveryChargeMode =
+        (dMode == 'free' || dMode == 'custom') ? dMode : 'default';
+    final dFee = p?.deliveryChargeInr;
+    _deliveryChargeInrCtrl = TextEditingController(
+      text: dFee != null && dFee >= 0 ? dFee.toStringAsFixed(2) : '',
+    );
 
     _newVariantTypeCtrl = TextEditingController(
       text: widget.initialVariants.isNotEmpty ? widget.initialVariants.first.variantType : 'size',
@@ -202,6 +211,7 @@ class _ProductFormState extends ConsumerState<ProductForm> {
     _dimensionsCtrl.dispose();
     _inventoryCtrl.dispose();
     _discountPercentCtrl.dispose();
+    _deliveryChargeInrCtrl.dispose();
     for (final l in _variantLines) {
       l.dispose();
     }
@@ -399,6 +409,52 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                   setState(() => _paymentMode = v);
                 },
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _deliveryChargeMode,
+                decoration: const InputDecoration(
+                  labelText: 'Delivery charge',
+                  helperText:
+                      'Store default uses global delivery settings. Free or custom overrides that product’s share of order shipping (order fee = highest rule).',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'default',
+                    child: Text('Store default'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'free',
+                    child: Text('Free delivery (disabled)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'custom',
+                    child: Text('Custom charge (override)'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() => _deliveryChargeMode = v);
+                },
+              ),
+              if (_deliveryChargeMode == 'custom') ...[
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _deliveryChargeInrCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Custom delivery charge (₹)',
+                    helperText: 'Fixed delivery fee for this product’s rule (order uses the max across cart).',
+                  ),
+                  validator: (v) {
+                    if (_deliveryChargeMode != 'custom') return null;
+                    final t = (v ?? '').trim();
+                    if (t.isEmpty) return 'Enter custom delivery amount';
+                    final n = double.tryParse(t);
+                    if (n == null || n < 0) return 'Invalid amount';
+                    return null;
+                  },
+                ),
+              ],
               const SizedBox(height: 12),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
@@ -1138,6 +1194,10 @@ class _ProductFormState extends ConsumerState<ProductForm> {
       isRecommended: _isRecommended,
       isFestivalSpecial: _isFestivalSpecial,
       paymentMode: _paymentMode,
+      deliveryChargeMode: _deliveryChargeMode,
+      deliveryChargeInr: _deliveryChargeMode == 'custom'
+          ? double.tryParse(_deliveryChargeInrCtrl.text.trim())
+          : null,
       variants: variants,
     );
     setState(() => _saving = true);

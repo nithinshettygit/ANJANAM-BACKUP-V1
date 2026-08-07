@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
 
 import '../../domain/entities/product.dart';
+import '../../domain/entities/product_delivery_charge.dart';
 import '../../domain/entities/product_payment_mode.dart';
 import '../../domain/entities/product_variant.dart';
 
@@ -28,6 +29,8 @@ class ProductModel {
   final String? shippingDimensionsCm;
   final List<ProductVariant> variants;
   final ProductPaymentMode paymentMode;
+  final ProductDeliveryChargeMode deliveryChargeMode;
+  final double? deliveryChargeInr;
 
   const ProductModel({
     required this.id,
@@ -49,6 +52,8 @@ class ProductModel {
     this.shippingDimensionsCm,
     this.variants = const [],
     this.paymentMode = ProductPaymentMode.both,
+    this.deliveryChargeMode = ProductDeliveryChargeMode.storeDefault,
+    this.deliveryChargeInr,
   });
 
   static List<ProductVariant> _variantsFromJson(
@@ -141,6 +146,9 @@ class ProductModel {
       }(),
       variants: _variantsFromJson(json, id),
       paymentMode: ProductPaymentModeDb.fromDb(json['payment_mode']?.toString()),
+      deliveryChargeMode:
+          ProductDeliveryChargeModeDb.fromDb(json['delivery_charge_mode']?.toString()),
+      deliveryChargeInr: (json['delivery_charge_inr'] as num?)?.toDouble(),
     );
   }
 
@@ -164,6 +172,8 @@ class ProductModel {
       'weight': shippingWeightKg,
       'dimensions': shippingDimensionsCm,
       'payment_mode': paymentMode.toDbValue(),
+      'delivery_charge_mode': deliveryChargeMode.toDbValue(),
+      'delivery_charge_inr': deliveryChargeInr,
       'product_variants': variants
           .map(
             (v) => {
@@ -204,6 +214,8 @@ class ProductModel {
       shippingDimensionsCm: shippingDimensionsCm,
       variants: variants,
       paymentMode: paymentMode,
+      deliveryChargeMode: deliveryChargeMode,
+      deliveryChargeInr: deliveryChargeInr,
     );
   }
 }

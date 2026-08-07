@@ -673,6 +673,9 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
       isPopular: product.isPopular,
       isRecommended: product.isRecommended,
       isFestivalSpecial: product.isFestivalSpecial,
+      paymentMode: product.paymentMode,
+      deliveryChargeMode: product.deliveryChargeMode,
+      deliveryChargeInr: product.deliveryChargeInr,
       variants: variantCopy,
     );
     await service.createProduct(input);
@@ -823,6 +826,9 @@ class _AdminProductsPageState extends ConsumerState<AdminProductsPage> {
           isPopular: p.isPopular,
           isRecommended: p.isRecommended,
           isFestivalSpecial: p.isFestivalSpecial,
+          paymentMode: p.paymentMode,
+          deliveryChargeMode: p.deliveryChargeMode,
+          deliveryChargeInr: p.deliveryChargeInr,
           variants: initialVariants,
         ),
       );

@@ -1,3 +1,4 @@
+import 'product_delivery_charge.dart';
 import 'product_payment_mode.dart';
 import 'product_variant.dart';
 
@@ -30,6 +31,10 @@ class Product {
 
   final ProductPaymentMode paymentMode;
 
+  /// Delivery: store default / free / custom ([deliveryChargeInr]).
+  final ProductDeliveryChargeMode deliveryChargeMode;
+  final double? deliveryChargeInr;
+
   const Product({
     required this.id,
     required this.title,
@@ -50,6 +55,8 @@ class Product {
     this.shippingDimensionsCm,
     this.variants = const [],
     this.paymentMode = ProductPaymentMode.both,
+    this.deliveryChargeMode = ProductDeliveryChargeMode.storeDefault,
+    this.deliveryChargeInr,
   });
 
   bool get allowsCod => paymentMode.allowsCod;
@@ -94,7 +101,9 @@ class Product {
       shippingWeightKg: shippingWeightKg,
       shippingDimensionsCm: shippingDimensionsCm,
       variants: variants,
+      paymentMode: paymentMode,
+      deliveryChargeMode: deliveryChargeMode,
+      deliveryChargeInr: deliveryChargeInr,
     );
   }
 }
-
