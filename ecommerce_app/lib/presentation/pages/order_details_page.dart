@@ -120,9 +120,22 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
   OrderItem? get _firstLine =>
       order.items.isEmpty ? null : order.items.first;
 
-  bool get _showRetryPaymentSection =>
-      order.paymentMethod == OrderPaymentMethod.razorpay &&
-      order.paymentStatus != OrderPaymentStatus.paid;
+  /// Matches `create_payment_order`: only unpaid Razorpay rows still in
+  /// pending/failed payment lifecycle. Must not offer retry after:
+  /// - admin approved cancel (`cancelled`) + refund (`refunded`)
+  /// - customer cancel request awaiting admin (`cancel_requested`)
+  /// - any paid / shipped / delivered / processing order
+  bool get _isOrderPayableForRetry {
+    if (order.paymentMethod != OrderPaymentMethod.razorpay) return false;
+    final ps = order.paymentStatus;
+    if (ps != OrderPaymentStatus.pending && ps != OrderPaymentStatus.failed) {
+      return false;
+    }
+    final st = order.status;
+    return st == OrderStatus.pendingPayment || st == OrderStatus.paymentFailed;
+  }
+
+  bool get _showRetryPaymentSection => _isOrderPayableForRetry;
 
   String get _retryPaymentMessage =>
       order.paymentStatus == OrderPaymentStatus.failed
@@ -458,16 +471,25 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
                               ),
                             ],
                           ),
-                          if (order.paymentStatus == OrderPaymentStatus.paid &&
-                              order.paymentMethod == OrderPaymentMethod.razorpay) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              'Refund processing (if applicable). Online refunds are initiated automatically; '
-                              'timelines depend on your bank or card issuer.',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: scheme.onErrorContainer.withValues(alpha: 0.9),
-                                  ),
-                            ),
+                          if (order.paymentMethod == OrderPaymentMethod.razorpay) ...[
+                            if (order.paymentStatus == OrderPaymentStatus.refunded) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Payment was refunded. No further payment is needed for this order.',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: scheme.onErrorContainer.withValues(alpha: 0.9),
+                                    ),
+                              ),
+                            ] else if (order.paymentStatus == OrderPaymentStatus.paid) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Refund processing (if applicable). Online refunds are initiated by admin after '
+                                'cancellation is approved; timelines depend on your bank or card issuer.',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: scheme.onErrorContainer.withValues(alpha: 0.9),
+                                    ),
+                              ),
+                            ],
                           ],
                         ],
                       ),
@@ -935,6 +957,19 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
 
   Future<void> _onRetryPayment(BuildContext context) async {
     if (_retryPaymentBusy) return;
+    if (!_isOrderPayableForRetry) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            content: Text(
+              'This order is no longer payable. If it was cancelled or refunded, no payment is needed.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     final env = ref.read(appEnvProvider);
     if (env.razorpayKeyId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

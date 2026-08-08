@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, payment_method, payment_status, currency, delivery_fee, razorpay_order_id")
+      .select("id, user_id, status, payment_method, payment_status, currency, delivery_fee, razorpay_order_id")
       .eq("id", orderId)
       .single();
     if (orderErr || !order) return json(404, { error: "order_not_found" });
@@ -80,6 +80,12 @@ Deno.serve(async (req) => {
     if ((order.payment_method ?? "").toString().toLowerCase().trim() !== "razorpay") return json(400, { error: "not_razorpay_order" });
     const ps = (order.payment_status ?? "").toString().toLowerCase().trim();
     if (ps !== "pending" && ps !== "failed") return json(400, { error: "order_not_payable", detail: ps });
+    // Unpaid retry only while order is still in payment lifecycle.
+    // After admin approve cancel (cancelled) / cancel_requested / shipped / etc.: reject.
+    const orderStatus = (order.status ?? "").toString().toLowerCase().trim();
+    if (orderStatus !== "pending_payment" && orderStatus !== "payment_failed") {
+      return json(400, { error: "order_not_payable", detail: orderStatus || "unknown_status" });
+    }
     const existingRazorpayOrderId = optionalString((order as { razorpay_order_id?: unknown }).razorpay_order_id);
 
     const { data: items, error: itemsErr } = await supabase
