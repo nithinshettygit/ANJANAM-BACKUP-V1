@@ -33,6 +33,7 @@ String _normalizePath(String path) {
 /// - `https://anjanam.app/auth/callback` (and legacy `/auth-callback` on supported hosts)
 /// - `https://anjanam.app/auth/reset-password` (and legacy `/reset-password`)
 /// - `com.anjanam.app://login-callback` / `com.anjanam.app://reset-password` (mobile `redirectTo`)
+/// - Site root / arbitrary path with `type=recovery` in query or hash (Supabase Site URL fallback)
 AuthEmailLinkKind? classifyAuthEmailLink(Uri uri) {
   if (uri.scheme == AuthRedirectConfig.androidScheme) {
     if (uri.host == AuthRedirectConfig.androidHost) {
@@ -54,8 +55,27 @@ AuthEmailLinkKind? classifyAuthEmailLink(Uri uri) {
         path == AuthRedirectConfig.webPasswordResetPathLegacy) {
       return AuthEmailLinkKind.passwordRecovery;
     }
+    // Supabase often falls back to Site URL (`/`) with tokens in the fragment.
+    if (authUriIndicatesPasswordRecovery(uri)) {
+      return AuthEmailLinkKind.passwordRecovery;
+    }
   }
   return null;
+}
+
+/// True when Supabase recovery tokens are present in query or URL fragment.
+///
+/// Examples:
+/// - `?type=recovery&code=...`
+/// - `#access_token=...&type=recovery`
+bool authUriIndicatesPasswordRecovery(Uri uri) {
+  final qType = uri.queryParameters['type']?.toLowerCase().trim();
+  if (qType == 'recovery') return true;
+  final frag = uri.fragment.trim();
+  if (frag.isEmpty) return false;
+  final parsed = Uri.splitQueryString(frag);
+  final fType = parsed['type']?.toLowerCase().trim();
+  return fType == 'recovery';
 }
 
 /// Route name registered in [AppRouter] for each [AuthEmailLinkKind].

@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/network/network_request_guard.dart';
 import 'package:ecommerce_app/core/auth/account_blocking.dart';
+import 'package:ecommerce_app/core/config/auth_redirect_config.dart';
 import 'package:ecommerce_app/core/supabase/supabase_service_base.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../domain/entities/app_user.dart';
@@ -24,8 +25,10 @@ class SupabaseAuthService extends SupabaseServiceBase implements AuthRepository 
 
   String? get _emailRedirectTo => _authRedirect.isEmpty ? null : _authRedirect;
 
-  String? get _passwordResetRedirectTo =>
-      _passwordResetRedirect.isEmpty ? null : _passwordResetRedirect;
+  /// Always pass a non-empty redirect so Supabase does not substitute Site URL home.
+  String get _passwordResetRedirectTo => _passwordResetRedirect.isEmpty
+      ? AuthRedirectConfig.productionWebPasswordResetUrl
+      : _passwordResetRedirect;
 
   /// Stale Android/iOS secure storage can keep a user id with a revoked refresh token
   /// (common after server-side session invalidation). PostgREST then fails refresh and throws.

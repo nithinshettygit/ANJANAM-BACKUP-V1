@@ -1,0 +1,8 @@
+{
+  "supabase_url": "https://YOUR_PROJECT.supabase.co",
+  "supabase_anon_key": "YOUR_ANON_KEY",
+  "supabase_functions_base_url": "https://YOUR_PROJECT.supabase.co/functions/v1",
+  "razorpay_key_id": "rzp_live_...",
+  "supabase_auth_redirect_url": "https://anjanam.store/auth/callback",
+  "supabase_password_reset_redirect_url": "https://anjanam.store/auth/reset-password"
+}

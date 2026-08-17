@@ -27,8 +27,26 @@ import 'core/auth/blocked_account_gate.dart';
 import 'presentation/routing/app_router.dart';
 
 /// Web cold-load: use the browser path (e.g. /product/<id>) instead of defaulting to / only.
+/// Recovery emails that fall back to Site URL (`/`) still open the set-password screen.
 List<Route<dynamic>> _webGenerateInitialRoutes(String _) {
-  var path = Uri.base.path;
+  final base = Uri.base;
+  final recoveryKind = classifyAuthEmailLink(base);
+  if (recoveryKind == AuthEmailLinkKind.passwordRecovery ||
+      authUriIndicatesPasswordRecovery(base)) {
+    return [
+      AppRouter.onGenerateRoute(
+        const RouteSettings(name: AuthRedirectConfig.webAuthPasswordResetPath),
+      ),
+    ];
+  }
+  if (recoveryKind == AuthEmailLinkKind.pkceCallback) {
+    return [
+      AppRouter.onGenerateRoute(
+        const RouteSettings(name: AuthRedirectConfig.webAuthCallbackPath),
+      ),
+    ];
+  }
+  var path = base.path;
   if (path.isEmpty) path = '/';
   if (path.length > 1 && path.endsWith('/')) {
     path = path.substring(0, path.length - 1);
@@ -63,6 +81,24 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
       if (nav == null || !nav.mounted) return;
       nav.pushNamedAndRemoveUntil(route, (_) => false);
     });
+  }
+
+  /// Cold-open recovery: Site URL fall-back or late session setup.
+  void _recoverPasswordResetUiIfNeeded() {
+    if (kIsWeb) {
+      final kind = classifyAuthEmailLink(Uri.base);
+      if (kind == AuthEmailLinkKind.passwordRecovery ||
+          authUriIndicatesPasswordRecovery(Uri.base)) {
+        _navigateToAuthEmailLink(AuthEmailLinkKind.passwordRecovery);
+        return;
+      }
+    }
+    // If GoTrue already applied recovery tokens (session present) but the event
+    // was missed and the browser path is still home, still go to set-password when
+    // the URL fragment/query marks recovery.
+    if (kIsWeb && authUriIndicatesPasswordRecovery(Uri.base)) {
+      _navigateToAuthEmailLink(AuthEmailLinkKind.passwordRecovery);
+    }
   }
 
   void _navigateToSharedProduct(String productId) {
@@ -132,6 +168,10 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
     _initConnectivityIndicator();
 
     _listenAndroidAppLinks();
+
+    // passwordRecovery often fires during Supabase.initialize before this listener
+    // is attached — also route from URL + existing session (web cold open of email link).
+    _recoverPasswordResetUiIfNeeded();
 
     _passwordRecoverySub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event != AuthChangeEvent.passwordRecovery) return;

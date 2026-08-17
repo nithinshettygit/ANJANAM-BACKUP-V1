@@ -56,10 +56,12 @@ class AppEnv {
         return '$origin${AuthRedirectConfig.webAuthCallbackPath}';
       }
     }
-    return AuthRedirectConfig.androidRedirectUrl;
+    // Prefer HTTPS so email clients + App Links open the SPA/app reliably.
+    return AuthRedirectConfig.productionWebAuthCallbackUrl;
   }
 
   /// Used for `resetPasswordForEmail` only — must open the set-new-password screen, not the storefront.
+  /// Never leave empty: empty `redirectTo` makes Supabase fall back to Site URL home.
   String get resolvedPasswordResetRedirectUrl {
     final explicit = authPasswordResetRedirectUrl.trim();
     if (explicit.isNotEmpty) return explicit;
@@ -69,7 +71,8 @@ class AppEnv {
         return '$origin${AuthRedirectConfig.webAuthPasswordResetPath}';
       }
     }
-    return AuthRedirectConfig.androidPasswordResetRedirectUrl;
+    // Mobile: HTTPS path served by Firebase + App Links (not custom scheme alone).
+    return AuthRedirectConfig.productionWebPasswordResetUrl;
   }
 
   /// Trims whitespace and strips stray trailing `\` often introduced when a PowerShell
