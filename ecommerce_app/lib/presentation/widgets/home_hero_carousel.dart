@@ -25,15 +25,16 @@ class HomeHeroCarousel extends ConsumerStatefulWidget {
 
 class _HomeHeroCarouselState extends ConsumerState<HomeHeroCarousel>
     with SingleTickerProviderStateMixin {
-  late final PageController _pageController;
+  late PageController _pageController;
   late final AnimationController _progressController;
+  double? _pageViewportFraction;
+  bool _isWideLayout = false;
   int _index = 0;
   bool _isPointerDown = false;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.88);
     _progressController = AnimationController(
       vsync: this,
       duration: widget.autoAdvance,
@@ -43,6 +44,24 @@ class _HomeHeroCarouselState extends ConsumerState<HomeHeroCarousel>
         }
       });
     _restartProgress();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final width = MediaQuery.sizeOf(context).width;
+    final viewportFraction = width >= 600 ? 0.48 : 0.88;
+    _isWideLayout = width >= 600;
+    if (_pageViewportFraction == viewportFraction) return;
+
+    final previousController =
+        _pageViewportFraction == null ? null : _pageController;
+    _pageViewportFraction = viewportFraction;
+    _pageController = PageController(
+      initialPage: _index,
+      viewportFraction: viewportFraction,
+    );
+    previousController?.dispose();
   }
 
   @override
@@ -114,6 +133,7 @@ class _HomeHeroCarouselState extends ConsumerState<HomeHeroCarousel>
             height: widget.height,
             child: PageView.builder(
               controller: _pageController,
+              padEnds: !_isWideLayout,
               itemCount: banners.length,
               onPageChanged: (i) {
                 setState(() => _index = i);
@@ -122,7 +142,12 @@ class _HomeHeroCarouselState extends ConsumerState<HomeHeroCarousel>
               itemBuilder: (context, i) {
                 final b = banners[i];
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  padding: _isWideLayout
+                      ? EdgeInsets.only(
+                          left: i == 0 ? 0 : 10,
+                          right: 10,
+                        )
+                      : const EdgeInsets.symmetric(horizontal: 6),
                   child: Material(
                     borderRadius: BorderRadius.circular(20),
                     clipBehavior: Clip.antiAlias,

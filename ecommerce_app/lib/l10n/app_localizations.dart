@@ -754,6 +754,12 @@ abstract class AppLocalizations {
   /// **'My Orders'**
   String get myOrders;
 
+  /// No description provided for @ordersNav.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders'**
+  String get ordersNav;
+
   /// No description provided for @refresh.
   ///
   /// In en, this message translates to:

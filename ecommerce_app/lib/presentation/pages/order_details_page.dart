@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:ecommerce_app/core/document_settings/document_settings.dart';
 import 'package:ecommerce_app/core/invoice/invoice_generator.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
@@ -42,6 +43,7 @@ import 'package:supabase_flutter/supabase_flutter.dart'
         PostgresChangeEvent,
         PostgresChangeFilter,
         PostgresChangeFilterType,
+        Supabase,
         SupabaseClient;
 
 class OrderDetailsPage extends ConsumerWidget {
@@ -1250,11 +1252,15 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
       name: 'ANJANAM-INV-${formatOrderIdDisplay(order.id)}',
     );
     try {
+      final settings = await DocumentSettingsService(
+        Supabase.instance.client,
+      ).fetch();
       final gen = InvoiceGenerator();
       final bytes = await gen.generateInvoicePdf(
         order,
         order.items,
         shipping: widget.bundle.shipping,
+        settingsOverride: settings,
       );
       if (!context.mounted) return;
       await finalizeInvoicePreview(

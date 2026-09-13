@@ -359,6 +359,9 @@ class AppLocalizationsKn extends AppLocalizations {
   String get myOrders => 'ನನ್ನ ಆರ್ಡರ್‌ಗಳು';
 
   @override
+  String get ordersNav => 'ಆರ್ಡರ್‌ಗಳು';
+
+  @override
   String get refresh => 'ರಿಫ್ರೆಶ್ ಮಾಡಿ';
 
   @override

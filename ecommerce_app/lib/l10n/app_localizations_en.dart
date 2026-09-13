@@ -355,6 +355,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get myOrders => 'My Orders';
 
   @override
+  String get ordersNav => 'Orders';
+
+  @override
   String get refresh => 'Refresh';
 
   @override

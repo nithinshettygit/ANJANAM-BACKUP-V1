@@ -64,11 +64,13 @@ class FirebaseGoogleAuthService {
   }) async {
     final firebaseUser = firebaseCredential.user;
     if (firebaseUser == null) {
-      throw const sb.AuthException('Google sign-in did not return a valid Firebase user.');
+      throw const sb.AuthException(
+          'Google sign-in did not return a valid Firebase user.');
     }
     final email = firebaseUser.email?.trim() ?? '';
     if (email.isEmpty) {
-      throw const sb.AuthException('Google account does not have a valid email.');
+      throw const sb.AuthException(
+          'Google account does not have a valid email.');
     }
     await NetworkRequestGuard.run(
       () => _supabase.auth.signOut(),
@@ -89,7 +91,8 @@ class FirebaseGoogleAuthService {
       } else {
         final idToken = await firebaseUser.getIdToken(true);
         if (idToken == null || idToken.trim().isEmpty) {
-          throw const sb.AuthException('Unable to get Google ID token from Firebase.');
+          throw const sb.AuthException(
+              'Unable to get Google ID token from Firebase.');
         }
         final bridge = await _ensureGoogleBridgeIdentity(
           firebaseIdToken: idToken,
@@ -106,7 +109,8 @@ class FirebaseGoogleAuthService {
     } else {
       final idToken = await firebaseUser.getIdToken(true);
       if (idToken == null || idToken.trim().isEmpty) {
-        throw const sb.AuthException('Unable to get Google ID token from Firebase.');
+        throw const sb.AuthException(
+            'Unable to get Google ID token from Firebase.');
       }
       final bridge = await _ensureGoogleBridgeIdentity(
         firebaseIdToken: idToken,
@@ -123,7 +127,8 @@ class FirebaseGoogleAuthService {
 
     final authUser = _supabase.auth.currentUser;
     if (authUser == null) {
-      throw const sb.AuthException('Unable to create app session for Google user.');
+      throw const sb.AuthException(
+          'Unable to create app session for Google user.');
     }
 
     await ensureUserIsNotBlocked(
@@ -173,7 +178,9 @@ class FirebaseGoogleAuthService {
     );
     if (response.status < 200 || response.status >= 300) {
       final data = response.data;
-      final msg = data is Map ? (data['error']?.toString() ?? 'google_bridge_failed') : 'google_bridge_failed';
+      final msg = data is Map
+          ? (data['error']?.toString() ?? 'google_bridge_failed')
+          : 'google_bridge_failed';
       if (msg == 'account_blocked' ||
           (data is Map &&
               (data['error_code']?.toString() == 'USER_BLOCKED' ||
@@ -191,7 +198,8 @@ class FirebaseGoogleAuthService {
     }
     final refreshToken = data['refresh_token']?.toString().trim() ?? '';
     if (refreshToken.isEmpty) {
-      throw const sb.AuthException('Google bridge failed: missing session token.');
+      throw const sb.AuthException(
+          'Google bridge failed: missing session token.');
     }
     return (refreshToken: refreshToken);
   }
@@ -203,10 +211,18 @@ class FirebaseGoogleAuthService {
     required String? displayName,
     required String? photoUrl,
   }) async {
+    final existing = await _supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('id', userId)
+        .maybeSingle();
+    final existingName = (existing?['full_name'] ?? '').toString().trim();
+    final fallbackName =
+        (displayName == null || displayName.isEmpty) ? 'User' : displayName;
     final insertPayload = <String, dynamic>{
       'id': userId,
       'email': email,
-      'full_name': (displayName == null || displayName.isEmpty) ? 'User' : displayName,
+      'full_name': fallbackName,
       'avatar_url': (photoUrl == null || photoUrl.isEmpty) ? null : photoUrl,
       'firebase_uid': firebaseUid,
       'login_type': 'google',
@@ -214,10 +230,12 @@ class FirebaseGoogleAuthService {
     };
     final updatePayload = <String, dynamic>{
       'email': email,
-      'full_name': insertPayload['full_name']!,
       'firebase_uid': firebaseUid,
       'login_type': 'google',
     };
+    if (existingName.isEmpty) {
+      updatePayload['full_name'] = fallbackName;
+    }
     if (photoUrl != null && photoUrl.isNotEmpty) {
       updatePayload['avatar_url'] = photoUrl;
     }
@@ -230,7 +248,6 @@ class FirebaseGoogleAuthService {
       if (rows.isNotEmpty) return;
     } catch (_) {}
 
-    final existing = await _supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
     if (existing != null) return;
 
     try {
@@ -239,7 +256,8 @@ class FirebaseGoogleAuthService {
   }
 }
 
-final firebaseGoogleAuthServiceProvider = Provider<FirebaseGoogleAuthService>((ref) {
+final firebaseGoogleAuthServiceProvider =
+    Provider<FirebaseGoogleAuthService>((ref) {
   return FirebaseGoogleAuthService(
     FirebaseAuth.instance,
     ref.read(supabaseClientProvider),

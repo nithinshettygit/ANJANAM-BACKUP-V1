@@ -109,6 +109,7 @@
     ,"googleSignupUnavailable": "Google sign-up is unavailable right now. Please refresh and try again."
     ,"googleSignInCancelled": "Google sign-in cancelled."
   ,"myOrders": "My Orders"
+  ,"ordersNav": "Orders"
   ,"refresh": "Refresh"
   ,"wishlist": "Wishlist"
   ,"cart": "Cart"

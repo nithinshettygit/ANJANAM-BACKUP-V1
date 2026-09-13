@@ -34,32 +34,32 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   /// Shared destinations; native shell applies a compact [NavigationBarTheme] (~62px height).
   List<NavigationDestination> _shellNavDestinations(BuildContext context) => [
-    NavigationDestination(
-      icon: Icon(Icons.home_outlined),
-      selectedIcon: Icon(Icons.home),
-      label: AppLocalizations.of(context).home,
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.storefront_outlined),
-      selectedIcon: Icon(Icons.storefront),
-      label: AppLocalizations.of(context).shop,
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.explore_outlined),
-      selectedIcon: Icon(Icons.explore),
-      label: AppLocalizations.of(context).explore,
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.receipt_long_outlined),
-      selectedIcon: Icon(Icons.receipt_long),
-      label: AppLocalizations.of(context).myOrders,
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.person_outline),
-      selectedIcon: Icon(Icons.person),
-      label: AppLocalizations.of(context).account,
-    ),
-  ];
+        NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: AppLocalizations.of(context).home,
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.storefront_outlined),
+          selectedIcon: Icon(Icons.storefront),
+          label: AppLocalizations.of(context).shop,
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.explore_outlined),
+          selectedIcon: Icon(Icons.explore),
+          label: AppLocalizations.of(context).explore,
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.receipt_long_outlined),
+          selectedIcon: Icon(Icons.receipt_long),
+          label: AppLocalizations.of(context).ordersNav,
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: AppLocalizations.of(context).account,
+        ),
+      ];
 
   static const List<Widget> _tabPages = [
     HomePage(),
@@ -197,12 +197,15 @@ class _MainShellState extends ConsumerState<MainShell> {
                   surfaceTintColor: Colors.transparent,
                   elevation: 4,
                   shadowColor: Colors.black.withValues(alpha: 0.06),
-                  indicatorColor: AppColors.brandSaffron.withValues(alpha: 0.14),
+                  indicatorColor:
+                      AppColors.brandSaffron.withValues(alpha: 0.14),
                   iconTheme: WidgetStateProperty.resolveWith((states) {
                     final selected = states.contains(WidgetState.selected);
                     return IconThemeData(
                       size: 24,
-                      color: selected ? AppColors.brandSaffron : AppColors.textSecondary,
+                      color: selected
+                          ? AppColors.brandSaffron
+                          : AppColors.textSecondary,
                     );
                   }),
                   labelTextStyle: WidgetStateProperty.resolveWith((states) {
@@ -211,7 +214,9 @@ class _MainShellState extends ConsumerState<MainShell> {
                       fontSize: 12,
                       height: 1.08,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      color: selected ? AppColors.brandSaffron : AppColors.textSecondary,
+                      color: selected
+                          ? AppColors.brandSaffron
+                          : AppColors.textSecondary,
                     );
                   }),
                 ),

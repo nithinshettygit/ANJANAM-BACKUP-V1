@@ -359,6 +359,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get myOrders => 'मेरे ऑर्डर';
 
   @override
+  String get ordersNav => 'ऑर्डर';
+
+  @override
   String get refresh => 'रीफ़्रेश करें';
 
   @override
