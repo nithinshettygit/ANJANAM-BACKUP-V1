@@ -1246,15 +1246,19 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
       );
       return;
     }
+    final previewHandle = await prepareInvoicePreview(
+      name: 'ANJANAM-INV-${formatOrderIdDisplay(order.id)}',
+    );
     try {
       final gen = InvoiceGenerator();
       final bytes = await gen.generateInvoicePdf(
         order,
         order.items,
-            shipping: widget.bundle.shipping,
+        shipping: widget.bundle.shipping,
       );
       if (!context.mounted) return;
-      await previewInvoicePdf(
+      await finalizeInvoicePreview(
+        previewHandle,
         bytes,
         name: 'ANJANAM-INV-${formatOrderIdDisplay(order.id)}',
       );

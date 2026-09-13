@@ -23,6 +23,25 @@ import '../utils/admin_order_status_workflow.dart';
 import '../widgets/admin_data_table.dart';
 import '../widgets/admin_state_view.dart';
 
+bool matchesAdminOrderDateRange(DateTime orderCreatedAt, DateTimeRange dateRange) {
+  final start = DateTime(
+    dateRange.start.year,
+    dateRange.start.month,
+    dateRange.start.day,
+  );
+  final end = DateTime(
+    dateRange.end.year,
+    dateRange.end.month,
+    dateRange.end.day,
+    23,
+    59,
+    59,
+    999,
+  );
+
+  return !orderCreatedAt.isBefore(start) && !orderCreatedAt.isAfter(end);
+}
+
 class AdminOrdersPage extends ConsumerStatefulWidget {
   const AdminOrdersPage({super.key});
 
@@ -198,10 +217,7 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
             final statusOk = _statusFilter == 'all' ||
                 canonicalAdminOrderStatus(o.status) == _statusFilter;
             final dateOk = _dateRange == null ||
-                (o.createdAt.isAfter(
-                        _dateRange!.start.subtract(const Duration(days: 1))) &&
-                    o.createdAt.isBefore(
-                        _dateRange!.end.add(const Duration(days: 1))));
+                matchesAdminOrderDateRange(o.createdAt, _dateRange!);
             final invoiceOk = _invoiceFilter == 'all' ||
                 (_invoiceFilter == 'downloaded'
                     ? o.invoiceDownloadedAt != null
@@ -225,20 +241,13 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                   padding: denseWeb
                       ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
                       : adminFilterCardPadding,
-                  child: showInlineTopBar
-                      ? Row(
+                  child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final statusAndDateControls = Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                    minHeight: 40, maxHeight: 44),
-                                child: _ordersSearchTextField(
-                                    compact: false, denseWeb: true),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
                             DropdownButton<String>(
-                              isDense: true,
+                              isDense: compact,
                               value: _kOrderStatusFilters
                                       .any((e) => e.$1 == _statusFilter)
                                   ? _statusFilter
@@ -247,7 +256,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                                   .map(
                                     (e) => DropdownMenuItem<String>(
                                       value: e.$1,
-                                      child: Text('Status: ${e.$2}'),
+                                      child: Text(
+                                        compact ? e.$2 : 'Status: ${e.$2}',
+                                      ),
                                     ),
                                   )
                                   .toList(),
@@ -255,215 +266,162 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                                   setState(() => _statusFilter = v ?? 'all'),
                             ),
                             const SizedBox(width: 8),
-                            OutlinedButton.icon(
-                              onPressed: () async {
-                                final selected = await showDateRangePicker(
-                                  context: context,
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime.now()
-                                      .add(const Duration(days: 365)),
-                                  initialDateRange: _dateRange,
-                                );
-                                if (selected != null) {
-                                  setState(() => _dateRange = selected);
-                                }
-                              },
-                              icon: const Icon(Icons.date_range_outlined),
-                              label: Text(
-                                _dateRange == null
-                                    ? 'Date Range'
-                                    : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
+                            if (compact)
+                              IconButton(
+                                tooltip: _dateRange == null
+                                    ? 'Date range'
+                                    : '${_dateRange!.start.toLocal().toString().split(' ').first} – '
                                         '${_dateRange!.end.toLocal().toString().split(' ').first}',
-                              ),
-                              style: OutlinedButton.styleFrom(
+                                icon: Icon(
+                                  Icons.date_range_outlined,
+                                  color: _dateRange != null
+                                      ? theme.colorScheme.primary
+                                      : null,
+                                ),
                                 visualDensity: VisualDensity.compact,
-                                minimumSize: const Size(0, 34),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 8),
+                                padding: const EdgeInsets.all(4),
+                                constraints: const BoxConstraints(
+                                    minWidth: 36, minHeight: 36),
+                                style: IconButton.styleFrom(
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onPressed: () async {
+                                  final selected = await showDateRangePicker(
+                                    context: context,
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime.now()
+                                        .add(const Duration(days: 365)),
+                                    initialDateRange: _dateRange,
+                                  );
+                                  if (selected != null) {
+                                    setState(() => _dateRange = selected);
+                                  }
+                                },
+                              )
+                            else
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  final selected = await showDateRangePicker(
+                                    context: context,
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime.now()
+                                        .add(const Duration(days: 365)),
+                                    initialDateRange: _dateRange,
+                                  );
+                                  if (selected != null) {
+                                    setState(() => _dateRange = selected);
+                                  }
+                                },
+                                icon: const Icon(Icons.date_range_outlined),
+                                label: Text(
+                                  _dateRange == null
+                                      ? 'Date Range'
+                                      : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
+                                          '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  visualDensity: denseWeb
+                                      ? VisualDensity.compact
+                                      : VisualDensity.standard,
+                                  minimumSize:
+                                      denseWeb ? const Size(0, 34) : null,
+                                  padding: denseWeb
+                                      ? const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        )
+                                      : null,
+                                ),
                               ),
-                            ),
                             if (_dateRange != null) ...[
                               const SizedBox(width: 4),
                               TextButton(
                                 onPressed: () =>
                                     setState(() => _dateRange = null),
-                                child: const Text('Clear'),
+                                child: Text(compact ? 'Clear' : 'Clear Date'),
                               ),
                             ],
-                            const SizedBox(width: 4),
-                            FilledButton.tonalIcon(
-                              onPressed: () =>
-                                  ref.invalidate(adminOrdersProvider),
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Refresh'),
-                              style: FilledButton.styleFrom(
-                                visualDensity: VisualDensity.compact,
-                                minimumSize: const Size(0, 34),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 8),
+                            const SizedBox(width: 8),
+                            if (compact)
+                              adminAndroidToolbarIconButton(
+                                icon: Icons.refresh,
+                                tooltip: 'Refresh',
+                                onPressed: () =>
+                                    ref.invalidate(adminOrdersProvider),
+                              )
+                            else
+                              FilledButton.tonalIcon(
+                                onPressed: () =>
+                                    ref.invalidate(adminOrdersProvider),
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Refresh'),
+                                style: FilledButton.styleFrom(
+                                  visualDensity: denseWeb
+                                      ? VisualDensity.compact
+                                      : VisualDensity.standard,
+                                  minimumSize:
+                                      denseWeb ? const Size(0, 34) : null,
+                                  padding: denseWeb
+                                      ? const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        )
+                                      : null,
+                                ),
                               ),
-                            ),
                           ],
-                        )
-                      : Column(
+                        );
+
+                        final searchField = ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: compact ? 200 : 240,
+                            maxWidth: compact ? 260 : 420,
+                          ),
+                          child: _ordersSearchTextField(
+                            compact: compact,
+                            denseWeb: denseWeb,
+                          ),
+                        );
+
+                        final normalDesktopRow = Row(
                           children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
+                            Expanded(
                               child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: denseWeb ? 760 : double.infinity,
-                                  minHeight: compact || denseWeb ? 40 : 52,
-                                  maxHeight: compact || denseWeb ? 44 : 56,
-                                ),
-                                child: _ordersSearchTextField(
-                                    compact: compact, denseWeb: denseWeb),
+                                constraints: const BoxConstraints(
+                                    minHeight: 40, maxHeight: 44),
+                                child: searchField,
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: compact ? 6 : (denseWeb ? 8 : 10),
-                              runSpacing: compact ? 6 : (denseWeb ? 8 : 10),
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                DropdownButton<String>(
-                                  isDense: compact,
-                                  value: _kOrderStatusFilters
-                                          .any((e) => e.$1 == _statusFilter)
-                                      ? _statusFilter
-                                      : 'all',
-                                  items: _kOrderStatusFilters
-                                      .map(
-                                        (e) => DropdownMenuItem<String>(
-                                          value: e.$1,
-                                          child: Text(
-                                            compact ? e.$2 : 'Status: ${e.$2}',
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (v) => setState(
-                                      () => _statusFilter = v ?? 'all'),
-                                ),
-                                if (compact)
-                                  IconButton(
-                                    tooltip: _dateRange == null
-                                        ? 'Date range'
-                                        : '${_dateRange!.start.toLocal().toString().split(' ').first} – '
-                                            '${_dateRange!.end.toLocal().toString().split(' ').first}',
-                                    icon: Icon(
-                                      Icons.date_range_outlined,
-                                      color: _dateRange != null
-                                          ? theme.colorScheme.primary
-                                          : null,
-                                    ),
-                                    visualDensity: VisualDensity.compact,
-                                    padding: const EdgeInsets.all(4),
-                                    constraints: const BoxConstraints(
-                                        minWidth: 36, minHeight: 36),
-                                    style: IconButton.styleFrom(
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    onPressed: () async {
-                                      final selected =
-                                          await showDateRangePicker(
-                                        context: context,
-                                        firstDate: DateTime(2020),
-                                        lastDate: DateTime.now()
-                                            .add(const Duration(days: 365)),
-                                        initialDateRange: _dateRange,
-                                      );
-                                      if (selected != null) {
-                                        setState(() => _dateRange = selected);
-                                      }
-                                    },
-                                  )
-                                else
-                                  OutlinedButton.icon(
-                                    onPressed: () async {
-                                      final selected =
-                                          await showDateRangePicker(
-                                        context: context,
-                                        firstDate: DateTime(2020),
-                                        lastDate: DateTime.now()
-                                            .add(const Duration(days: 365)),
-                                        initialDateRange: _dateRange,
-                                      );
-                                      if (selected != null) {
-                                        setState(() => _dateRange = selected);
-                                      }
-                                    },
-                                    icon: const Icon(Icons.date_range_outlined),
-                                    label: Text(
-                                      _dateRange == null
-                                          ? 'Date Range'
-                                          : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
-                                              '${_dateRange!.end.toLocal().toString().split(' ').first}',
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      visualDensity: denseWeb
-                                          ? VisualDensity.compact
-                                          : VisualDensity.standard,
-                                      minimumSize:
-                                          denseWeb ? const Size(0, 34) : null,
-                                      padding: denseWeb
-                                          ? const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 8,
-                                            )
-                                          : null,
-                                    ),
-                                  ),
-                                if (_dateRange != null)
-                                  TextButton(
-                                    style: TextButton.styleFrom(
-                                      visualDensity: compact
-                                          ? VisualDensity.compact
-                                          : VisualDensity.standard,
-                                      padding: compact
-                                          ? const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 4)
-                                          : null,
-                                      tapTargetSize: compact
-                                          ? MaterialTapTargetSize.shrinkWrap
-                                          : null,
-                                    ),
-                                    onPressed: () =>
-                                        setState(() => _dateRange = null),
-                                    child:
-                                        Text(compact ? 'Clear' : 'Clear Date'),
-                                  ),
-                                if (compact)
-                                  adminAndroidToolbarIconButton(
-                                    icon: Icons.refresh,
-                                    tooltip: 'Refresh',
-                                    onPressed: () =>
-                                        ref.invalidate(adminOrdersProvider),
-                                  )
-                                else
-                                  FilledButton.tonalIcon(
-                                    onPressed: () =>
-                                        ref.invalidate(adminOrdersProvider),
-                                    icon: const Icon(Icons.refresh),
-                                    label: const Text('Refresh'),
-                                    style: FilledButton.styleFrom(
-                                      visualDensity: denseWeb
-                                          ? VisualDensity.compact
-                                          : VisualDensity.standard,
-                                      minimumSize:
-                                          denseWeb ? const Size(0, 34) : null,
-                                      padding: denseWeb
-                                          ? const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 8,
-                                            )
-                                          : null,
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            const SizedBox(width: 10),
+                            statusAndDateControls,
                           ],
-                        ),
+                        );
+
+                        if (constraints.maxWidth < 980) {
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: compact ? 220.0 : 260.0,
+                                    child: searchField,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  statusAndDateControls,
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return normalDesktopRow;
+                      },
+                    ),
                 ),
               ),
               SizedBox(height: denseWeb ? 4 : 6),
@@ -650,76 +608,178 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            DropdownButton<String>(
-              value: const {'all', 'not_downloaded', 'downloaded'}
-                      .contains(_invoiceFilter)
-                  ? _invoiceFilter
-                  : 'all',
-              isDense: true,
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('Invoice: All')),
-                DropdownMenuItem(
-                  value: 'not_downloaded',
-                  child: Text('Invoice: Not downloaded'),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final actions = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButton<String>(
+                  value: const {'all', 'not_downloaded', 'downloaded'}
+                          .contains(_invoiceFilter)
+                      ? _invoiceFilter
+                      : 'all',
+                  isDense: true,
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Invoice: All')),
+                    DropdownMenuItem(
+                      value: 'not_downloaded',
+                      child: Text('Invoice: Not downloaded'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'downloaded',
+                      child: Text('Invoice: Downloaded'),
+                    ),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => _invoiceFilter = value ?? 'all'),
                 ),
-                DropdownMenuItem(
-                  value: 'downloaded',
-                  child: Text('Invoice: Downloaded'),
+                const SizedBox(width: 10),
+                Text('${filteredRows.length} orders shown'),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: filteredRows.isEmpty
+                      ? null
+                      : () {
+                          setState(() {
+                            if (allFilteredSelected) {
+                              _selectedOrderIds.removeAll(
+                                filteredRows.map((order) => order.id),
+                              );
+                            } else {
+                              _selectedOrderIds.addAll(
+                                filteredRows.map((order) => order.id),
+                              );
+                            }
+                          });
+                        },
+                  icon: Icon(
+                    allFilteredSelected
+                        ? Icons.check_box
+                        : Icons.check_box_outline_blank,
+                  ),
+                  label:
+                      Text(allFilteredSelected ? 'Deselect All' : 'Select All'),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  selectedCount == 0
+                      ? 'Select orders to download'
+                      : '$selectedCount orders selected',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(width: 10),
+                FilledButton.icon(
+                  onPressed: selectedRows.isEmpty || _documentBatchBusy
+                      ? null
+                      : () => _downloadInvoices(selectedRows),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('Download Invoices'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: selectedRows.isEmpty || _documentBatchBusy
+                      ? null
+                      : () => _downloadLabels(selectedRows),
+                  icon: const Icon(Icons.local_shipping_outlined),
+                  label: const Text('Download Labels'),
                 ),
               ],
-              onChanged: (value) =>
-                  setState(() => _invoiceFilter = value ?? 'all'),
-            ),
-            Text('${filteredRows.length} orders shown'),
-            OutlinedButton.icon(
-              onPressed: filteredRows.isEmpty
-                  ? null
-                  : () {
-                      setState(() {
-                        if (allFilteredSelected) {
-                          _selectedOrderIds.removeAll(
-                            filteredRows.map((order) => order.id),
-                          );
-                        } else {
-                          _selectedOrderIds.addAll(
-                            filteredRows.map((order) => order.id),
-                          );
-                        }
-                      });
-                    },
-              icon: Icon(
-                allFilteredSelected
-                    ? Icons.check_box
-                    : Icons.check_box_outline_blank,
-              ),
-              label: Text(allFilteredSelected ? 'Deselect All' : 'Select All'),
-            ),
-            Text(
-              selectedCount == 0
-                  ? 'Select orders to download'
-                  : '$selectedCount orders selected',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            FilledButton.icon(
-              onPressed: selectedRows.isEmpty || _documentBatchBusy
-                  ? null
-                  : () => _downloadInvoices(selectedRows),
-              icon: const Icon(Icons.receipt_long_outlined),
-              label: const Text('Download Invoices'),
-            ),
-            OutlinedButton.icon(
-              onPressed: selectedRows.isEmpty || _documentBatchBusy
-                  ? null
-                  : () => _downloadLabels(selectedRows),
-              icon: const Icon(Icons.local_shipping_outlined),
-              label: const Text('Download Labels'),
-            ),
-          ],
+            );
+
+            if (constraints.maxWidth < 860) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: actions,
+                  ),
+                ),
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      DropdownButton<String>(
+                        value: const {'all', 'not_downloaded', 'downloaded'}
+                                .contains(_invoiceFilter)
+                            ? _invoiceFilter
+                            : 'all',
+                        isDense: true,
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'all', child: Text('Invoice: All')),
+                          DropdownMenuItem(
+                            value: 'not_downloaded',
+                            child: Text('Invoice: Not downloaded'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'downloaded',
+                            child: Text('Invoice: Downloaded'),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _invoiceFilter = value ?? 'all'),
+                      ),
+                      Text('${filteredRows.length} orders shown'),
+                      OutlinedButton.icon(
+                        onPressed: filteredRows.isEmpty
+                            ? null
+                            : () {
+                                setState(() {
+                                  if (allFilteredSelected) {
+                                    _selectedOrderIds.removeAll(
+                                      filteredRows.map((order) => order.id),
+                                    );
+                                  } else {
+                                    _selectedOrderIds.addAll(
+                                      filteredRows.map((order) => order.id),
+                                    );
+                                  }
+                                });
+                              },
+                        icon: Icon(
+                          allFilteredSelected
+                              ? Icons.check_box
+                              : Icons.check_box_outline_blank,
+                        ),
+                        label: Text(
+                            allFilteredSelected ? 'Deselect All' : 'Select All'),
+                      ),
+                      Text(
+                        selectedCount == 0
+                            ? 'Select orders to download'
+                            : '$selectedCount orders selected',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      FilledButton.icon(
+                        onPressed: selectedRows.isEmpty || _documentBatchBusy
+                            ? null
+                            : () => _downloadInvoices(selectedRows),
+                        icon: const Icon(Icons.receipt_long_outlined),
+                        label: const Text('Download Invoices'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: selectedRows.isEmpty || _documentBatchBusy
+                            ? null
+                            : () => _downloadLabels(selectedRows),
+                        icon: const Icon(Icons.local_shipping_outlined),
+                        label: const Text('Download Labels'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -764,12 +824,17 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       return;
     }
 
+    final previewHandle = await prepareInvoicePreview(
+      name: 'ANJANAM_INVOICES_${_documentDateStamp()}',
+    );
+
     setState(() => _documentBatchBusy = true);
     try {
       final bytes = await AdminDocumentBatchService(
         ref.read(adminServiceProvider),
       ).generateInvoices(rows);
-      await downloadInvoicePdf(
+      await finalizeInvoicePreview(
+        previewHandle,
         bytes,
         name: 'ANJANAM_INVOICES_${_documentDateStamp()}',
       );
@@ -802,12 +867,17 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       return;
     }
 
+    final previewHandle = await prepareShippingLabelPreview(
+      name: 'ANJANAM_LABELS_${_documentDateStamp()}',
+    );
+
     setState(() => _documentBatchBusy = true);
     try {
       final bytes = await AdminDocumentBatchService(
         ref.read(adminServiceProvider),
       ).generateLabels(rows);
-      await previewShippingLabelPdf(
+      await finalizeShippingLabelPreview(
+        previewHandle,
         bytes,
         name: 'ANJANAM_LABELS_${_documentDateStamp()}',
       );

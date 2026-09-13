@@ -1175,12 +1175,17 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     AdminOrderDetails details,
   ) async {
     if (_labelDownloadBusy) return;
+    final previewHandle = await prepareShippingLabelPreview(
+      name: 'label_${formatOrderIdDisplay(details.order.id)}',
+    );
+
     setState(() => _labelDownloadBusy = true);
     try {
       final service = ShippingLabelService();
       final bytes = await service.generatePdfForAdminOrder(details);
       if (!context.mounted) return;
-      await previewShippingLabelPdf(
+      await finalizeShippingLabelPreview(
+        previewHandle,
         bytes,
         name: 'label_${formatOrderIdDisplay(details.order.id)}',
       );
@@ -1214,6 +1219,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       );
       return;
     }
+    final previewHandle = await prepareInvoicePreview(
+      name: 'ANJANAM-INV-${formatOrderIdDisplay(details.order.id)}',
+    );
     try {
       final order = _orderEntityForInvoice(details);
       final gen = InvoiceGenerator();
@@ -1223,7 +1231,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
         shipping: _shippingForInvoice(details),
       );
       if (!context.mounted) return;
-      await previewInvoicePdf(
+      await finalizeInvoicePreview(
+        previewHandle,
         bytes,
         name: 'ANJANAM-INV-${formatOrderIdDisplay(order.id)}',
       );

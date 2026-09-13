@@ -6,6 +6,16 @@ import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
+Future<Object?> preparePreview({required String name}) async => null;
+
+Future<void> finalizePreview(
+  Object? previewHandle,
+  Uint8List pdfBytes, {
+  required String name,
+}) async {
+  await openInvoicePreview(pdfBytes, name: name);
+}
+
 /// Mobile / desktop: print preview when the printing plugin is wired; otherwise
 /// share the PDF (covers `MissingPluginException` on `printPdf` seen on some builds).
 Future<void> openInvoicePreview(Uint8List pdfBytes,
