@@ -15,7 +15,8 @@ class _AdminBottomHorizontalScrollbar extends StatefulWidget {
       _AdminBottomHorizontalScrollbarState();
 }
 
-class _AdminBottomHorizontalScrollbarState extends State<_AdminBottomHorizontalScrollbar> {
+class _AdminBottomHorizontalScrollbarState
+    extends State<_AdminBottomHorizontalScrollbar> {
   @override
   void initState() {
     super.initState();
@@ -92,7 +93,8 @@ class _AdminBottomHorizontalScrollbarState extends State<_AdminBottomHorizontalS
 
         final contentExtent = maxExtent + position.viewportDimension;
         final minThumb = 40.0;
-        final thumbW = ((position.viewportDimension / contentExtent) * width).clamp(minThumb, width);
+        final thumbW = ((position.viewportDimension / contentExtent) * width)
+            .clamp(minThumb, width);
         final maxThumbTravel = (width - thumbW).clamp(0.0, double.infinity);
         final thumbLeft = maxThumbTravel > 0
             ? (position.pixels / maxExtent) * maxThumbTravel
@@ -131,12 +133,16 @@ class _AdminBottomHorizontalScrollbarState extends State<_AdminBottomHorizontalS
                       width: thumbW,
                       child: GestureDetector(
                         onHorizontalDragUpdate: (details) {
-                          if (!controller.hasClients || maxThumbTravel <= 0) return;
+                          if (!controller.hasClients || maxThumbTravel <= 0) {
+                            return;
+                          }
                           final pos = controller.position;
                           final me = pos.maxScrollExtent;
                           if (me <= 0) return;
-                          final deltaScroll = details.delta.dx * me / maxThumbTravel;
-                          controller.jumpTo((pos.pixels + deltaScroll).clamp(0.0, me));
+                          final deltaScroll =
+                              details.delta.dx * me / maxThumbTravel;
+                          controller.jumpTo(
+                              (pos.pixels + deltaScroll).clamp(0.0, me));
                         },
                         child: DecoratedBox(
                           decoration: BoxDecoration(
@@ -144,7 +150,8 @@ class _AdminBottomHorizontalScrollbarState extends State<_AdminBottomHorizontalS
                             borderRadius: BorderRadius.circular(6),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.brandSaffronPressed.withValues(alpha: 0.45),
+                                color: AppColors.brandSaffronPressed
+                                    .withValues(alpha: 0.45),
                                 blurRadius: 4,
                                 offset: const Offset(0, 1),
                               ),
@@ -182,6 +189,9 @@ class AdminDataTable<T> extends StatefulWidget {
   final int initialRowsPerPage;
   final String? emptyMessage;
   final double minTableWidth;
+  final String Function(T row)? rowKey;
+  final Set<String> selectedRowKeys;
+  final ValueChanged<Set<String>>? onSelectionChanged;
 
   const AdminDataTable({
     super.key,
@@ -190,6 +200,9 @@ class AdminDataTable<T> extends StatefulWidget {
     this.initialRowsPerPage = 10,
     this.emptyMessage,
     this.minTableWidth = 900,
+    this.rowKey,
+    this.selectedRowKeys = const <String>{},
+    this.onSelectionChanged,
   });
 
   @override
@@ -262,13 +275,34 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
       );
     }
 
-    final totalPages = sortedRows.isEmpty ? 1 : ((sortedRows.length - 1) ~/ _rowsPerPage) + 1;
+    final totalPages =
+        sortedRows.isEmpty ? 1 : ((sortedRows.length - 1) ~/ _rowsPerPage) + 1;
     if (_page >= totalPages) {
       _page = totalPages - 1;
     }
     final start = _page * _rowsPerPage;
     final end = (start + _rowsPerPage).clamp(0, sortedRows.length);
     final pageRows = sortedRows.sublist(start, end);
+    final canSelect =
+        widget.rowKey != null && widget.onSelectionChanged != null;
+    final pageKeys =
+        canSelect ? pageRows.map(widget.rowKey!).toSet() : const <String>{};
+    final selectedPageCount =
+        pageKeys.where(widget.selectedRowKeys.contains).length;
+    final allPageSelected =
+        pageKeys.isNotEmpty && selectedPageCount == pageKeys.length;
+    final somePageSelected = selectedPageCount > 0 && !allPageSelected;
+
+    void updateSelection(Iterable<String> keys, bool selected) {
+      if (!canSelect) return;
+      final next = {...widget.selectedRowKeys};
+      if (selected) {
+        next.addAll(keys);
+      } else {
+        next.removeAll(keys);
+      }
+      widget.onSelectionChanged!(next);
+    }
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -295,13 +329,14 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                     controller: _horizontalController,
                     scrollDirection: Axis.horizontal,
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minWidth: widget.minTableWidth),
+                      constraints:
+                          BoxConstraints(minWidth: widget.minTableWidth),
                       child: DataTable(
                         dataRowMinHeight: 56,
                         dataRowMaxHeight: 62,
                         headingRowHeight: 52,
-                        headingRowColor:
-                            WidgetStateProperty.all(AppColors.deepGold.withValues(alpha: 0.08)),
+                        headingRowColor: WidgetStateProperty.all(
+                            AppColors.deepGold.withValues(alpha: 0.08)),
                         sortColumnIndex: _sortColumnIndex,
                         sortAscending: _sortAscending,
                         columns: [
@@ -318,13 +353,41 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                                       });
                                     },
                             ),
+                          if (canSelect)
+                            DataColumn(
+                              label: Checkbox(
+                                tristate: true,
+                                value: allPageSelected
+                                    ? true
+                                    : somePageSelected
+                                        ? null
+                                        : false,
+                                onChanged: (value) =>
+                                    updateSelection(pageKeys, value == true),
+                              ),
+                            ),
                         ],
+                        showCheckboxColumn: false,
                         rows: pageRows
                             .map(
                               (row) => DataRow(
+                                selected: canSelect &&
+                                    widget.selectedRowKeys
+                                        .contains(widget.rowKey!(row)),
                                 cells: [
                                   for (final c in widget.columns)
                                     DataCell(c.cellBuilder(row)),
+                                  if (canSelect)
+                                    DataCell(
+                                      Checkbox(
+                                        value: widget.selectedRowKeys
+                                            .contains(widget.rowKey!(row)),
+                                        onChanged: (value) => updateSelection(
+                                          [widget.rowKey!(row)],
+                                          value == true,
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             )
@@ -337,7 +400,8 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-              child: _AdminBottomHorizontalScrollbar(controller: _horizontalController),
+              child: _AdminBottomHorizontalScrollbar(
+                  controller: _horizontalController),
             ),
             const Divider(height: 1),
             Padding(
@@ -348,11 +412,14 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButton<int>(
-                        value: _pageSizeOptions.contains(_rowsPerPage) ? _rowsPerPage : 20,
+                        value: _pageSizeOptions.contains(_rowsPerPage)
+                            ? _rowsPerPage
+                            : 20,
                         isDense: true,
                         items: _pageSizeOptions
                             .map(
-                              (v) => DropdownMenuItem(value: v, child: Text('$v / page')),
+                              (v) => DropdownMenuItem(
+                                  value: v, child: Text('$v / page')),
                             )
                             .toList(),
                         onChanged: (value) {
@@ -366,17 +433,21 @@ class _AdminDataTableState<T> extends State<AdminDataTable<T>> {
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                        onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
+                        constraints:
+                            const BoxConstraints(minWidth: 40, minHeight: 40),
+                        onPressed:
+                            _page > 0 ? () => setState(() => _page -= 1) : null,
                         icon: const Icon(Icons.chevron_left),
                       ),
                       Text('Page ${_page + 1}/$totalPages'),
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                        onPressed:
-                            _page < totalPages - 1 ? () => setState(() => _page += 1) : null,
+                        constraints:
+                            const BoxConstraints(minWidth: 40, minHeight: 40),
+                        onPressed: _page < totalPages - 1
+                            ? () => setState(() => _page += 1)
+                            : null,
                         icon: const Icon(Icons.chevron_right),
                       ),
                     ],

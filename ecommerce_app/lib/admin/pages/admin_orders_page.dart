@@ -7,14 +7,17 @@ import 'package:supabase_flutter/supabase_flutter.dart'
     show RealtimeChannel, PostgresChangeEvent;
 
 import 'package:ecommerce_app/core/formatting/inr_format.dart';
+import 'package:ecommerce_app/core/invoice/invoice_preview.dart';
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
 import 'package:ecommerce_app/core/theme/app_colors.dart';
+import 'package:ecommerce_app/core/shipping_label/shipping_label_preview.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 
 import '../utils/admin_android_ui.dart';
 import '../../features/notifications/data/services/fcm_edge_function_notification_sender.dart';
 import '../providers/admin_providers.dart';
 import '../services/admin_service.dart';
+import '../services/admin_document_batch_service.dart';
 import '../utils/admin_order_status_push.dart';
 import '../utils/admin_order_status_workflow.dart';
 import '../widgets/admin_data_table.dart';
@@ -45,7 +48,10 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
   ];
 
   String _statusFilter = 'all';
+  String _invoiceFilter = 'all';
   DateTimeRange? _dateRange;
+  final Set<String> _selectedOrderIds = {};
+  bool _documentBatchBusy = false;
   final Set<String> _updatingOrderIds = {};
   final Set<String> _refundingOrderIds = {};
   final _searchCtrl = TextEditingController();
@@ -155,7 +161,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                 ? IconButton(
                     icon: Icon(Icons.clear, size: denseWeb ? 20 : 22),
                     visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
                     padding: EdgeInsets.zero,
                     tooltip: 'Clear search',
                     onPressed: () {
@@ -166,7 +173,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
                   )
                 : null,
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
         );
       },
@@ -178,387 +186,690 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     final ordersAsync = ref.watch(adminOrdersProvider);
     return AdminStateView(
       isLoading: ordersAsync.isLoading && !ordersAsync.hasValue,
-      error: ordersAsync.hasError && !ordersAsync.hasValue ? ordersAsync.error : null,
+      error: ordersAsync.hasError && !ordersAsync.hasValue
+          ? ordersAsync.error
+          : null,
       isEmpty: false,
       emptyMessage: 'No orders found',
       child: ordersAsync.when(
-      skipLoadingOnReload: false,
-      data: (orders) {
-        final filtered = orders.where((o) {
-          final statusOk = _statusFilter == 'all' ||
-              canonicalAdminOrderStatus(o.status) == _statusFilter;
-          final dateOk = _dateRange == null ||
-              (o.createdAt.isAfter(_dateRange!.start.subtract(const Duration(days: 1))) &&
-                  o.createdAt.isBefore(_dateRange!.end.add(const Duration(days: 1))));
-          return statusOk && dateOk;
-        }).toList();
+        skipLoadingOnReload: false,
+        data: (orders) {
+          final filtered = orders.where((o) {
+            final statusOk = _statusFilter == 'all' ||
+                canonicalAdminOrderStatus(o.status) == _statusFilter;
+            final dateOk = _dateRange == null ||
+                (o.createdAt.isAfter(
+                        _dateRange!.start.subtract(const Duration(days: 1))) &&
+                    o.createdAt.isBefore(
+                        _dateRange!.end.add(const Duration(days: 1))));
+            final invoiceOk = _invoiceFilter == 'all' ||
+                (_invoiceFilter == 'downloaded'
+                    ? o.invoiceDownloadedAt != null
+                    : o.invoiceDownloadedAt == null);
+            return statusOk && dateOk && invoiceOk;
+          }).toList();
+          final selectedRows = filtered
+              .where((order) => _selectedOrderIds.contains(order.id))
+              .toList();
 
-        final theme = Theme.of(context);
-        final compact = kAdminAndroidCompactChrome;
-        final denseWeb = !compact && kIsWeb;
-        final showInlineTopBar = denseWeb;
+          final theme = Theme.of(context);
+          final compact = kAdminAndroidCompactChrome;
+          final denseWeb = !compact && kIsWeb;
+          final showInlineTopBar = denseWeb;
 
-        return Column(
-          children: [
-            Card(
-              margin: compact ? EdgeInsets.zero : null,
-              child: Padding(
-                padding: denseWeb
-                    ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
-                    : adminFilterCardPadding,
-                child: showInlineTopBar
-                    ? Row(
-                        children: [
-                          Expanded(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minHeight: 40, maxHeight: 44),
-                              child: _ordersSearchTextField(compact: false, denseWeb: true),
+          return Column(
+            children: [
+              Card(
+                margin: compact ? EdgeInsets.zero : null,
+                child: Padding(
+                  padding: denseWeb
+                      ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+                      : adminFilterCardPadding,
+                  child: showInlineTopBar
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                    minHeight: 40, maxHeight: 44),
+                                child: _ordersSearchTextField(
+                                    compact: false, denseWeb: true),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          DropdownButton<String>(
-                            isDense: true,
-                            value: _kOrderStatusFilters.any((e) => e.$1 == _statusFilter)
-                                ? _statusFilter
-                                : 'all',
-                            items: _kOrderStatusFilters
-                                .map(
-                                  (e) => DropdownMenuItem<String>(
-                                    value: e.$1,
-                                    child: Text('Status: ${e.$2}'),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) => setState(() => _statusFilter = v ?? 'all'),
-                          ),
-                          const SizedBox(width: 8),
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              final selected = await showDateRangePicker(
-                                context: context,
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime.now().add(const Duration(days: 365)),
-                                initialDateRange: _dateRange,
-                              );
-                              if (selected != null) {
-                                setState(() => _dateRange = selected);
-                              }
-                            },
-                            icon: const Icon(Icons.date_range_outlined),
-                            label: Text(
-                              _dateRange == null
-                                  ? 'Date Range'
-                                  : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
-                                      '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                            const SizedBox(width: 10),
+                            DropdownButton<String>(
+                              isDense: true,
+                              value: _kOrderStatusFilters
+                                      .any((e) => e.$1 == _statusFilter)
+                                  ? _statusFilter
+                                  : 'all',
+                              items: _kOrderStatusFilters
+                                  .map(
+                                    (e) => DropdownMenuItem<String>(
+                                      value: e.$1,
+                                      child: Text('Status: ${e.$2}'),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setState(() => _statusFilter = v ?? 'all'),
                             ),
-                            style: OutlinedButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              minimumSize: const Size(0, 34),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                final selected = await showDateRangePicker(
+                                  context: context,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime.now()
+                                      .add(const Duration(days: 365)),
+                                  initialDateRange: _dateRange,
+                                );
+                                if (selected != null) {
+                                  setState(() => _dateRange = selected);
+                                }
+                              },
+                              icon: const Icon(Icons.date_range_outlined),
+                              label: Text(
+                                _dateRange == null
+                                    ? 'Date Range'
+                                    : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
+                                        '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                minimumSize: const Size(0, 34),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                              ),
                             ),
-                          ),
-                          if (_dateRange != null) ...[
+                            if (_dateRange != null) ...[
+                              const SizedBox(width: 4),
+                              TextButton(
+                                onPressed: () =>
+                                    setState(() => _dateRange = null),
+                                child: const Text('Clear'),
+                              ),
+                            ],
                             const SizedBox(width: 4),
-                            TextButton(
-                              onPressed: () => setState(() => _dateRange = null),
-                              child: const Text('Clear'),
+                            FilledButton.tonalIcon(
+                              onPressed: () =>
+                                  ref.invalidate(adminOrdersProvider),
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Refresh'),
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                minimumSize: const Size(0, 34),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                              ),
                             ),
                           ],
-                          const SizedBox(width: 4),
-                          FilledButton.tonalIcon(
-                            onPressed: () => ref.invalidate(adminOrdersProvider),
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Refresh'),
-                            style: FilledButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              minimumSize: const Size(0, 34),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        children: [
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: denseWeb ? 760 : double.infinity,
-                                minHeight: compact || denseWeb ? 40 : 52,
-                                maxHeight: compact || denseWeb ? 44 : 56,
+                        )
+                      : Column(
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: denseWeb ? 760 : double.infinity,
+                                  minHeight: compact || denseWeb ? 40 : 52,
+                                  maxHeight: compact || denseWeb ? 44 : 56,
+                                ),
+                                child: _ordersSearchTextField(
+                                    compact: compact, denseWeb: denseWeb),
                               ),
-                              child: _ordersSearchTextField(compact: compact, denseWeb: denseWeb),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: compact ? 6 : (denseWeb ? 8 : 10),
-                            runSpacing: compact ? 6 : (denseWeb ? 8 : 10),
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              DropdownButton<String>(
-                                isDense: compact,
-                                value: _kOrderStatusFilters.any((e) => e.$1 == _statusFilter)
-                                    ? _statusFilter
-                                    : 'all',
-                                items: _kOrderStatusFilters
-                                    .map(
-                                      (e) => DropdownMenuItem<String>(
-                                        value: e.$1,
-                                        child: Text(
-                                          compact ? e.$2 : 'Status: ${e.$2}',
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) => setState(() => _statusFilter = v ?? 'all'),
-                              ),
-                              if (compact)
-                                IconButton(
-                                  tooltip: _dateRange == null
-                                      ? 'Date range'
-                                      : '${_dateRange!.start.toLocal().toString().split(' ').first} – '
-                                          '${_dateRange!.end.toLocal().toString().split(' ').first}',
-                                  icon: Icon(
-                                    Icons.date_range_outlined,
-                                    color: _dateRange != null ? theme.colorScheme.primary : null,
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.all(4),
-                                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                  style: IconButton.styleFrom(
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  onPressed: () async {
-                                    final selected = await showDateRangePicker(
-                                      context: context,
-                                      firstDate: DateTime(2020),
-                                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                                      initialDateRange: _dateRange,
-                                    );
-                                    if (selected != null) {
-                                      setState(() => _dateRange = selected);
-                                    }
-                                  },
-                                )
-                              else
-                                OutlinedButton.icon(
-                                  onPressed: () async {
-                                    final selected = await showDateRangePicker(
-                                      context: context,
-                                      firstDate: DateTime(2020),
-                                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                                      initialDateRange: _dateRange,
-                                    );
-                                    if (selected != null) {
-                                      setState(() => _dateRange = selected);
-                                    }
-                                  },
-                                  icon: const Icon(Icons.date_range_outlined),
-                                  label: Text(
-                                    _dateRange == null
-                                        ? 'Date Range'
-                                        : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
-                                            '${_dateRange!.end.toLocal().toString().split(' ').first}',
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    visualDensity:
-                                        denseWeb ? VisualDensity.compact : VisualDensity.standard,
-                                    minimumSize: denseWeb ? const Size(0, 34) : null,
-                                    padding: denseWeb
-                                        ? const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 8,
-                                          )
-                                        : null,
-                                  ),
-                                ),
-                              if (_dateRange != null)
-                                TextButton(
-                                  style: TextButton.styleFrom(
-                                    visualDensity:
-                                        compact ? VisualDensity.compact : VisualDensity.standard,
-                                    padding: compact
-                                        ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
-                                        : null,
-                                    tapTargetSize: compact
-                                        ? MaterialTapTargetSize.shrinkWrap
-                                        : null,
-                                  ),
-                                  onPressed: () => setState(() => _dateRange = null),
-                                  child: Text(compact ? 'Clear' : 'Clear Date'),
-                                ),
-                              if (compact)
-                                adminAndroidToolbarIconButton(
-                                  icon: Icons.refresh,
-                                  tooltip: 'Refresh',
-                                  onPressed: () => ref.invalidate(adminOrdersProvider),
-                                )
-                              else
-                                FilledButton.tonalIcon(
-                                  onPressed: () => ref.invalidate(adminOrdersProvider),
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Refresh'),
-                                  style: FilledButton.styleFrom(
-                                    visualDensity:
-                                        denseWeb ? VisualDensity.compact : VisualDensity.standard,
-                                    minimumSize: denseWeb ? const Size(0, 34) : null,
-                                    padding: denseWeb
-                                        ? const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 8,
-                                          )
-                                        : null,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-            SizedBox(height: denseWeb ? 4 : 6),
-            if (!compact)
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    'Tip: scroll horizontally to view all columns, including Actions.',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                ),
-              ),
-            Expanded(
-              child: AdminDataTable<AdminOrderRow>(
-                rows: filtered,
-                initialRowsPerPage: denseWeb ? 20 : 10,
-                emptyMessage: 'No orders found',
-                minTableWidth: 1560,
-                columns: [
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Order ID',
-                    sortValue: (o) => o.id,
-                    cellBuilder: (o) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(o.id),
-                        if (o.orderKind.toLowerCase() == 'replacement')
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: compact ? 6 : (denseWeb ? 8 : 10),
+                              runSpacing: compact ? 6 : (denseWeb ? 8 : 10),
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                Chip(
-                                  visualDensity: VisualDensity.compact,
-                                  label: const Text('Replacement'),
-                                  backgroundColor: Colors.deepPurple.withValues(alpha: 0.12),
-                                  side: BorderSide(color: Colors.deepPurple.withValues(alpha: 0.35)),
-                                  labelStyle: TextStyle(
-                                    color: Colors.deepPurple.shade700,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                if ((o.originalOrderId ?? '').isNotEmpty)
-                                  Text(
-                                    'From: ${o.originalOrderId}',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                DropdownButton<String>(
+                                  isDense: compact,
+                                  value: _kOrderStatusFilters
+                                          .any((e) => e.$1 == _statusFilter)
+                                      ? _statusFilter
+                                      : 'all',
+                                  items: _kOrderStatusFilters
+                                      .map(
+                                        (e) => DropdownMenuItem<String>(
+                                          value: e.$1,
+                                          child: Text(
+                                            compact ? e.$2 : 'Status: ${e.$2}',
+                                          ),
                                         ),
+                                      )
+                                      .toList(),
+                                  onChanged: (v) => setState(
+                                      () => _statusFilter = v ?? 'all'),
+                                ),
+                                if (compact)
+                                  IconButton(
+                                    tooltip: _dateRange == null
+                                        ? 'Date range'
+                                        : '${_dateRange!.start.toLocal().toString().split(' ').first} – '
+                                            '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                                    icon: Icon(
+                                      Icons.date_range_outlined,
+                                      color: _dateRange != null
+                                          ? theme.colorScheme.primary
+                                          : null,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.all(4),
+                                    constraints: const BoxConstraints(
+                                        minWidth: 36, minHeight: 36),
+                                    style: IconButton.styleFrom(
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    onPressed: () async {
+                                      final selected =
+                                          await showDateRangePicker(
+                                        context: context,
+                                        firstDate: DateTime(2020),
+                                        lastDate: DateTime.now()
+                                            .add(const Duration(days: 365)),
+                                        initialDateRange: _dateRange,
+                                      );
+                                      if (selected != null) {
+                                        setState(() => _dateRange = selected);
+                                      }
+                                    },
+                                  )
+                                else
+                                  OutlinedButton.icon(
+                                    onPressed: () async {
+                                      final selected =
+                                          await showDateRangePicker(
+                                        context: context,
+                                        firstDate: DateTime(2020),
+                                        lastDate: DateTime.now()
+                                            .add(const Duration(days: 365)),
+                                        initialDateRange: _dateRange,
+                                      );
+                                      if (selected != null) {
+                                        setState(() => _dateRange = selected);
+                                      }
+                                    },
+                                    icon: const Icon(Icons.date_range_outlined),
+                                    label: Text(
+                                      _dateRange == null
+                                          ? 'Date Range'
+                                          : '${_dateRange!.start.toLocal().toString().split(' ').first} - '
+                                              '${_dateRange!.end.toLocal().toString().split(' ').first}',
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      visualDensity: denseWeb
+                                          ? VisualDensity.compact
+                                          : VisualDensity.standard,
+                                      minimumSize:
+                                          denseWeb ? const Size(0, 34) : null,
+                                      padding: denseWeb
+                                          ? const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 8,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                if (_dateRange != null)
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      visualDensity: compact
+                                          ? VisualDensity.compact
+                                          : VisualDensity.standard,
+                                      padding: compact
+                                          ? const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 4)
+                                          : null,
+                                      tapTargetSize: compact
+                                          ? MaterialTapTargetSize.shrinkWrap
+                                          : null,
+                                    ),
+                                    onPressed: () =>
+                                        setState(() => _dateRange = null),
+                                    child:
+                                        Text(compact ? 'Clear' : 'Clear Date'),
+                                  ),
+                                if (compact)
+                                  adminAndroidToolbarIconButton(
+                                    icon: Icons.refresh,
+                                    tooltip: 'Refresh',
+                                    onPressed: () =>
+                                        ref.invalidate(adminOrdersProvider),
+                                  )
+                                else
+                                  FilledButton.tonalIcon(
+                                    onPressed: () =>
+                                        ref.invalidate(adminOrdersProvider),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Refresh'),
+                                    style: FilledButton.styleFrom(
+                                      visualDensity: denseWeb
+                                          ? VisualDensity.compact
+                                          : VisualDensity.standard,
+                                      minimumSize:
+                                          denseWeb ? const Size(0, 34) : null,
+                                      padding: denseWeb
+                                          ? const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 8,
+                                            )
+                                          : null,
+                                    ),
                                   ),
                               ],
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Customer',
-                    sortValue: (o) => o.customerName,
-                    cellBuilder: (o) => Text(o.customerName),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Total Amount',
-                    sortValue: (o) => o.totalAmount,
-                    cellBuilder: (o) => Text(
-                      formatInrAmount(o.totalAmount),
-                      style: const TextStyle(
-                        color: AppColors.priceText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Payment Method',
-                    sortValue: (o) => o.paymentMethod,
-                    cellBuilder: (o) => _paymentMethodBadge(o.paymentMethod),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Payment Status',
-                    sortValue: (o) => o.paymentStatus,
-                    cellBuilder: (o) => _paymentStatusBadge(o.paymentStatus),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Order Status',
-                    sortValue: (o) => o.status,
-                    cellBuilder: (o) => _statusBadge(o.status),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Delivery Mode',
-                    sortValue: (o) => (o.deliveryMethod ?? '').toLowerCase(),
-                    cellBuilder: (o) => _deliveryModeBadge(o),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Delivery Status',
-                    sortValue: (o) =>
-                        (o.deliveryStatus ?? o.shipmentStatus ?? '').toLowerCase(),
-                    cellBuilder: (o) => _deliveryStatusBadge(
-                      o.deliveryStatus,
-                      o.shipmentStatus,
-                    ),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Refund Status',
-                    sortValue: (o) => o.refundStatus,
-                    cellBuilder: (o) => _refundStatusBadge(o),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Created At',
-                    sortValue: (o) => o.createdAt,
-                    cellBuilder: (o) => Text(
-                      formatOrderDetailsDateTime(o.createdAt.toLocal()),
-                    ),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'Actions',
-                    cellBuilder: (o) => _orderActionMenu(o),
-                  ),
-                  AdminTableColumn<AdminOrderRow>(
-                    label: 'View Details',
-                    cellBuilder: (o) => FilledButton.tonal(
-                      onPressed: () => Navigator.of(context).pushNamed(
-                        '/admin/orders/details/${o.id}',
-                      ),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(90, 34),
-                        backgroundColor: AppColors.deepGold.withValues(alpha: 0.18),
-                        foregroundColor: AppColors.charcoalBlack,
-                      ),
-                      child: const Text('View'),
-                    ),
-                  ),
-                ],
+                          ],
+                        ),
+                ),
               ),
+              SizedBox(height: denseWeb ? 4 : 6),
+              _documentToolbar(
+                filteredRows: filtered,
+                selectedRows: selectedRows,
+              ),
+              SizedBox(height: denseWeb ? 4 : 6),
+              if (!compact)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      'Tip: scroll horizontally to view all columns, including Actions.',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: AdminDataTable<AdminOrderRow>(
+                  rows: filtered,
+                  initialRowsPerPage: 50,
+                  emptyMessage: 'No orders found',
+                  minTableWidth: 1560,
+                  columns: [
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Order ID',
+                      sortValue: (o) => o.id,
+                      cellBuilder: (o) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(o.id),
+                          if (o.orderKind.toLowerCase() == 'replacement')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  Chip(
+                                    visualDensity: VisualDensity.compact,
+                                    label: const Text('Replacement'),
+                                    backgroundColor: Colors.deepPurple
+                                        .withValues(alpha: 0.12),
+                                    side: BorderSide(
+                                        color: Colors.deepPurple
+                                            .withValues(alpha: 0.35)),
+                                    labelStyle: TextStyle(
+                                      color: Colors.deepPurple.shade700,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  if ((o.originalOrderId ?? '').isNotEmpty)
+                                    Text(
+                                      'From: ${o.originalOrderId}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Customer',
+                      sortValue: (o) => o.customerName,
+                      cellBuilder: (o) => Text(o.customerName),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Total Amount',
+                      sortValue: (o) => o.totalAmount,
+                      cellBuilder: (o) => Text(
+                        formatInrAmount(o.totalAmount),
+                        style: const TextStyle(
+                          color: AppColors.priceText,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Payment Method',
+                      sortValue: (o) => o.paymentMethod,
+                      cellBuilder: (o) => _paymentMethodBadge(o.paymentMethod),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Payment Status',
+                      sortValue: (o) => o.paymentStatus,
+                      cellBuilder: (o) => _paymentStatusBadge(o.paymentStatus),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Order Status',
+                      sortValue: (o) => o.status,
+                      cellBuilder: (o) => _statusBadge(o.status),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Delivery Mode',
+                      sortValue: (o) => (o.deliveryMethod ?? '').toLowerCase(),
+                      cellBuilder: (o) => _deliveryModeBadge(o),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Delivery Status',
+                      sortValue: (o) =>
+                          (o.deliveryStatus ?? o.shipmentStatus ?? '')
+                              .toLowerCase(),
+                      cellBuilder: (o) => _deliveryStatusBadge(
+                        o.deliveryStatus,
+                        o.shipmentStatus,
+                      ),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Refund Status',
+                      sortValue: (o) => o.refundStatus,
+                      cellBuilder: (o) => _refundStatusBadge(o),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Created At',
+                      sortValue: (o) => o.createdAt,
+                      cellBuilder: (o) => Text(
+                        formatOrderDetailsDateTime(o.createdAt.toLocal()),
+                      ),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Invoice',
+                      sortValue: (o) => o.invoiceDownloadedAt != null ? 1 : 0,
+                      cellBuilder: (o) => _invoiceStatusBadge(o),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'Actions',
+                      cellBuilder: (o) => _orderActionMenu(o),
+                    ),
+                    AdminTableColumn<AdminOrderRow>(
+                      label: 'View Details',
+                      cellBuilder: (o) => FilledButton.tonal(
+                        onPressed: () => Navigator.of(context).pushNamed(
+                          '/admin/orders/details/${o.id}',
+                        ),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(90, 34),
+                          backgroundColor:
+                              AppColors.deepGold.withValues(alpha: 0.18),
+                          foregroundColor: AppColors.charcoalBlack,
+                        ),
+                        child: const Text('View'),
+                      ),
+                    ),
+                  ],
+                  rowKey: (o) => o.id,
+                  selectedRowKeys: _selectedOrderIds,
+                  onSelectionChanged: (ids) {
+                    setState(() {
+                      _selectedOrderIds
+                        ..clear()
+                        ..addAll(ids);
+                    });
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+        loading: () => const SizedBox.shrink(),
+        error: (_, __) => const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  Widget _documentToolbar({
+    required List<AdminOrderRow> filteredRows,
+    required List<AdminOrderRow> selectedRows,
+  }) {
+    final selectedCount = selectedRows.length;
+    final allFilteredSelected =
+        filteredRows.isNotEmpty && selectedCount == filteredRows.length;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            DropdownButton<String>(
+              value: const {'all', 'not_downloaded', 'downloaded'}
+                      .contains(_invoiceFilter)
+                  ? _invoiceFilter
+                  : 'all',
+              isDense: true,
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('Invoice: All')),
+                DropdownMenuItem(
+                  value: 'not_downloaded',
+                  child: Text('Invoice: Not downloaded'),
+                ),
+                DropdownMenuItem(
+                  value: 'downloaded',
+                  child: Text('Invoice: Downloaded'),
+                ),
+              ],
+              onChanged: (value) =>
+                  setState(() => _invoiceFilter = value ?? 'all'),
+            ),
+            Text('${filteredRows.length} orders shown'),
+            OutlinedButton.icon(
+              onPressed: filteredRows.isEmpty
+                  ? null
+                  : () {
+                      setState(() {
+                        if (allFilteredSelected) {
+                          _selectedOrderIds.removeAll(
+                            filteredRows.map((order) => order.id),
+                          );
+                        } else {
+                          _selectedOrderIds.addAll(
+                            filteredRows.map((order) => order.id),
+                          );
+                        }
+                      });
+                    },
+              icon: Icon(
+                allFilteredSelected
+                    ? Icons.check_box
+                    : Icons.check_box_outline_blank,
+              ),
+              label: Text(allFilteredSelected ? 'Deselect All' : 'Select All'),
+            ),
+            Text(
+              selectedCount == 0
+                  ? 'Select orders to download'
+                  : '$selectedCount orders selected',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            FilledButton.icon(
+              onPressed: selectedRows.isEmpty || _documentBatchBusy
+                  ? null
+                  : () => _downloadInvoices(selectedRows),
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('Download Invoices'),
+            ),
+            OutlinedButton.icon(
+              onPressed: selectedRows.isEmpty || _documentBatchBusy
+                  ? null
+                  : () => _downloadLabels(selectedRows),
+              icon: const Icon(Icons.local_shipping_outlined),
+              label: const Text('Download Labels'),
             ),
           ],
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-    ),
+        ),
+      ),
     );
+  }
+
+  Widget _invoiceStatusBadge(AdminOrderRow order) {
+    final downloaded = order.invoiceDownloadedAt != null;
+    final color = downloaded ? Colors.green.shade700 : Colors.blueGrey.shade700;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          downloaded
+              ? Icons.check_circle_outline
+              : Icons.radio_button_unchecked,
+          size: 18,
+          color: color,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          downloaded ? 'Downloaded' : 'Not downloaded',
+          style: TextStyle(color: color, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _downloadInvoices(List<AdminOrderRow> selectedRows) async {
+    final includeDownloaded = await _confirmDocumentDownload(
+      documentLabel: 'Invoices',
+      selectedRows: selectedRows,
+      isDownloaded: (order) => order.invoiceDownloadedAt != null,
+    );
+    if (includeDownloaded == null || !mounted) return;
+    final rows = includeDownloaded
+        ? selectedRows
+        : selectedRows
+            .where((order) => order.invoiceDownloadedAt == null)
+            .toList();
+    if (rows.isEmpty) {
+      _showDocumentMessage('All selected invoices are already downloaded.');
+      return;
+    }
+
+    setState(() => _documentBatchBusy = true);
+    try {
+      final bytes = await AdminDocumentBatchService(
+        ref.read(adminServiceProvider),
+      ).generateInvoices(rows);
+      await downloadInvoicePdf(
+        bytes,
+        name: 'ANJANAM_INVOICES_${_documentDateStamp()}',
+      );
+      await ref.read(adminServiceProvider).markInvoicesDownloaded(
+            rows.map((order) => order.id).toList(),
+          );
+      ref.invalidate(adminOrdersProvider);
+      _showDocumentMessage('${rows.length} invoice(s) downloaded.');
+    } catch (e) {
+      _showDocumentMessage('Invoice download failed: $e');
+    } finally {
+      if (mounted) setState(() => _documentBatchBusy = false);
+    }
+  }
+
+  Future<void> _downloadLabels(List<AdminOrderRow> selectedRows) async {
+    final includeDownloaded = await _confirmDocumentDownload(
+      documentLabel: 'Labels',
+      selectedRows: selectedRows,
+      isDownloaded: (order) => order.labelDownloadedAt != null,
+    );
+    if (includeDownloaded == null || !mounted) return;
+    final rows = includeDownloaded
+        ? selectedRows
+        : selectedRows
+            .where((order) => order.labelDownloadedAt == null)
+            .toList();
+    if (rows.isEmpty) {
+      _showDocumentMessage('All selected labels are already downloaded.');
+      return;
+    }
+
+    setState(() => _documentBatchBusy = true);
+    try {
+      final bytes = await AdminDocumentBatchService(
+        ref.read(adminServiceProvider),
+      ).generateLabels(rows);
+      await previewShippingLabelPdf(
+        bytes,
+        name: 'ANJANAM_LABELS_${_documentDateStamp()}',
+      );
+      await ref.read(adminServiceProvider).markLabelsDownloaded(
+            rows.map((order) => order.id).toList(),
+          );
+      ref.invalidate(adminOrdersProvider);
+      _showDocumentMessage('${rows.length} label(s) downloaded.');
+    } catch (e) {
+      _showDocumentMessage('Label download failed: $e');
+    } finally {
+      if (mounted) setState(() => _documentBatchBusy = false);
+    }
+  }
+
+  Future<bool?> _confirmDocumentDownload({
+    required String documentLabel,
+    required List<AdminOrderRow> selectedRows,
+    required bool Function(AdminOrderRow order) isDownloaded,
+  }) async {
+    final downloadedCount = selectedRows.where(isDownloaded).length;
+    final remainingCount = selectedRows.length - downloadedCount;
+    if (downloadedCount == 0) return false;
+
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Download $documentLabel'),
+        content: Text(
+          '${selectedRows.length} orders selected\n\n'
+          '$downloadedCount $documentLabel are already downloaded.\n'
+          '$remainingCount $documentLabel are not downloaded.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: const Text('Cancel'),
+          ),
+          if (remainingCount > 0)
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text('Download $remainingCount remaining'),
+            ),
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Download all ${selectedRows.length}'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDocumentMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _documentDateStamp() {
+    final now = DateTime.now();
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+    return '${now.year}-${twoDigits(now.month)}-${twoDigits(now.day)}';
   }
 
   Widget _orderActionMenu(AdminOrderRow order) {
@@ -647,7 +958,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
         child: Text(
           (isUpdating || isRefunding) ? 'Updating...' : 'Actions',
           style: TextStyle(
-            color: (isUpdating || isRefunding) ? Colors.grey : Colors.blueGrey.shade700,
+            color: (isUpdating || isRefunding)
+                ? Colors.grey
+                : Colors.blueGrey.shade700,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -714,7 +1027,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
         ),
         backgroundColor: color.withValues(alpha: 0.12),
         side: BorderSide(color: color.withValues(alpha: 0.35)),
-        labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+        labelStyle:
+            TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
       ),
     );
   }
@@ -767,7 +1081,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       label: Text(label),
       backgroundColor: color.withValues(alpha: 0.12),
       side: BorderSide(color: color.withValues(alpha: 0.35)),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+      labelStyle:
+          TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }
 
@@ -780,7 +1095,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       label: Text(label),
       backgroundColor: color.withValues(alpha: 0.12),
       side: BorderSide(color: color.withValues(alpha: 0.35)),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+      labelStyle:
+          TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
     );
   }
 
@@ -812,7 +1128,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       label: Text(label),
       backgroundColor: color.withValues(alpha: 0.12),
       side: BorderSide(color: color.withValues(alpha: 0.35)),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+      labelStyle:
+          TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }
 
@@ -839,7 +1156,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       label: Text('$label$suffix'),
       backgroundColor: color.withValues(alpha: 0.12),
       side: BorderSide(color: color.withValues(alpha: 0.35)),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+      labelStyle:
+          TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }
 
@@ -859,7 +1177,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
         break;
       case 'refunded':
         color = Colors.green.shade800;
-        final amt = o.refundAmountPaise == null ? '' : ' ${formatInrAmount(o.refundAmountPaise! / 100)}';
+        final amt = o.refundAmountPaise == null
+            ? ''
+            : ' ${formatInrAmount(o.refundAmountPaise! / 100)}';
         label = 'Refunded$amt';
         break;
       case 'rejected':
@@ -874,7 +1194,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       label: Text(label),
       backgroundColor: color.withValues(alpha: 0.12),
       side: BorderSide(color: color.withValues(alpha: 0.35)),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+      labelStyle:
+          TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     );
   }
 
@@ -884,7 +1205,9 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     final orderId = order.id;
     setState(() => _refundingOrderIds.add(orderId));
     try {
-      await ref.read(adminServiceProvider).approveRefundForOrder(orderId: orderId);
+      await ref
+          .read(adminServiceProvider)
+          .approveRefundForOrder(orderId: orderId);
       ref.invalidate(adminOrdersProvider);
       ref.invalidate(adminOrderDetailsProvider(orderId));
       if (!mounted) return;
@@ -902,7 +1225,8 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
   }
 
   Future<bool?> _showRefundConfirmDialogForOrder(AdminOrderRow order) {
-    final refundPaise = order.refundAmountPaise ?? (order.totalAmount * 100).round();
+    final refundPaise =
+        order.refundAmountPaise ?? (order.totalAmount * 100).round();
     final highValue = refundPaise > 500000;
     return showDialog<bool>(
       context: context,
@@ -984,14 +1308,16 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
     } catch (e) {
       if (!mounted) return;
       final rawError = e.toString().toLowerCase();
-      final triedShipped = action.targetStatusTitleCase.trim().toLowerCase() == 'shipped';
-      final missingShipmentDetails = rawError.contains('order_checklist_missing_tracking') ||
-          rawError.contains('order_checklist_missing_courier') ||
-          rawError.contains('order_checklist_missing_package_weight') ||
-          rawError.contains('order_checklist_missing_package_dimensions') ||
-          rawError.contains('tracking') && rawError.contains('missing') ||
-          rawError.contains('courier') && rawError.contains('missing') ||
-          rawError.contains('null');
+      final triedShipped =
+          action.targetStatusTitleCase.trim().toLowerCase() == 'shipped';
+      final missingShipmentDetails =
+          rawError.contains('order_checklist_missing_tracking') ||
+              rawError.contains('order_checklist_missing_courier') ||
+              rawError.contains('order_checklist_missing_package_weight') ||
+              rawError.contains('order_checklist_missing_package_dimensions') ||
+              rawError.contains('tracking') && rawError.contains('missing') ||
+              rawError.contains('courier') && rawError.contains('missing') ||
+              rawError.contains('null');
       if (triedShipped && missingShipmentDetails) {
         Navigator.of(context).pushNamed(
           '/admin/orders/details/$orderId?focusShipment=1',
@@ -1007,5 +1333,4 @@ class _AdminOrdersPageState extends ConsumerState<AdminOrdersPage> {
       }
     }
   }
-
 }

@@ -126,6 +126,18 @@ class ShippingLabelService {
     return out;
   }
 
+  /// Generates one label page per order in a single PDF document.
+  Future<Uint8List> generateCombinedPdfBatch(
+    List<AdminOrderDetails> details,
+  ) async {
+    final settings =
+        await DocumentSettingsService(Supabase.instance.client).fetch();
+    final labels = details
+        .map((detail) => _buildFromAdminOrder(detail, settings))
+        .toList();
+    return _generator.generateLabelPdfBatch(labels);
+  }
+
   static bool _hasStructuredShipping(AdminOrderDetails d) {
     return (d.shippingFullName != null && d.shippingFullName!.isNotEmpty) ||
         (d.shippingPhone != null && d.shippingPhone!.isNotEmpty) ||

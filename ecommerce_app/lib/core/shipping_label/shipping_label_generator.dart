@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:ecommerce_app/core/formatting/inr_format.dart' show formatInrAmountPdfSafe;
+import 'package:ecommerce_app/core/formatting/inr_format.dart'
+    show formatInrAmountPdfSafe;
 import 'package:ecommerce_app/core/shipping_label/shipping_label_data.dart';
 import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -21,6 +22,31 @@ class ShippingLabelGenerator {
     final doc = pw.Document();
     final theme = await _buildLabelPdfTheme();
     final logo = await _loadLogo();
+    _addLabelPage(doc, data: data, theme: theme, logo: logo);
+    return doc.save();
+  }
+
+  /// Generates one label page per input in a single PDF document.
+  Future<Uint8List> generateLabelPdfBatch(
+    List<ShippingLabelData> labels,
+  ) async {
+    final doc = pw.Document();
+    final theme = await _buildLabelPdfTheme();
+    final logo = await _loadLogo();
+
+    for (final data in labels) {
+      _addLabelPage(doc, data: data, theme: theme, logo: logo);
+    }
+
+    return doc.save();
+  }
+
+  void _addLabelPage(
+    pw.Document doc, {
+    required ShippingLabelData data,
+    required pw.ThemeData? theme,
+    required pw.MemoryImage? logo,
+  }) {
     final orderDate = formatOrderDetailsDateTime(data.orderDate);
 
     doc.addPage(
@@ -44,14 +70,16 @@ class ShippingLabelGenerator {
                 children: [
                   pw.Text(
                     data.customerName,
-                    style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(
+                        fontSize: 10, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.SizedBox(height: 2),
                   _addressLines(data.shipToLines, fontSize: 8.5),
                   pw.SizedBox(height: 3),
                   pw.Text(
                     'Phone: ${data.phone}',
-                    style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(
+                        fontSize: 8.5, fontWeight: pw.FontWeight.bold),
                   ),
                 ],
               ),
@@ -70,8 +98,6 @@ class ShippingLabelGenerator {
         ),
       ),
     );
-
-    return doc.save();
   }
 
   Future<pw.MemoryImage?> _loadLogo() async {
@@ -124,7 +150,6 @@ class ShippingLabelGenerator {
         border: pw.Border.all(color: PdfColors.black, width: 0.8),
       ),
       child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           if (logo != null)
             pw.Container(
@@ -142,7 +167,8 @@ class ShippingLabelGenerator {
               ),
               child: pw.Text(
                 'A',
-                style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
               ),
             ),
           pw.SizedBox(width: 6),
@@ -152,19 +178,22 @@ class ShippingLabelGenerator {
               children: [
                 pw.Text(
                   _brandName,
-                  style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(
+                      fontSize: 11, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(height: 2),
                 pw.Text(
                   'Order: ${data.orderIdDisplay}',
-                  style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+                  style:
+                      pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
                 ),
                 if (data.carrierName != null)
                   pw.Text(
                     'Carrier: ${data.carrierName}',
                     style: const pw.TextStyle(fontSize: 7),
                   ),
-                pw.Text('Date: $orderDate', style: const pw.TextStyle(fontSize: 7)),
+                pw.Text('Date: $orderDate',
+                    style: const pw.TextStyle(fontSize: 7)),
               ],
             ),
           ),
@@ -273,7 +302,8 @@ class ShippingLabelGenerator {
               pw.Expanded(
                 child: pw.Text(
                   data.orderIdDisplay,
-                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(
+                      fontSize: 7.5, fontWeight: pw.FontWeight.bold),
                 ),
               ),
             ],
@@ -282,5 +312,4 @@ class ShippingLabelGenerator {
       ),
     );
   }
-
 }

@@ -14,6 +14,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 export 'invoice_preview.dart';
 
+class InvoicePdfInput {
+  final Order order;
+  final List<OrderItem> items;
+  final OrderShippingInfo? shipping;
+
+  const InvoicePdfInput({
+    required this.order,
+    required this.items,
+    this.shipping,
+  });
+}
+
 /// Builds a single-page invoice PDF for an [Order] and its line items.
 /// Keeps generation admin-only via existing call sites.
 class InvoiceGenerator {
@@ -36,6 +48,54 @@ class InvoiceGenerator {
     final theme = await _buildInvoicePdfTheme();
     final logo = await _loadInvoiceLogo();
 
+    _addInvoicePage(
+      doc,
+      order: order,
+      items: items,
+      shipping: shipping,
+      settings: settings,
+      theme: theme,
+      logo: logo,
+    );
+
+    return doc.save();
+  }
+
+  /// Generates one invoice page per input in a single PDF document.
+  Future<Uint8List> generateInvoicePdfBatch(
+    List<InvoicePdfInput> inputs, {
+    DocumentSettings? settingsOverride,
+  }) async {
+    final doc = pw.Document();
+    final settings = settingsOverride ??
+        await DocumentSettingsService(Supabase.instance.client).fetch();
+    final theme = await _buildInvoicePdfTheme();
+    final logo = await _loadInvoiceLogo();
+
+    for (final input in inputs) {
+      _addInvoicePage(
+        doc,
+        order: input.order,
+        items: input.items,
+        shipping: input.shipping,
+        settings: settings,
+        theme: theme,
+        logo: logo,
+      );
+    }
+
+    return doc.save();
+  }
+
+  void _addInvoicePage(
+    pw.Document doc, {
+    required Order order,
+    required List<OrderItem> items,
+    required OrderShippingInfo? shipping,
+    required DocumentSettings settings,
+    required pw.ThemeData? theme,
+    required pw.MemoryImage? logo,
+  }) {
     final orderDate = formatOrderDetailsDateTime(order.createdAt);
     final invoiceDate = formatOrderDetailsDateTime(DateTime.now());
     final invoiceNo = 'INV-${formatOrderIdDisplay(order.id)}';
@@ -89,8 +149,6 @@ class InvoiceGenerator {
         ),
       ),
     );
-
-    return doc.save();
   }
 
   Future<pw.MemoryImage?> _loadInvoiceLogo() async {

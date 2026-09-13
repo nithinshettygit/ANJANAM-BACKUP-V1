@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:ecommerce_app/core/document_settings/document_settings.dart';
 import 'package:ecommerce_app/core/invoice/invoice_generator.dart';
+import 'package:ecommerce_app/core/shipping_label/shipping_label_data.dart';
+import 'package:ecommerce_app/core/shipping_label/shipping_label_generator.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_shipping_info.dart';
@@ -77,5 +79,41 @@ void main() {
     final output = File('build/invoice_pdf_generation_test.pdf');
     await output.writeAsBytes(bytes, flush: true);
     expect(await output.exists(), isTrue);
+
+    final batchBytes = await InvoiceGenerator().generateInvoicePdfBatch([
+      InvoicePdfInput(order: order, items: order.items, shipping: shipping),
+      InvoicePdfInput(order: order, items: order.items, shipping: shipping),
+    ],
+        settingsOverride: const DocumentSettings(
+          sellerLegalName: 'Anjanam',
+          sellerAddress:
+              'Anjanam Warehouse\\nMUGU, Kasaragod\\nKerala, India 671321',
+          sellerPhone: '+91 81291 07108',
+          sellerEmail: 'support.anjanam@gmail.com',
+          sellerGstin: '32CQRPM1694P1ZZ',
+          labelFromAddressLines: [
+            'Anjanam Warehouse',
+            'MUGU, Kasaragod',
+            'Kerala, India 671321',
+          ],
+        ));
+    expect(batchBytes.length, greaterThan(bytes.length));
+
+    final label = ShippingLabelData(
+      orderId: '84e6fd58-0000-0000-0000-000000000000',
+      orderIdDisplay: '#000000',
+      orderDate: DateTime.utc(2026, 9, 12),
+      customerName: 'Nithin',
+      phone: '8129107108',
+      shipToLines: ['Bendre House', 'Bantwal', 'Karnataka 574211'],
+      fromAddressLines: ['Anjanam', 'MUGU, Kasaragod'],
+      barcodeData: '84e6fd58-0000-0000-0000-000000000000',
+      qrData:
+          'https://anjanam.store/order/84e6fd58-0000-0000-0000-000000000000',
+    );
+    final labelBytes = await ShippingLabelGenerator().generateLabelPdf(label);
+    final labelBatchBytes =
+        await ShippingLabelGenerator().generateLabelPdfBatch([label, label]);
+    expect(labelBatchBytes.length, greaterThan(labelBytes.length));
   });
 }

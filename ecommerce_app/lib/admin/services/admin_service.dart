@@ -342,6 +342,8 @@ class AdminOrderRow {
   final String? shipmentId;
   final String orderKind;
   final String? originalOrderId;
+  final DateTime? invoiceDownloadedAt;
+  final DateTime? labelDownloadedAt;
 
   const AdminOrderRow({
     required this.id,
@@ -366,6 +368,8 @@ class AdminOrderRow {
     this.shipmentId,
     this.orderKind = 'normal',
     this.originalOrderId,
+    this.invoiceDownloadedAt,
+    this.labelDownloadedAt,
   });
 }
 
@@ -902,6 +906,28 @@ class AdminService {
   Future<List<AdminProduct>> getProducts() => fetchProducts();
   Future<List<AdminOrderRow>> getOrders({int? limit, String? searchQuery}) =>
       fetchOrders(limit: limit, searchQuery: searchQuery);
+
+  Future<void> markInvoicesDownloaded(List<String> orderIds) =>
+      _markDocumentDownloaded(orderIds, column: 'invoice_downloaded_at');
+
+  Future<void> markLabelsDownloaded(List<String> orderIds) =>
+      _markDocumentDownloaded(orderIds, column: 'label_downloaded_at');
+
+  Future<void> _markDocumentDownloaded(
+    List<String> orderIds, {
+    required String column,
+  }) async {
+    await _requireAdmin();
+    final ids = orderIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return;
+    await client.from('orders').update(
+        {column: DateTime.now().toUtc().toIso8601String()}).inFilter('id', ids);
+  }
+
   Future<List<AdminUserRow>> getUsers() => fetchUsers();
   Future<void> blockUser(String userId, {String? reason}) =>
       setUserBlocked(userId, blocked: true, reason: reason);
@@ -1359,7 +1385,8 @@ class AdminService {
     Object? lastError;
     for (final row in rowCandidates) {
       try {
-        created = await client.from('products').insert(row).select('id').single();
+        created =
+            await client.from('products').insert(row).select('id').single();
         lastError = null;
         break;
       } catch (e) {
@@ -1897,7 +1924,7 @@ class AdminService {
             'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
             'payment_method, payment_status, razorpay_payment_id, '
             'refund_status, refund_amount, refund_id, delivery_status, shipment_status, delivery_method, shipment_id, '
-            'order_kind, original_order_id',
+            'order_kind, original_order_id, invoice_downloaded_at, label_downloaded_at',
           )
           .order('created_at', ascending: false);
       if (limit != null) {
@@ -2018,6 +2045,12 @@ class AdminService {
           final t = row['original_order_id']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
         }(),
+        invoiceDownloadedAt: DateTime.tryParse(
+          row['invoice_downloaded_at']?.toString() ?? '',
+        ),
+        labelDownloadedAt: DateTime.tryParse(
+          row['label_downloaded_at']?.toString() ?? '',
+        ),
       );
     }).toList();
 
@@ -2198,7 +2231,7 @@ class AdminService {
             'shipment_id, awb_code, shipment_status, tracking_url, shipped_at, last_tracking_update, '
             'payment_method, payment_status, razorpay_payment_id, razorpay_order_id, paid_at, payment_verified_at, '
             'refund_status, refund_amount, refund_id, refund_requested_at, refund_processed_at, '
-            'order_kind, original_order_id, '
+            'order_kind, original_order_id, invoice_downloaded_at, label_downloaded_at, '
             'refund_initiated_by, refund_initiated_at, refund_reason',
           )
           .eq('id', orderId)
@@ -2349,6 +2382,12 @@ class AdminService {
         return t != null && t.isNotEmpty ? t : 'normal';
       }(),
       originalOrderId: orderColStr('original_order_id'),
+      invoiceDownloadedAt: DateTime.tryParse(
+        orderMap['invoice_downloaded_at']?.toString() ?? '',
+      ),
+      labelDownloadedAt: DateTime.tryParse(
+        orderMap['label_downloaded_at']?.toString() ?? '',
+      ),
     );
 
     final shipName = orderMap['shipping_full_name']?.toString().trim();
@@ -2384,13 +2423,21 @@ class AdminService {
     final shippingStateParsed =
         shipStateRaw != null && shipStateRaw.isNotEmpty ? shipStateRaw : null;
     final invoiceName =
-      (orderMap['shipping_name_invoice'] ?? orderMap['invoice_name'])?.toString().trim();
-    final invoiceAddressLine =
-      (orderMap['shipping_address_invoice'] ?? orderMap['invoice_address_line'])?.toString().trim();
+        (orderMap['shipping_name_invoice'] ?? orderMap['invoice_name'])
+            ?.toString()
+            .trim();
+    final invoiceAddressLine = (orderMap['shipping_address_invoice'] ??
+            orderMap['invoice_address_line'])
+        ?.toString()
+        .trim();
     final invoiceCity =
-      (orderMap['shipping_city_invoice'] ?? orderMap['invoice_city'])?.toString().trim();
+        (orderMap['shipping_city_invoice'] ?? orderMap['invoice_city'])
+            ?.toString()
+            .trim();
     final invoiceState =
-      (orderMap['shipping_state_invoice'] ?? orderMap['invoice_state'])?.toString().trim();
+        (orderMap['shipping_state_invoice'] ?? orderMap['invoice_state'])
+            ?.toString()
+            .trim();
 
     List<AdminOrderTimelineEvent> timeline;
     try {
@@ -2457,12 +2504,16 @@ class AdminService {
         orderMap['last_tracking_update']?.toString() ?? '',
       ),
       shippingState: shippingStateParsed,
-        invoiceName: invoiceName != null && invoiceName.isNotEmpty ? invoiceName : null,
-        invoiceAddressLine: invoiceAddressLine != null && invoiceAddressLine.isNotEmpty
-          ? invoiceAddressLine
-          : null,
-        invoiceCity: invoiceCity != null && invoiceCity.isNotEmpty ? invoiceCity : null,
-        invoiceState: invoiceState != null && invoiceState.isNotEmpty ? invoiceState : null,
+      invoiceName:
+          invoiceName != null && invoiceName.isNotEmpty ? invoiceName : null,
+      invoiceAddressLine:
+          invoiceAddressLine != null && invoiceAddressLine.isNotEmpty
+              ? invoiceAddressLine
+              : null,
+      invoiceCity:
+          invoiceCity != null && invoiceCity.isNotEmpty ? invoiceCity : null,
+      invoiceState:
+          invoiceState != null && invoiceState.isNotEmpty ? invoiceState : null,
       refundStatus:
           (orderMap['refund_status']?.toString().trim().isNotEmpty ?? false)
               ? orderMap['refund_status'].toString().trim().toLowerCase()
