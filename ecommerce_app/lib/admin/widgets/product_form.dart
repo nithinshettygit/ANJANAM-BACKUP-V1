@@ -1,4 +1,3 @@
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,7 +26,9 @@ class _VariantLineEdit {
         priceCtrl = TextEditingController(text: v.price.toStringAsFixed(2)),
         stockCtrl = TextEditingController(text: v.stockQuantity.toString()),
         weightCtrl = TextEditingController(
-          text: v.weight != null && v.weight! > 0 ? v.weight!.toStringAsFixed(3) : '',
+          text: v.weight != null && v.weight! > 0
+              ? v.weight!.toStringAsFixed(3)
+              : '',
         ),
         dimensionsCtrl = TextEditingController(text: v.dimensions ?? ''),
         imageCtrl = TextEditingController(text: v.imageUrl),
@@ -36,7 +37,8 @@ class _VariantLineEdit {
 
   _VariantLineEdit.emptyWithType(String type)
       : id = null,
-        typeCtrl = TextEditingController(text: type.trim().isEmpty ? 'size' : type.trim().toLowerCase()),
+        typeCtrl = TextEditingController(
+            text: type.trim().isEmpty ? 'size' : type.trim().toLowerCase()),
         nameCtrl = TextEditingController(),
         priceCtrl = TextEditingController(text: '0'),
         stockCtrl = TextEditingController(text: '0'),
@@ -104,8 +106,10 @@ const int kMinimumProductImageSize = 800;
 
 class ProductForm extends ConsumerStatefulWidget {
   final AdminProduct? initialProduct;
+
   /// Existing SKU rows when editing; preserved on save unless the variants editor is implemented.
   final List<AdminVariantUpsert> initialVariants;
+
   /// Folder id for storage paths `products/{id}/…` — existing product id or pre-assigned UUID for new products.
   final String storageProductId;
   final Future<void> Function(ProductUpsertInput input) onSubmit;
@@ -145,6 +149,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
   late final TextEditingController _dimensionsCtrl;
   late final TextEditingController _inventoryCtrl;
   late final TextEditingController _discountPercentCtrl;
+  late final TextEditingController _hsnCodeCtrl;
+  late final TextEditingController _gstRateCtrl;
 
   final List<String> _imageUrls = [];
   bool _saving = false;
@@ -154,6 +160,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
   late bool _isFestivalSpecial;
   late String _paymentMode;
   late String _deliveryChargeMode;
+  late String _taxStatus;
+  late bool _priceIncludesGst;
   late final TextEditingController _deliveryChargeInrCtrl;
 
   late final TextEditingController _newVariantTypeCtrl;
@@ -174,10 +182,25 @@ class _ProductFormState extends ConsumerState<ProductForm> {
       text: p != null && p.weight > 0 ? p.weight.toStringAsFixed(3) : '',
     );
     _dimensionsCtrl = TextEditingController(text: p?.dimensions ?? '');
-    _inventoryCtrl = TextEditingController(text: (p?.inventoryCount ?? 0).toString());
+    _inventoryCtrl =
+        TextEditingController(text: (p?.inventoryCount ?? 0).toString());
     _imageUrls.addAll(p?.imageUrls ?? const []);
     _discountPercent = (p?.displayDiscountPercent ?? 0).clamp(0, 99);
-    _discountPercentCtrl = TextEditingController(text: _discountPercent.toString());
+    _discountPercentCtrl =
+        TextEditingController(text: _discountPercent.toString());
+    _hsnCodeCtrl = TextEditingController(text: p?.hsnCode ?? '');
+    _gstRateCtrl = TextEditingController(
+      text: p?.gstRate == null
+          ? ''
+          : (p!.gstRate! % 1 == 0
+              ? p.gstRate!.toInt().toString()
+              : p.gstRate!.toString()),
+    );
+    _taxStatus =
+        const {'taxable', 'exempt', 'zero_rated'}.contains(p?.taxStatus)
+            ? p!.taxStatus
+            : 'taxable';
+    _priceIncludesGst = p?.priceIncludesGst ?? true;
     _isPopular = p?.isPopular ?? false;
     _isRecommended = p?.isRecommended ?? false;
     _isFestivalSpecial = p?.isFestivalSpecial ?? false;
@@ -191,7 +214,9 @@ class _ProductFormState extends ConsumerState<ProductForm> {
     );
 
     _newVariantTypeCtrl = TextEditingController(
-      text: widget.initialVariants.isNotEmpty ? widget.initialVariants.first.variantType : 'size',
+      text: widget.initialVariants.isNotEmpty
+          ? widget.initialVariants.first.variantType
+          : 'size',
     );
     for (final v in widget.initialVariants) {
       _variantLines.add(_VariantLineEdit.fromUpsert(v));
@@ -211,6 +236,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
     _dimensionsCtrl.dispose();
     _inventoryCtrl.dispose();
     _discountPercentCtrl.dispose();
+    _hsnCodeCtrl.dispose();
+    _gstRateCtrl.dispose();
     _deliveryChargeInrCtrl.dispose();
     for (final l in _variantLines) {
       l.dispose();
@@ -233,14 +260,16 @@ class _ProductFormState extends ConsumerState<ProductForm> {
               TextFormField(
                 controller: _titleCtrl,
                 decoration: const InputDecoration(labelText: 'Title'),
-                validator: (v) => v == null || v.trim().isEmpty ? 'Enter title' : null,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Enter title' : null,
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _descriptionCtrl,
                 maxLines: 4,
                 decoration: const InputDecoration(labelText: 'Description'),
-                validator: (v) => v == null || v.trim().isEmpty ? 'Enter description' : null,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Enter description' : null,
               ),
               const SizedBox(height: 10),
               _buildCategoryField(),
@@ -257,23 +286,27 @@ class _ProductFormState extends ConsumerState<ProductForm> {
               const SizedBox(height: 10),
               TextFormField(
                 controller: _tagsCtrl,
-                decoration: const InputDecoration(labelText: 'Tags (comma separated)'),
+                decoration:
+                    const InputDecoration(labelText: 'Tags (comma separated)'),
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _priceCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}$')),
                 ],
                 decoration: const InputDecoration(
                   labelText: 'Sale price (INR)',
-                  helperText: 'Amount the customer pays. Card promo % derives MRP on product cards.',
+                  helperText:
+                      'Amount the customer pays. Card promo % derives MRP on product cards.',
                   helperMaxLines: 2,
                 ),
                 validator: (v) {
                   final value = double.tryParse((v ?? '').trim());
-                  if (value == null || value <= 0) return 'Price must be greater than 0';
+                  if (value == null || value <= 0)
+                    return 'Price must be greater than 0';
                   return null;
                 },
               ),
@@ -317,7 +350,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                         setState(() {
                           _discountPercent = next;
                           _discountPercentCtrl.text = next.toString();
-                          _discountPercentCtrl.selection = TextSelection.collapsed(
+                          _discountPercentCtrl.selection =
+                              TextSelection.collapsed(
                             offset: _discountPercentCtrl.text.length,
                           );
                         });
@@ -332,9 +366,11 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                   Expanded(
                     child: TextFormField(
                       controller: _weightCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}$')),
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d{0,3}$')),
                       ],
                       decoration: const InputDecoration(
                         labelText: 'Weight (kg)',
@@ -360,9 +396,11 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                       validator: (v) {
                         final t = (v ?? '').trim();
                         if (t.isEmpty) return 'Enter dimensions';
-                        final hasShape = RegExp(r'^\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?$')
+                        final hasShape = RegExp(
+                                r'^\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?$')
                             .hasMatch(t);
-                        if (!hasShape) return 'Use format LxWxH (e.g. 20x15x10)';
+                        if (!hasShape)
+                          return 'Use format LxWxH (e.g. 20x15x10)';
                         return null;
                       },
                     ),
@@ -440,10 +478,12 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: _deliveryChargeInrCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
                     labelText: 'Custom delivery charge (₹)',
-                    helperText: 'Fixed delivery fee for this product’s rule (order uses the max across cart).',
+                    helperText:
+                        'Fixed delivery fee for this product’s rule (order uses the max across cart).',
                   ),
                   validator: (v) {
                     if (_deliveryChargeMode != 'custom') return null;
@@ -455,6 +495,63 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                   },
                 ),
               ],
+              const SizedBox(height: 12),
+              Text(
+                'TAX INFORMATION',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _hsnCodeCtrl,
+                decoration: const InputDecoration(labelText: 'HSN Code'),
+                validator: (v) {
+                  if (_taxStatus == 'taxable' &&
+                      (v == null || v.trim().isEmpty)) {
+                    return 'HSN Code is required for taxable products.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _gstRateCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'GST Rate (%)'),
+                validator: (v) {
+                  if (_taxStatus != 'taxable' &&
+                      (v == null || v.trim().isEmpty)) {
+                    return null;
+                  }
+                  final rate = double.tryParse((v ?? '').trim());
+                  if (rate == null || rate < 0 || rate > 100) {
+                    return 'Enter a valid GST rate.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: _taxStatus,
+                decoration: const InputDecoration(labelText: 'Tax Status'),
+                items: const [
+                  DropdownMenuItem(value: 'taxable', child: Text('Taxable')),
+                  DropdownMenuItem(value: 'exempt', child: Text('Exempt')),
+                  DropdownMenuItem(
+                      value: 'zero_rated', child: Text('Zero Rated')),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _taxStatus = value);
+                },
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Price Includes GST'),
+                value: _priceIncludesGst,
+                onChanged: (value) => setState(() => _priceIncludesGst = value),
+              ),
               const SizedBox(height: 12),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
@@ -477,7 +574,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                         .map(
                           (type) => ActionChip(
                             label: Text(type),
-                            onPressed: () => setState(() => _newVariantTypeCtrl.text = type),
+                            onPressed: () =>
+                                setState(() => _newVariantTypeCtrl.text = type),
                           ),
                         )
                         .toList(),
@@ -500,7 +598,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                           setState(() {
                             _variantLines.insert(
                               0,
-                              _VariantLineEdit.emptyWithType(_newVariantTypeCtrl.text),
+                              _VariantLineEdit.emptyWithType(
+                                  _newVariantTypeCtrl.text),
                             );
                           });
                         },
@@ -517,7 +616,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                         setState(() {
                           _variantLines.insert(
                             0,
-                            _VariantLineEdit.emptyWithType(_newVariantTypeCtrl.text),
+                            _VariantLineEdit.emptyWithType(
+                                _newVariantTypeCtrl.text),
                           );
                         });
                       },
@@ -530,7 +630,10 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -555,7 +658,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                                 Expanded(
                                   child: Text(
                                     'Option ${i + 1}',
-                                    style: Theme.of(context).textTheme.titleSmall,
+                                    style:
+                                        Theme.of(context).textTheme.titleSmall,
                                   ),
                                 ),
                                 IconButton(
@@ -587,16 +691,19 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                                   width: 210,
                                   child: TextFormField(
                                     controller: line.nameCtrl,
-                                    decoration:
-                                        const InputDecoration(labelText: 'Name (e.g. M, 250ml)'),
+                                    decoration: const InputDecoration(
+                                        labelText: 'Name (e.g. M, 250ml)'),
                                   ),
                                 ),
                                 SizedBox(
                                   width: 140,
                                   child: TextFormField(
                                     controller: line.priceCtrl,
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    decoration: const InputDecoration(labelText: 'Price (INR)'),
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                            decimal: true),
+                                    decoration: const InputDecoration(
+                                        labelText: 'Price (INR)'),
                                   ),
                                 ),
                                 SizedBox(
@@ -604,17 +711,23 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                                   child: TextFormField(
                                     controller: line.stockCtrl,
                                     keyboardType: TextInputType.number,
-                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                    decoration: const InputDecoration(labelText: 'Stock'),
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly
+                                    ],
+                                    decoration: const InputDecoration(
+                                        labelText: 'Stock'),
                                   ),
                                 ),
                                 SizedBox(
                                   width: 170,
                                   child: TextFormField(
                                     controller: line.weightCtrl,
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                            decimal: true),
                                     inputFormatters: [
-                                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}$')),
+                                      FilteringTextInputFormatter.allow(
+                                          RegExp(r'^\d*\.?\d{0,3}$')),
                                     ],
                                     decoration: const InputDecoration(
                                       labelText: 'Weight kg (optional)',
@@ -635,7 +748,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                                   width: 200,
                                   child: TextFormField(
                                     controller: line.skuCtrl,
-                                    decoration: const InputDecoration(labelText: 'SKU (optional)'),
+                                    decoration: const InputDecoration(
+                                        labelText: 'SKU (optional)'),
                                   ),
                                 ),
                               ],
@@ -835,12 +949,14 @@ class _ProductFormState extends ConsumerState<ProductForm> {
           labelText: 'Category',
           helperText: 'Loading catalog categories…',
         ),
-        validator: (v) => v == null || v.trim().isEmpty ? 'Enter category' : null,
+        validator: (v) =>
+            v == null || v.trim().isEmpty ? 'Enter category' : null,
       ),
       error: (_, __) => TextFormField(
         controller: _categoryCtrl,
         decoration: const InputDecoration(labelText: 'Category'),
-        validator: (v) => v == null || v.trim().isEmpty ? 'Enter category' : null,
+        validator: (v) =>
+            v == null || v.trim().isEmpty ? 'Enter category' : null,
       ),
       data: _buildCategoryFieldWithOptions,
     );
@@ -855,9 +971,11 @@ class _ProductFormState extends ConsumerState<ProductForm> {
             controller: _categoryCtrl,
             decoration: const InputDecoration(
               labelText: 'Category',
-              helperText: 'No catalog categories yet. Type a value or create one below.',
+              helperText:
+                  'No catalog categories yet. Type a value or create one below.',
             ),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Enter category' : null,
+            validator: (v) =>
+                v == null || v.trim().isEmpty ? 'Enter category' : null,
           ),
           TextButton.icon(
             onPressed: _saving ? null : _onCreateCategoryFromForm,
@@ -963,7 +1081,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _pickAndUploadImages() async {
@@ -1010,7 +1129,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
           );
           continue;
         }
-        final compressed = compressProductImageForUpload(Uint8List.fromList(raw));
+        final compressed =
+            compressProductImageForUpload(Uint8List.fromList(raw));
         if (compressed == null) {
           _snack('Could not decode ${file.name}.');
           continue;
@@ -1116,35 +1236,41 @@ class _ProductFormState extends ConsumerState<ProductForm> {
           return;
         }
         if (u.variantName.trim().isEmpty) continue;
-        final normalized = '${u.variantType.trim().toLowerCase()}::${u.variantName.trim().toLowerCase()}';
+        final normalized =
+            '${u.variantType.trim().toLowerCase()}::${u.variantName.trim().toLowerCase()}';
         if (!seenNames.add(normalized)) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Duplicate option: ${u.variantType} - ${u.variantName}'),
+              content:
+                  Text('Duplicate option: ${u.variantType} - ${u.variantName}'),
             ),
           );
           return;
         }
         if (u.stockQuantity < 0) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Invalid stock for variant: ${u.variantName}')),
+            SnackBar(
+                content: Text('Invalid stock for variant: ${u.variantName}')),
           );
           return;
         }
         if (u.weight != null && u.weight! <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Invalid weight for variant: ${u.variantName}')),
+            SnackBar(
+                content: Text('Invalid weight for variant: ${u.variantName}')),
           );
           return;
         }
         final dims = u.dimensions?.trim() ?? '';
         if (dims.isNotEmpty) {
-          final hasShape = RegExp(r'^\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?$')
+          final hasShape = RegExp(
+                  r'^\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?\s*[xX×]\s*\d+(\.\d+)?$')
               .hasMatch(dims);
           if (!hasShape) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Use LxWxH format for variant dimensions: ${u.variantName}'),
+                content: Text(
+                    'Use LxWxH format for variant dimensions: ${u.variantName}'),
               ),
             );
             return;
@@ -1198,6 +1324,13 @@ class _ProductFormState extends ConsumerState<ProductForm> {
       deliveryChargeInr: _deliveryChargeMode == 'custom'
           ? double.tryParse(_deliveryChargeInrCtrl.text.trim())
           : null,
+      hsnCode:
+          _hsnCodeCtrl.text.trim().isEmpty ? null : _hsnCodeCtrl.text.trim(),
+      gstRate: _taxStatus == 'taxable'
+          ? double.tryParse(_gstRateCtrl.text.replaceAll('%', '').trim())
+          : 0,
+      taxStatus: _taxStatus,
+      priceIncludesGst: _priceIncludesGst,
       variants: variants,
     );
     setState(() => _saving = true);
@@ -1218,11 +1351,14 @@ class _ProductFormState extends ConsumerState<ProductForm> {
   }
 
   void _showPreview() {
-    final title = _titleCtrl.text.trim().isEmpty ? 'Product title' : _titleCtrl.text.trim();
+    final title = _titleCtrl.text.trim().isEmpty
+        ? 'Product title'
+        : _titleCtrl.text.trim();
     final description = _descriptionCtrl.text.trim().isEmpty
         ? 'Product description'
         : _descriptionCtrl.text.trim();
-    final category = _categoryCtrl.text.trim().isEmpty ? '-' : _categoryCtrl.text.trim();
+    final category =
+        _categoryCtrl.text.trim().isEmpty ? '-' : _categoryCtrl.text.trim();
     final sku = _skuCtrl.text.trim().isEmpty ? '-' : _skuCtrl.text.trim();
     final brand = _brandCtrl.text.trim().isEmpty ? '-' : _brandCtrl.text.trim();
     final tags = _tagsCtrl.text
@@ -1232,7 +1368,8 @@ class _ProductFormState extends ConsumerState<ProductForm> {
         .toList();
     final price = double.tryParse(_priceCtrl.text.trim()) ?? 0;
     final weight = double.tryParse(_weightCtrl.text.trim()) ?? 0;
-    final dimensions = _dimensionsCtrl.text.trim().isEmpty ? '-' : _dimensionsCtrl.text.trim();
+    final dimensions =
+        _dimensionsCtrl.text.trim().isEmpty ? '-' : _dimensionsCtrl.text.trim();
 
     showDialog<void>(
       context: context,
@@ -1272,9 +1409,11 @@ class _ProductFormState extends ConsumerState<ProductForm> {
                 ),
               ),
               Text('Card promo: $_discountPercent%'),
-              Text('Weight: ${weight <= 0 ? '-' : '${weight.toStringAsFixed(3)} kg'}'),
+              Text(
+                  'Weight: ${weight <= 0 ? '-' : '${weight.toStringAsFixed(3)} kg'}'),
               Text('Dimensions: $dimensions'),
-              Text('Stock: ${_inventoryCtrl.text.trim().isEmpty ? '-' : _inventoryCtrl.text.trim()}'),
+              Text(
+                  'Stock: ${_inventoryCtrl.text.trim().isEmpty ? '-' : _inventoryCtrl.text.trim()}'),
             ],
           ),
         ),
@@ -1328,7 +1467,8 @@ class _AdminProductImageTile extends StatelessWidget {
                 left: 4,
                 top: 4,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppColors.marigoldOrange.withValues(alpha: 0.95),
                     borderRadius: BorderRadius.circular(6),
@@ -1402,7 +1542,9 @@ class _AddImageTile extends StatelessWidget {
           child: Icon(
             Icons.add_photo_alternate_outlined,
             size: 36,
-            color: enabled ? scheme.primary : scheme.onSurfaceVariant.withValues(alpha: 0.38),
+            color: enabled
+                ? scheme.primary
+                : scheme.onSurfaceVariant.withValues(alpha: 0.38),
           ),
         ),
       ),

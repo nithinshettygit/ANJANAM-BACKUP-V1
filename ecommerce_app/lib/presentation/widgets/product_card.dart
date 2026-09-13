@@ -8,6 +8,7 @@ import 'package:ecommerce_app/presentation/utils/product_price_display.dart';
 import 'package:ecommerce_app/presentation/widgets/product_image.dart';
 import 'package:ecommerce_app/presentation/widgets/product_quantity_stepper.dart';
 import 'package:ecommerce_app/presentation/widgets/star_rating_display.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 import 'package:ecommerce_app/presentation/widgets/storefront_wishlist_chip.dart';
 import 'package:flutter/material.dart';
 
@@ -105,8 +106,9 @@ class _ProductCardState extends State<ProductCard> {
       outOfStock: outOfStock,
     );
     final lowStock = productIsLowStock(product);
+    final localizations = AppLocalizations.of(context);
     final stockBanner =
-        (lowStock && !outOfStock) ? productStockBannerText(product) : null;
+      (lowStock && !outOfStock) ? productStockBannerText(product, localizations) : null;
     final blockBuy = outOfStock;
     final blockAddUnlessInCart = outOfStock && !widget.isInCart;
 
@@ -343,7 +345,7 @@ class _ProductCardState extends State<ProductCard> {
                         children: [
                           Expanded(
                             child: Tooltip(
-                              message: 'Buy now',
+                              message: AppLocalizations.of(context).buyNow,
                               child: SizedBox(
                                 height: btnHeight,
                                 child: Material(
@@ -377,7 +379,9 @@ class _ProductCardState extends State<ProductCard> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Tooltip(
-                              message: widget.isInCart ? 'Go to cart' : 'Add to cart',
+                                message: widget.isInCart
+                                  ? AppLocalizations.of(context).goToCart
+                                  : AppLocalizations.of(context).addToCart,
                               child: SizedBox(
                                 height: btnHeight,
                                 child: Material(

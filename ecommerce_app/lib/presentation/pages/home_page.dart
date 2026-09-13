@@ -25,6 +25,7 @@ import '../widgets/storefront_home_header.dart'
         kStorefrontHomeWebInlineSearchMinWidth,
         kStorefrontHomeWebToolbarHeight;
 import 'catalog_page.dart';
+import '../../l10n/app_localizations.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -136,6 +137,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   Widget _homeFeedList(Future<void> Function() onRefresh) {
+    final localizations = AppLocalizations.of(context);
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -168,66 +170,66 @@ class _HomePageState extends ConsumerState<HomePage>
                 return const _HomeTopCategoriesSlot();
               case 2:
                 return HomeHorizontalProductSection(
-                  title: 'Popular Products',
+                  title: localizations.popularProducts,
                   query: kHomePopularProductsQuery,
                   layout: HomeStorefrontProductLayout.popularRail,
-                  sectionBadge: 'Popular',
+                  sectionBadge: localizations.popular,
                   onViewAll: () => Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(
-                      builder: (_) => const CatalogPage(
-                        title: 'Popular Products',
+                      builder: (_) => CatalogPage(
+                        title: localizations.popularProducts,
                         popularOnly: true,
                       ),
                     ),
                   ),
-                  emptyMessage: 'Popular products will appear here as customers shop more.',
+                  emptyMessage: localizations.popularEmpty,
                 );
               case 3:
                 return HomeHorizontalProductSection(
-                  title: 'Recommended For You',
+                  title: localizations.recommendedForYou,
                   query: kHomeRecommendedProductsQuery,
                   layout: HomeStorefrontProductLayout.recommendedRail,
-                  sectionBadge: 'For you',
+                  sectionBadge: localizations.forYou,
                   onViewAll: () => Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(
-                      builder: (_) => const CatalogPage(
-                        title: 'Recommended For You',
+                      builder: (_) => CatalogPage(
+                        title: localizations.recommendedForYou,
                         recommendedOnly: true,
                       ),
                     ),
                   ),
-                  emptyMessage: 'No recommendations right now. Explore our catalog for more products.',
+                  emptyMessage: localizations.recommendationsEmpty,
                 );
               case 4:
                 return HomeHorizontalProductSection(
-                  title: 'Festival Specials',
+                  title: localizations.festivalSpecials,
                   query: kHomeFestivalProductsQuery,
                   layout: HomeStorefrontProductLayout.festivalBannerRail,
-                  sectionBadge: 'Festival',
+                  sectionBadge: localizations.festival,
                   onViewAll: () => Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(
-                      builder: (_) => const CatalogPage(
-                        title: 'Festival Specials',
+                      builder: (_) => CatalogPage(
+                        title: localizations.festivalSpecials,
                         festivalSpecialOnly: true,
                       ),
                     ),
                   ),
-                  emptyMessage: 'Festival specials are coming soon. Please check back shortly.',
+                  emptyMessage: localizations.festivalEmpty,
                 );
               case 5:
                 return HomeHorizontalProductSection(
-                  title: 'New Arrivals',
+                  title: localizations.newArrivals,
                   query: kHomeNewArrivalsQuery,
                   layout: HomeStorefrontProductLayout.newArrivalsGrid,
-                  sectionBadge: 'New',
+                  sectionBadge: localizations.newLabel,
                   onViewAll: () => Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(
-                      builder: (_) => const CatalogPage(
-                        title: 'New Arrivals',
+                      builder: (_) => CatalogPage(
+                        title: localizations.newArrivals,
                       ),
                     ),
                   ),
-                  emptyMessage: 'No new arrivals yet. We are adding fresh products soon.',
+                  emptyMessage: localizations.newArrivalsEmpty,
                 );
               default:
                 return const SizedBox.shrink();

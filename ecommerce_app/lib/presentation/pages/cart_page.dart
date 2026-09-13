@@ -12,6 +12,7 @@ import 'package:ecommerce_app/presentation/widgets/product_quantity_stepper.dart
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/utils/storefront_product_navigation.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,16 +25,16 @@ Future<void> _confirmRemoveCartLine(
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Remove from cart?'),
-      content: const Text('This item will be removed from your cart.'),
+      title: Text(AppLocalizations.of(context).removeFromCartQuestion),
+      content: Text(AppLocalizations.of(context).itemRemovedFromCart),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).cancel),
         ),
         FilledButton(
           onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Remove'),
+          child: Text(AppLocalizations.of(context).remove),
         ),
       ],
     ),
@@ -53,7 +54,7 @@ class CartPage extends ConsumerWidget {
     final cartAsync = ref.watch(cartControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Cart')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).myCart)),
       body: cartAsync.when(
         data: (cart) {
           if (cart.items.isEmpty) {
@@ -67,7 +68,7 @@ class CartPage extends ConsumerWidget {
                       context,
                       StorefrontTab.categories,
                     ),
-                child: const Text('Browse products'),
+                child: Text(AppLocalizations.of(context).browseProducts),
               ),
             );
             return kIsWeb ? WebMaxWidthCenter(child: empty) : empty;
@@ -138,9 +139,9 @@ class CartPage extends ConsumerWidget {
                 )
               : core;
         },
-        loading: () => const PageLoading(message: 'Loading cart...'),
+        loading: () => PageLoading(message: AppLocalizations.of(context).loadingCart),
         error: (error, _) => PageErrorState(
-          title: 'Could not load cart',
+          title: AppLocalizations.of(context).couldNotLoadCart,
           message: 'Check your connection and try again.\n${error.toString()}',
           onRetry: () => ref.invalidate(cartControllerProvider),
         ),
@@ -305,7 +306,7 @@ class _CartItemTile extends ConsumerWidget {
                       children: [
                         TextButton(
                           onPressed: () => _confirmRemoveCartLine(context, ref, item),
-                          child: const Text('Remove'),
+                          child: Text(AppLocalizations.of(context).remove),
                         ),
                         TextButton(
                           onPressed: () {
@@ -319,7 +320,7 @@ class _CartItemTile extends ConsumerWidget {
                               },
                             );
                           },
-                          child: const Text('Buy Now'),
+                          child: Text(AppLocalizations.of(context).buyNow),
                         ),
                       ],
                     ),
@@ -377,7 +378,7 @@ class _CartSummary extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Total: ${formatRupee(cart.total)}',
+              AppLocalizations.of(context).totalAmount(formatRupee(cart.total)),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: AppColors.priceText,
                     fontWeight: FontWeight.w800,
@@ -390,7 +391,7 @@ class _CartSummary extends ConsumerWidget {
                 onPressed: () {
                   Navigator.of(context).pushNamed('/checkout');
                 },
-                child: const Text('Checkout'),
+                child: Text(AppLocalizations.of(context).checkout),
               ),
             ),
           ],

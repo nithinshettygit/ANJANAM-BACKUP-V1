@@ -100,7 +100,8 @@ Route<dynamic>? _tryAdminOrderDetailsPathRoute(RouteSettings settings) {
   final name = settings.name;
   if (name == null || name.isEmpty) return null;
   final pathOnly = _routePathOnly(name);
-  if (pathOnly == null || !pathOnly.startsWith('/admin/orders/details/')) return null;
+  if (pathOnly == null || !pathOnly.startsWith('/admin/orders/details/'))
+    return null;
   final tail = pathOnly.substring('/admin/orders/details/'.length).trim();
   if (tail.isEmpty) return null;
   final orderId = Uri.decodeComponent(tail);
@@ -121,7 +122,8 @@ Route<dynamic>? _tryAdminUserDetailsPathRoute(RouteSettings settings) {
   final name = settings.name;
   if (name == null || name.isEmpty) return null;
   final pathOnly = _routePathOnly(name);
-  if (pathOnly == null || !pathOnly.startsWith('/admin/users/details/')) return null;
+  if (pathOnly == null || !pathOnly.startsWith('/admin/users/details/'))
+    return null;
   final tail = pathOnly.substring('/admin/users/details/'.length).trim();
   if (tail.isEmpty) return null;
   final userId = Uri.decodeComponent(tail);
@@ -351,8 +353,9 @@ class AppRouter {
                   orderId: orderId,
                   total: total.toDouble(),
                   currency: currency,
-                  razorpayPaymentId:
-                      paymentId is String && paymentId.isNotEmpty ? paymentId : null,
+                  razorpayPaymentId: paymentId is String && paymentId.isNotEmpty
+                      ? paymentId
+                      : null,
                   showOnlinePaymentConfirmed: showPaid,
                 ),
               ),
@@ -465,6 +468,7 @@ class AppRouter {
       case '/admin/homepage':
       case '/admin/categories':
       case '/admin/notifications':
+      case '/admin/document-settings':
       case '/admin/admin-notifications':
       case '/admin/returns':
       case '/admin/videos':
@@ -472,7 +476,8 @@ class AppRouter {
       case '/admin/explore-suggestions':
         return _AdminMaterialPageRoute<void>(
           settings: settings,
-          builder: (_) => AdminShellPage(currentRoute: settings.name ?? '/admin'),
+          builder: (_) =>
+              AdminShellPage(currentRoute: settings.name ?? '/admin'),
         );
       case '/admin/orders/details':
         final args = settings.arguments;
@@ -542,7 +547,8 @@ class _AdminAwareCustomerRoute extends StatefulWidget {
   const _AdminAwareCustomerRoute({required this.child});
 
   @override
-  State<_AdminAwareCustomerRoute> createState() => _AdminAwareCustomerRouteState();
+  State<_AdminAwareCustomerRoute> createState() =>
+      _AdminAwareCustomerRouteState();
 }
 
 class _AdminAwareCustomerRouteState extends State<_AdminAwareCustomerRoute> {
@@ -627,8 +633,10 @@ class _SharedVideoRoutePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(videoByIdProvider(videoId));
     return async.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('Video load failed: $e'))),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) =>
+          Scaffold(body: Center(child: Text('Video load failed: $e'))),
       data: (video) {
         if (video == null) {
           return const Scaffold(body: Center(child: Text('Video not found.')));
@@ -656,7 +664,11 @@ class _OrderDeepLinkResolverState extends State<_OrderDeepLinkResolver> {
     final user = client.auth.currentUser;
     if (user == null) return false;
     try {
-      final profile = await client.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      final profile = await client
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
       final role = profile?['role']?.toString().toLowerCase().trim();
       return role == 'admin' || role == 'super_admin';
     } catch (_) {
@@ -683,4 +695,3 @@ class _OrderDeepLinkResolverState extends State<_OrderDeepLinkResolver> {
     );
   }
 }
-

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:ecommerce_app/core/config/app_env.dart';
+import 'package:ecommerce_app/core/document_settings/document_settings.dart';
 import 'package:ecommerce_app/core/constants/stock_constants.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/network/http_resilience.dart';
@@ -112,6 +113,10 @@ class AdminProduct {
   final String paymentMode;
   final String deliveryChargeMode;
   final double? deliveryChargeInr;
+  final String? hsnCode;
+  final double? gstRate;
+  final String taxStatus;
+  final bool priceIncludesGst;
 
   const AdminProduct({
     required this.id,
@@ -138,9 +143,14 @@ class AdminProduct {
     this.paymentMode = 'both',
     this.deliveryChargeMode = 'default',
     this.deliveryChargeInr,
+    this.hsnCode,
+    this.gstRate,
+    this.taxStatus = 'taxable',
+    this.priceIncludesGst = true,
   });
 
-  int get sellableStock => availableStock ?? (inventoryCount - reservedQuantity).clamp(0, 1 << 30);
+  int get sellableStock =>
+      availableStock ?? (inventoryCount - reservedQuantity).clamp(0, 1 << 30);
 
   factory AdminProduct.fromJson(Map<String, dynamic> json) {
     bool readBool(dynamic v) {
@@ -153,13 +163,35 @@ class AdminProduct {
       return false;
     }
 
+    double? readDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        final s = v.trim();
+        if (s.isEmpty) return null;
+        return double.tryParse(s);
+      }
+      return null;
+    }
+
+    int readInt(dynamic v, {int defaultValue = 0}) {
+      if (v == null) return defaultValue;
+      if (v is num) return v.toInt();
+      if (v is String) {
+        final s = v.trim();
+        if (s.isEmpty) return defaultValue;
+        return int.tryParse(s) ?? defaultValue;
+      }
+      return defaultValue;
+    }
+
     final images = json['image_urls'];
     final dd = json['display_discount_percent'];
     final discount = dd is int
         ? dd.clamp(0, 99)
         : dd is num
             ? dd.round().clamp(0, 99)
-            : 0;
+            : readInt(dd).clamp(0, 99);
     return AdminProduct(
       id: (json['id'] ?? '').toString(),
       title: (json['title'] ?? '').toString(),
@@ -167,15 +199,19 @@ class AdminProduct {
       category: json['category']?.toString(),
       sku: (json['sku'] ?? '').toString(),
       brand: (json['brand'] ?? '').toString(),
-      tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-      price: (json['price'] as num?)?.toDouble() ?? 0,
+      tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ??
+          const [],
+      price: readDouble(json['price']) ?? 0,
       currency: currencyOrInr(json['currency']),
-      weight: (json['weight'] as num?)?.toDouble() ?? 0,
+      weight: readDouble(json['weight']) ?? 0,
       dimensions: (json['dimensions'] ?? '').toString(),
-      inventoryCount: (json['inventory_count'] as num?)?.toInt() ?? 0,
-      reservedQuantity: (json['reserved_quantity'] as num?)?.toInt() ?? 0,
-      availableStock: (json['available_stock'] as num?)?.toInt(),
-      imageUrls: images is List ? images.map((e) => e.toString()).toList() : const [],
+      inventoryCount: readInt(json['inventory_count']),
+      reservedQuantity: readInt(json['reserved_quantity']),
+      availableStock: json['available_stock'] == null
+          ? null
+          : readInt(json['available_stock']),
+      imageUrls:
+          images is List ? images.map((e) => e.toString()).toList() : const [],
       createdAt: json['created_at'] == null
           ? null
           : DateTime.tryParse(json['created_at'].toString()),
@@ -193,7 +229,21 @@ class AdminProduct {
         if (v == 'free' || v == 'custom') return v!;
         return 'default';
       }(),
-      deliveryChargeInr: (json['delivery_charge_inr'] as num?)?.toDouble(),
+      deliveryChargeInr: readDouble(json['delivery_charge_inr']),
+      hsnCode: () {
+        final raw = json['hsn_code']?.toString().trim();
+        return (raw == null || raw.isEmpty) ? null : raw;
+      }(),
+      gstRate: readDouble(json['gst_rate']),
+      taxStatus: (() {
+        final value = json['tax_status']?.toString().trim().toLowerCase();
+        return const {'taxable', 'exempt', 'zero_rated'}.contains(value)
+            ? value!
+            : 'taxable';
+      })(),
+      priceIncludesGst: json['price_includes_gst'] == null
+          ? true
+          : readBool(json['price_includes_gst']),
     );
   }
 }
@@ -213,6 +263,10 @@ class AdminInventoryRow {
   final int stockQuantity;
   final int reservedQuantity;
   final int availableStock;
+  final String? hsnCode;
+  final double? gstRate;
+  final String taxStatus;
+  final bool priceIncludesGst;
 
   const AdminInventoryRow({
     required this.rowId,
@@ -229,6 +283,10 @@ class AdminInventoryRow {
     required this.stockQuantity,
     required this.reservedQuantity,
     required this.availableStock,
+    this.hsnCode,
+    this.gstRate,
+    this.taxStatus = 'taxable',
+    this.priceIncludesGst = true,
   });
 
   bool get hasVariant => variantId != null && variantId!.trim().isNotEmpty;
@@ -320,6 +378,14 @@ class AdminOrderItemRow {
   final double unitPrice;
   final String currency;
   final List<String> imageUrls;
+  final String? hsnCode;
+  final String? taxStatus;
+  final double? taxableValue;
+  final double? gstRate;
+  final double? cgstAmount;
+  final double? sgstAmount;
+  final double? igstAmount;
+  final bool? priceIncludesGst;
 
   const AdminOrderItemRow({
     this.orderItemId,
@@ -330,6 +396,14 @@ class AdminOrderItemRow {
     required this.unitPrice,
     required this.currency,
     required this.imageUrls,
+    this.hsnCode,
+    this.taxStatus,
+    this.taxableValue,
+    this.gstRate,
+    this.cgstAmount,
+    this.sgstAmount,
+    this.igstAmount,
+    this.priceIncludesGst,
   });
 }
 
@@ -348,6 +422,7 @@ class AdminOrderTimelineEvent {
 class AdminOrderDetails {
   final AdminOrderRow order;
   final List<AdminOrderItemRow> items;
+
   /// Legacy single-line field; prefer structured shipping when present.
   final String shippingAddress;
   final String? shippingFullName;
@@ -355,6 +430,11 @@ class AdminOrderDetails {
   final String? shippingAddressLine;
   final String? shippingCity;
   final String? shippingPostalCode;
+  final String? invoiceName;
+  final String? invoiceAddressLine;
+  final String? invoiceCity;
+  final String? invoiceState;
+
   /// Display: Razorpay or COD.
   final String paymentMethod;
   final String paymentStatus;
@@ -398,6 +478,10 @@ class AdminOrderDetails {
     this.shippingAddressLine,
     this.shippingCity,
     this.shippingPostalCode,
+    this.invoiceName,
+    this.invoiceAddressLine,
+    this.invoiceCity,
+    this.invoiceState,
     required this.paymentMethod,
     required this.paymentStatus,
     this.razorpayPaymentId,
@@ -647,9 +731,14 @@ class ProductUpsertInput {
   final bool isFestivalSpecial;
   final List<AdminVariantUpsert> variants;
   final String paymentMode;
+
   /// `default` | `free` | `custom`
   final String deliveryChargeMode;
   final double? deliveryChargeInr;
+  final String? hsnCode;
+  final double? gstRate;
+  final String taxStatus;
+  final bool priceIncludesGst;
 
   const ProductUpsertInput({
     required this.title,
@@ -672,6 +761,10 @@ class ProductUpsertInput {
     this.paymentMode = 'both',
     this.deliveryChargeMode = 'default',
     this.deliveryChargeInr,
+    this.hsnCode,
+    this.gstRate,
+    this.taxStatus = 'taxable',
+    this.priceIncludesGst = true,
   });
 }
 
@@ -857,7 +950,9 @@ class AdminService {
   Future<AdminDashboardSummary> fetchDashboardSummary() async {
     await _requireAdmin();
     final products = await client.from('products').select('id');
-    final orders = await client.from('orders').select('id, status, currency, created_at, user_id');
+    final orders = await client
+        .from('orders')
+        .select('id, status, currency, created_at, user_id');
     final users = await client.from('profiles').select('id');
 
     final recentOrders = await fetchOrders(limit: 10);
@@ -866,8 +961,10 @@ class AdminService {
         .where((e) => e.isNotEmpty)
         .toList();
     final revenue = await _fetchRevenueForOrderIds(allOrderIds);
-    final articlesData = await client.from('articles').select('id, is_free, price');
-    final purchasesData = await client.from('article_purchases').select('id, article_id');
+    final articlesData =
+        await client.from('articles').select('id, is_free, price');
+    final purchasesData =
+        await client.from('article_purchases').select('id, article_id');
     final articleRows = (articlesData as List).cast<Map<String, dynamic>>();
     final purchaseRows = (purchasesData as List).cast<Map<String, dynamic>>();
     final articleById = <String, Map<String, dynamic>>{
@@ -897,7 +994,8 @@ class AdminService {
     );
   }
 
-  Future<AdminDashboardAnalytics> fetchDashboardAnalytics({int days = 7}) async {
+  Future<AdminDashboardAnalytics> fetchDashboardAnalytics(
+      {int days = 7}) async {
     await _requireAdmin();
     final normalizedDays = days <= 0 ? 7 : days;
     final now = DateTime.now();
@@ -927,7 +1025,8 @@ class AdminService {
       if (orderId.isEmpty) continue;
       final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
       final unitPrice = (item['unit_price'] as num?)?.toDouble() ?? 0;
-      totalsByOrder[orderId] = (totalsByOrder[orderId] ?? 0) + (quantity * unitPrice);
+      totalsByOrder[orderId] =
+          (totalsByOrder[orderId] ?? 0) + (quantity * unitPrice);
     }
 
     double revenueToday = 0;
@@ -943,19 +1042,21 @@ class AdminService {
       if (userId.isNotEmpty) customerIds.add(userId);
       final status = (order['status'] ?? '').toString().toLowerCase().trim();
       if (const {
-            'pending_payment',
-            'placed',
-            'processing',
-            'packed',
-            'shipped',
-            'out_for_delivery',
-          }.contains(status)) {
+        'pending_payment',
+        'placed',
+        'processing',
+        'packed',
+        'shipped',
+        'out_for_delivery',
+      }.contains(status)) {
         pendingOrders += 1;
       }
 
-      final createdAt = DateTime.tryParse(order['created_at']?.toString() ?? '');
+      final createdAt =
+          DateTime.tryParse(order['created_at']?.toString() ?? '');
       if (createdAt == null) continue;
-      final orderDate = DateTime(createdAt.year, createdAt.month, createdAt.day);
+      final orderDate =
+          DateTime(createdAt.year, createdAt.month, createdAt.day);
       final itemsTotal = totalsByOrder[orderId] ?? 0;
       final delivery = _deliveryFeeFromRow(order);
       final total = itemsTotal + delivery;
@@ -968,7 +1069,8 @@ class AdminService {
       if (createdAt.year == now.year && createdAt.month == now.month) {
         revenueThisMonth += total;
       }
-      if (!orderDate.isBefore(startDate) && !orderDate.isAfter(DateTime(now.year, now.month, now.day))) {
+      if (!orderDate.isBefore(startDate) &&
+          !orderDate.isAfter(DateTime(now.year, now.month, now.day))) {
         revenueByDate[orderDate] = (revenueByDate[orderDate] ?? 0) + total;
         orderCountByDate[orderDate] = (orderCountByDate[orderDate] ?? 0) + 1;
       }
@@ -978,7 +1080,9 @@ class AdminService {
     for (final item in orderItems) {
       final productId = (item['product_id'] ?? '').toString();
       final titleRaw = (item['title'] ?? '').toString().trim();
-      final title = titleRaw.isEmpty ? 'Product ${productId.isEmpty ? '-' : productId}' : titleRaw;
+      final title = titleRaw.isEmpty
+          ? 'Product ${productId.isEmpty ? '-' : productId}'
+          : titleRaw;
       final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
       final unitPrice = (item['unit_price'] as num?)?.toDouble() ?? 0;
       final key = productId.isEmpty ? title : productId;
@@ -1005,9 +1109,11 @@ class AdminService {
     for (var i = 0; i < normalizedDays; i++) {
       final d = startDate.add(Duration(days: i));
       final key = DateTime(d.year, d.month, d.day);
-      revenueTrend.add(DailyMetricPoint(date: key, value: revenueByDate[key] ?? 0));
+      revenueTrend
+          .add(DailyMetricPoint(date: key, value: revenueByDate[key] ?? 0));
       ordersPerDay.add(
-        DailyMetricPoint(date: key, value: (orderCountByDate[key] ?? 0).toDouble()),
+        DailyMetricPoint(
+            date: key, value: (orderCountByDate[key] ?? 0).toDouble()),
       );
     }
 
@@ -1046,7 +1152,8 @@ class AdminService {
           .maybeSingle();
       return AdminStoreDeliverySettings(
         deliveryFeeInr: (row?['delivery_fee_inr'] as num?)?.toDouble() ?? 49,
-        freeDeliveryAboveInr: (row?['free_delivery_above_inr'] as num?)?.toDouble(),
+        freeDeliveryAboveInr:
+            (row?['free_delivery_above_inr'] as num?)?.toDouble(),
         updatedAt: () {
           final ts = row?['updated_at'];
           if (ts == null) return null;
@@ -1062,10 +1169,12 @@ class AdminService {
             .maybeSingle();
         return AdminStoreDeliverySettings(
           deliveryFeeInr: (row?['delivery_fee_inr'] as num?)?.toDouble() ?? 49,
-          freeDeliveryAboveInr: (row?['free_delivery_above_inr'] as num?)?.toDouble(),
+          freeDeliveryAboveInr:
+              (row?['free_delivery_above_inr'] as num?)?.toDouble(),
         );
       } catch (_) {
-        return const AdminStoreDeliverySettings(deliveryFeeInr: 49, freeDeliveryAboveInr: 500);
+        return const AdminStoreDeliverySettings(
+            deliveryFeeInr: 49, freeDeliveryAboveInr: 500);
       }
     }
   }
@@ -1095,30 +1204,80 @@ class AdminService {
     );
   }
 
+  Future<DocumentSettings> fetchDocumentSettings() async {
+    await _requireAdmin();
+    final row = await client
+        .from('document_settings')
+        .select()
+        .eq('id', 1)
+        .maybeSingle();
+    return row == null
+        ? DocumentSettings.defaults()
+        : DocumentSettings.fromJson(Map<String, dynamic>.from(row));
+  }
+
+  Future<void> updateDocumentSettings(DocumentSettings settings) async {
+    await _requireAdmin();
+    if (settings.sellerLegalName.trim().isEmpty ||
+        settings.sellerAddress.trim().isEmpty) {
+      throw ArgumentError('Seller legal name and address are required.');
+    }
+    await client.from('document_settings').update({
+      'seller_legal_name': settings.sellerLegalName.trim(),
+      'seller_address': settings.sellerAddress.trim(),
+      'seller_phone': settings.sellerPhone.trim(),
+      'seller_email': settings.sellerEmail.trim(),
+      'seller_gstin': settings.sellerGstin?.trim().isEmpty == true
+          ? null
+          : settings.sellerGstin?.trim(),
+      'show_tax_breakup': settings.showTaxBreakup,
+      'place_of_supply': settings.placeOfSupply?.trim().isEmpty == true
+          ? null
+          : settings.placeOfSupply?.trim(),
+      'label_from_address': settings.labelFromAddressLines.join('\n'),
+      'label_carrier_name': settings.labelCarrierName?.trim().isEmpty == true
+          ? null
+          : settings.labelCarrierName?.trim(),
+    }).eq('id', 1);
+    await _logAdminAction(
+      action: 'document_settings_updated',
+      entity: 'document_settings',
+      entityId: '1',
+      message: 'Admin updated invoice and shipping-label settings',
+    );
+  }
+
   Future<List<AdminProduct>> fetchProducts() async {
     await _requireAdmin();
     dynamic data;
-    try {
-      data = await client
-          .from('products')
-          .select(
-              'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode, delivery_charge_mode, delivery_charge_inr')
-          .order('created_at', ascending: false);
-    } catch (_) {
+    const selectQueries = <String>[
+      // 1. All fields
+      'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode, delivery_charge_mode, delivery_charge_inr, hsn_code, gst_rate, tax_status, price_includes_gst',
+      // 2. Tax + payment mode (without delivery charge fields)
+      'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode, hsn_code, gst_rate, tax_status, price_includes_gst',
+      // 3. Tax + delivery charge fields (without payment mode)
+      'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, delivery_charge_mode, delivery_charge_inr, hsn_code, gst_rate, tax_status, price_includes_gst',
+      // 4. Tax fields only (without payment mode or delivery charge fields)
+      'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, hsn_code, gst_rate, tax_status, price_includes_gst',
+      // 5. Tax + minimal core fallback
+      'id, title, description, category, price, currency, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, is_popular, is_recommended, is_festival_special, hsn_code, gst_rate, tax_status, price_includes_gst',
+      // 6. Payment mode + delivery charge fallback
+      'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode, delivery_charge_mode, delivery_charge_inr',
+      // 7. Minimal core fallback
+      'id, title, description, category, price, currency, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, is_popular, is_recommended, is_festival_special',
+    ];
+
+    for (final q in selectQueries) {
       try {
         data = await client
             .from('products')
-            .select(
-                'id, title, description, category, sku, brand, tags, price, currency, weight, dimensions, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, display_discount_percent, is_popular, is_recommended, is_festival_special, payment_mode')
+            .select(q)
             .order('created_at', ascending: false);
-      } catch (_) {
-        data = await client
-            .from('products')
-            .select(
-                'id, title, description, category, price, currency, inventory_count, reserved_quantity, available_stock, image_urls, created_at, is_active, is_popular, is_recommended, is_festival_special')
-            .order('created_at', ascending: false);
-      }
+        break;
+      } catch (_) {}
     }
+
+    if (data == null) return const [];
     return (data as List).cast<Map<String, dynamic>>().map((json) {
       final product = AdminProduct.fromJson(json);
       return _normalizeProductImages(product);
@@ -1126,7 +1285,8 @@ class AdminService {
   }
 
   /// Maps admin product form delivery fields for insert/update.
-  static Map<String, dynamic> _deliveryChargeWriteFields(ProductUpsertInput input) {
+  static Map<String, dynamic> _deliveryChargeWriteFields(
+      ProductUpsertInput input) {
     final mode = input.deliveryChargeMode.trim().toLowerCase();
     if (mode == 'free') {
       return {
@@ -1147,9 +1307,10 @@ class AdminService {
     };
   }
 
-  Future<void> createProduct(ProductUpsertInput input, {String? explicitId}) async {
+  Future<void> createProduct(ProductUpsertInput input,
+      {String? explicitId}) async {
     await _requireAdmin();
-    final row = <String, dynamic>{
+    final baseRow = <String, dynamic>{
       if (explicitId != null && explicitId.isNotEmpty) 'id': explicitId,
       'title': input.title,
       'description': input.description,
@@ -1167,22 +1328,47 @@ class AdminService {
       'is_popular': input.isPopular,
       'is_recommended': input.isRecommended,
       'is_festival_special': input.isFestivalSpecial,
-      'payment_mode': input.paymentMode == 'online_only' ? 'online_only' : 'both',
-      ..._deliveryChargeWriteFields(input),
     };
-    late final Map<String, dynamic> created;
-    try {
-      created = await client.from('products').insert(row).select('id').single();
-    } catch (_) {
-      row.remove('delivery_charge_mode');
-      row.remove('delivery_charge_inr');
+
+    final paymentRow = <String, dynamic>{
+      'payment_mode':
+          input.paymentMode == 'online_only' ? 'online_only' : 'both',
+    };
+
+    final deliveryRow = _deliveryChargeWriteFields(input);
+
+    final taxRow = <String, dynamic>{
+      'hsn_code':
+          input.hsnCode?.trim().isEmpty == true ? null : input.hsnCode?.trim(),
+      'gst_rate': input.gstRate,
+      'tax_status': input.taxStatus,
+      'price_includes_gst': input.priceIncludesGst,
+    };
+
+    final rowCandidates = <Map<String, dynamic>>[
+      {...baseRow, ...taxRow, ...deliveryRow, ...paymentRow},
+      {...baseRow, ...taxRow, ...paymentRow},
+      {...baseRow, ...taxRow, ...deliveryRow},
+      {...baseRow, ...taxRow},
+      {...baseRow, ...deliveryRow, ...paymentRow},
+      {...baseRow, ...paymentRow},
+      {...baseRow},
+    ];
+
+    Map<String, dynamic>? created;
+    Object? lastError;
+    for (final row in rowCandidates) {
       try {
         created = await client.from('products').insert(row).select('id').single();
-      } catch (_) {
-        // Production DB may not have migration 092 yet — create without payment_mode.
-        row.remove('payment_mode');
-        created = await client.from('products').insert(row).select('id').single();
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = e;
       }
+    }
+    if (created == null) {
+      if (lastError != null) throw lastError;
+      throw Exception('Failed to create product.');
     }
     final productId = (created['id'] ?? '').toString();
     await replaceProductVariants(productId, input.variants);
@@ -1194,7 +1380,8 @@ class AdminService {
     );
   }
 
-  Future<List<AdminVariantUpsert>> fetchProductVariants(String productId) async {
+  Future<List<AdminVariantUpsert>> fetchProductVariants(
+      String productId) async {
     await _requireAdmin();
     final data = await client
         .from('product_variants')
@@ -1207,12 +1394,14 @@ class AdminService {
         .toList();
   }
 
-  Future<void> replaceProductVariants(String productId, List<AdminVariantUpsert> variants) async {
+  Future<void> replaceProductVariants(
+      String productId, List<AdminVariantUpsert> variants) async {
     await _requireAdmin();
     if (variants.isNotEmpty) {
       final defaultCount = variants.where((v) => v.isDefault).length;
       if (defaultCount != 1) {
-        throw const ValidationException('Exactly one default variant is required.');
+        throw const ValidationException(
+            'Exactly one default variant is required.');
       }
       final seenTypeAndName = <String>{};
       for (final v in variants) {
@@ -1254,8 +1443,14 @@ class AdminService {
 
     if (variants.isEmpty) {
       if (existingIds.isEmpty) return;
-      await client.from('cart_items').delete().inFilter('variant_id', existingIds.toList());
-      await client.from('product_variants').delete().eq('product_id', productId);
+      await client
+          .from('cart_items')
+          .delete()
+          .inFilter('variant_id', existingIds.toList());
+      await client
+          .from('product_variants')
+          .delete()
+          .eq('product_id', productId);
       return;
     }
 
@@ -1293,7 +1488,10 @@ class AdminService {
 
     await client.from('product_variants').upsert(rows);
     if (removedIds.isNotEmpty) {
-      await client.from('cart_items').delete().inFilter('variant_id', removedIds);
+      await client
+          .from('cart_items')
+          .delete()
+          .inFilter('variant_id', removedIds);
       await client.from('product_variants').delete().inFilter('id', removedIds);
     }
   }
@@ -1310,7 +1508,7 @@ class AdminService {
     } catch (_) {
       before = null;
     }
-    final updateRow = <String, dynamic>{
+    final baseRow = <String, dynamic>{
       'title': input.title,
       'description': input.description,
       'category': input.category,
@@ -1327,9 +1525,23 @@ class AdminService {
       'is_popular': input.isPopular,
       'is_recommended': input.isRecommended,
       'is_festival_special': input.isFestivalSpecial,
-      'payment_mode': input.paymentMode == 'online_only' ? 'online_only' : 'both',
-      ..._deliveryChargeWriteFields(input),
     };
+
+    final paymentRow = <String, dynamic>{
+      'payment_mode':
+          input.paymentMode == 'online_only' ? 'online_only' : 'both',
+    };
+
+    final deliveryRow = _deliveryChargeWriteFields(input);
+
+    final taxRow = <String, dynamic>{
+      'hsn_code':
+          input.hsnCode?.trim().isEmpty == true ? null : input.hsnCode?.trim(),
+      'gst_rate': input.gstRate,
+      'tax_status': input.taxStatus,
+      'price_includes_gst': input.priceIncludesGst,
+    };
+
     // Prevent accidental variant data loss when a caller submits an empty list
     // without loading existing variants first.
     final existingVariants = await fetchProductVariants(productId);
@@ -1338,24 +1550,30 @@ class AdminService {
     final variantsToPersist =
         shouldPreserveExistingVariants ? existingVariants : input.variants;
 
-    if (variantsToPersist.isEmpty) {
-      // Admin manual stock edits should reflect immediately in storefront stock.
-      // Reset reservation bucket to avoid stale pending holds distorting availability.
-      updateRow['reserved_quantity'] = 0;
-    }
-    try {
-      await client.from('products').update(updateRow).eq('id', productId);
-    } catch (_) {
-      updateRow.remove('delivery_charge_mode');
-      updateRow.remove('delivery_charge_inr');
+    final rowCandidates = <Map<String, dynamic>>[
+      {...baseRow, ...taxRow, ...deliveryRow, ...paymentRow},
+      {...baseRow, ...taxRow, ...paymentRow},
+      {...baseRow, ...taxRow, ...deliveryRow},
+      {...baseRow, ...taxRow},
+      {...baseRow, ...deliveryRow, ...paymentRow},
+      {...baseRow, ...paymentRow},
+      {...baseRow},
+    ];
+
+    Object? lastError;
+    for (final updateRow in rowCandidates) {
+      if (variantsToPersist.isEmpty) {
+        updateRow['reserved_quantity'] = 0;
+      }
       try {
         await client.from('products').update(updateRow).eq('id', productId);
-      } catch (_) {
-        // Production DB may not have migration 092 yet — update without payment_mode.
-        updateRow.remove('payment_mode');
-        await client.from('products').update(updateRow).eq('id', productId);
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = e;
       }
     }
+    if (lastError != null) throw lastError;
 
     await replaceProductVariants(productId, variantsToPersist);
 
@@ -1381,7 +1599,11 @@ class AdminService {
     await _requireAdmin();
     var title = productId;
     try {
-      final row = await client.from('products').select('title').eq('id', productId).single();
+      final row = await client
+          .from('products')
+          .select('title')
+          .eq('id', productId)
+          .single();
       title = (row['title'] ?? productId).toString();
     } catch (_) {}
     try {
@@ -1464,12 +1686,15 @@ class AdminService {
   }) async {
     try {
       await _requireAdmin();
-      await client.from('products').update({'is_active': isActive}).eq('id', productId);
+      await client
+          .from('products')
+          .update({'is_active': isActive}).eq('id', productId);
       await _logAdminAction(
         action: 'product_active_toggled',
         entity: 'product',
         entityId: productId,
-        message: 'Admin set product $productId active=${isActive ? 'true' : 'false'}',
+        message:
+            'Admin set product $productId active=${isActive ? 'true' : 'false'}',
       );
       return true;
     } catch (_) {
@@ -1543,7 +1768,8 @@ class AdminService {
 
     final row = await client
         .from('product_variants')
-        .select('id, product_id, variant_name, stock_quantity, reserved_quantity')
+        .select(
+            'id, product_id, variant_name, stock_quantity, reserved_quantity')
         .eq('id', variantId)
         .single();
     final reserved = (row['reserved_quantity'] as num?)?.toInt() ?? 0;
@@ -1571,9 +1797,7 @@ class AdminService {
     final products = await fetchProducts();
     List<Map<String, dynamic>> variantRows;
     try {
-      final data = await client
-          .from('product_variants')
-          .select(
+      final data = await client.from('product_variants').select(
             'id, product_id, variant_type, variant_name, price, stock_quantity, reserved_quantity, available_stock, image_url, sku',
           );
       variantRows = (data as List).cast<Map<String, dynamic>>();
@@ -1591,7 +1815,8 @@ class AdminService {
     final rows = <AdminInventoryRow>[];
     for (final product in products) {
       final variants = byProduct[product.id] ?? const <Map<String, dynamic>>[];
-      final productImage = product.imageUrls.isNotEmpty ? product.imageUrls.first : '';
+      final productImage =
+          product.imageUrls.isNotEmpty ? product.imageUrls.first : '';
       if (variants.isEmpty) {
         rows.add(
           AdminInventoryRow(
@@ -1609,6 +1834,10 @@ class AdminService {
             stockQuantity: product.inventoryCount,
             reservedQuantity: product.reservedQuantity,
             availableStock: product.sellableStock,
+            hsnCode: product.hsnCode,
+            gstRate: product.gstRate,
+            taxStatus: product.taxStatus,
+            priceIncludesGst: product.priceIncludesGst,
           ),
         );
         continue;
@@ -1637,13 +1866,18 @@ class AdminService {
             stockQuantity: stock,
             reservedQuantity: reserved,
             availableStock: available,
+            hsnCode: product.hsnCode,
+            gstRate: product.gstRate,
+            taxStatus: product.taxStatus,
+            priceIncludesGst: product.priceIncludesGst,
           ),
         );
       }
     }
 
     rows.sort((a, b) {
-      final t = a.productTitle.toLowerCase().compareTo(b.productTitle.toLowerCase());
+      final t =
+          a.productTitle.toLowerCase().compareTo(b.productTitle.toLowerCase());
       if (t != 0) return t;
       final av = (a.variantName ?? '').toLowerCase();
       final bv = (b.variantName ?? '').toLowerCase();
@@ -1652,7 +1886,8 @@ class AdminService {
     return rows;
   }
 
-  Future<List<AdminOrderRow>> fetchOrders({int? limit, String? searchQuery}) async {
+  Future<List<AdminOrderRow>> fetchOrders(
+      {int? limit, String? searchQuery}) async {
     await _requireAdmin();
     List<Map<String, dynamic>> orders;
     try {
@@ -1716,9 +1951,7 @@ class AdminService {
             .cast<Map<String, dynamic>>();
       }
     }
-    final profiles = {
-      for (final p in profilesData) p['id'].toString(): p
-    };
+    final profiles = {for (final p in profilesData) p['id'].toString(): p};
     final emailsByUserId = await _fetchAuthEmailsByUserIds(userIds);
 
     final totalsByOrder = await _fetchOrderTotals(orderIds);
@@ -1733,9 +1966,10 @@ class AdminService {
       return AdminOrderRow(
         id: oid,
         userId: userId,
-        customerName: profile?['full_name']?.toString().trim().isNotEmpty == true
-            ? profile!['full_name'].toString()
-            : 'User',
+        customerName:
+            profile?['full_name']?.toString().trim().isNotEmpty == true
+                ? profile!['full_name'].toString()
+                : 'User',
         customerEmail: _customerEmailForOrder(
           orderSnapshotEmail: row['customer_email'],
           profileEmail: profile?['email']?.toString(),
@@ -1743,16 +1977,18 @@ class AdminService {
         ),
         status: (row['status'] ?? '').toString(),
         currency: currencyOrInr(row['currency']),
-        createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ?? DateTime.now(),
+        createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+            DateTime.now(),
         itemsSubtotal: subtotal,
         deliveryFee: delivery,
         totalAmount: subtotal + delivery,
         paymentMethod: pm,
         paymentStatus: _orderPaymentStatusRaw(row),
         razorpayPaymentId: _razorpayPaymentIdFromRow(row),
-        refundStatus: (row['refund_status']?.toString().trim().isNotEmpty ?? false)
-            ? row['refund_status'].toString().trim().toLowerCase()
-            : 'none',
+        refundStatus:
+            (row['refund_status']?.toString().trim().isNotEmpty ?? false)
+                ? row['refund_status'].toString().trim().toLowerCase()
+                : 'none',
         refundAmountPaise: (row['refund_amount'] as num?)?.toInt(),
         refundId: () {
           final t = row['refund_id']?.toString().trim();
@@ -1878,7 +2114,10 @@ class AdminService {
     }
     if (orders.isEmpty) return const [];
     final totalsByOrder = await _fetchOrderTotals(
-      orders.map((e) => (e['id'] ?? '').toString()).where((e) => e.isNotEmpty).toList(),
+      orders
+          .map((e) => (e['id'] ?? '').toString())
+          .where((e) => e.isNotEmpty)
+          .toList(),
     );
     Map<String, dynamic>? profile;
     try {
@@ -1914,16 +2153,18 @@ class AdminService {
         ),
         status: (row['status'] ?? '').toString(),
         currency: currencyOrInr(row['currency']),
-        createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ?? DateTime.now(),
+        createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+            DateTime.now(),
         itemsSubtotal: subtotal,
         deliveryFee: delivery,
         totalAmount: subtotal + delivery,
         paymentMethod: pm,
         paymentStatus: _orderPaymentStatusRaw(row),
         razorpayPaymentId: _razorpayPaymentIdFromRow(row),
-        refundStatus: (row['refund_status']?.toString().trim().isNotEmpty ?? false)
-            ? row['refund_status'].toString().trim().toLowerCase()
-            : 'none',
+        refundStatus:
+            (row['refund_status']?.toString().trim().isNotEmpty ?? false)
+                ? row['refund_status'].toString().trim().toLowerCase()
+                : 'none',
         refundAmountPaise: (row['refund_amount'] as num?)?.toInt(),
         refundId: () {
           final t = row['refund_id']?.toString().trim();
@@ -1949,7 +2190,8 @@ class AdminService {
           .from('orders')
           .select(
             'id, user_id, status, currency, created_at, delivery_fee, customer_email, '
-            'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, shipping_state, '
+            'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, shipping_state, invoice_name, invoice_address_line, invoice_city, invoice_state, '
+            'shipping_name_original, shipping_address_original, shipping_city_original, shipping_state_original, shipping_name_invoice, shipping_address_invoice, shipping_city_invoice, shipping_state_invoice, '
             'tracking_number, courier_name, estimated_delivery_date, '
             'package_weight_kg, package_dimensions_cm, '
             'delivery_method, delivery_status, delivery_partner_name, delivery_partner_phone, shipping_provider, '
@@ -2026,12 +2268,14 @@ class AdminService {
     final itemsData = await client
         .from('order_items')
         .select(
-          'id, order_id, product_id, variant_id, title, image_urls, unit_price, currency, quantity',
+          'id, order_id, product_id, variant_id, title, image_urls, unit_price, currency, quantity, hsn_code, tax_status, taxable_value, gst_rate, cgst_amount, sgst_amount, igst_amount, price_includes_gst',
         )
         .eq('order_id', orderId);
     final items = (itemsData as List).cast<Map<String, dynamic>>().map((e) {
       final imageData = e['image_urls'];
-      final rawUrls = imageData is List ? imageData.map((v) => v.toString()).toList() : const <String>[];
+      final rawUrls = imageData is List
+          ? imageData.map((v) => v.toString()).toList()
+          : const <String>[];
       final oid = e['id']?.toString().trim();
       final vid = e['variant_id']?.toString().trim();
       return AdminOrderItemRow(
@@ -2043,10 +2287,19 @@ class AdminService {
         unitPrice: (e['unit_price'] as num?)?.toDouble() ?? 0,
         currency: currencyOrInr(e['currency']),
         imageUrls: rawUrls.map(_normalizeImageUrl).toList(),
+        hsnCode: e['hsn_code']?.toString(),
+        taxStatus: e['tax_status']?.toString(),
+        taxableValue: (e['taxable_value'] as num?)?.toDouble(),
+        gstRate: (e['gst_rate'] as num?)?.toDouble(),
+        cgstAmount: (e['cgst_amount'] as num?)?.toDouble(),
+        sgstAmount: (e['sgst_amount'] as num?)?.toDouble(),
+        igstAmount: (e['igst_amount'] as num?)?.toDouble(),
+        priceIncludesGst: e['price_includes_gst'] as bool?,
       );
     }).toList();
 
-    final itemsSubtotal = items.fold<double>(0, (sum, i) => sum + (i.unitPrice * i.quantity));
+    final itemsSubtotal =
+        items.fold<double>(0, (sum, i) => sum + (i.unitPrice * i.quantity));
     final deliveryFee = _deliveryFeeFromRow(orderMap);
     final pmRaw = _orderPaymentMethodRaw(orderMap);
     final psRaw = _orderPaymentStatusRaw(orderMap);
@@ -2070,16 +2323,18 @@ class AdminService {
       ),
       status: (orderMap['status'] ?? '').toString(),
       currency: currencyOrInr(orderMap['currency']),
-      createdAt: DateTime.tryParse(orderMap['created_at']?.toString() ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(orderMap['created_at']?.toString() ?? '') ??
+          DateTime.now(),
       itemsSubtotal: itemsSubtotal,
       deliveryFee: deliveryFee,
       totalAmount: itemsSubtotal + deliveryFee,
       paymentMethod: pmRaw,
       paymentStatus: psRaw,
       razorpayPaymentId: rzpId,
-      refundStatus: (orderMap['refund_status']?.toString().trim().isNotEmpty ?? false)
-          ? orderMap['refund_status'].toString().trim().toLowerCase()
-          : 'none',
+      refundStatus:
+          (orderMap['refund_status']?.toString().trim().isNotEmpty ?? false)
+              ? orderMap['refund_status'].toString().trim().toLowerCase()
+              : 'none',
       refundAmountPaise: (orderMap['refund_amount'] as num?)?.toInt(),
       refundId: () {
         final t = orderMap['refund_id']?.toString().trim();
@@ -2113,11 +2368,14 @@ class AdminService {
     final trackRaw = orderMap['tracking_number']?.toString().trim();
     final courierRaw = orderMap['courier_name']?.toString().trim();
     final estRaw = orderMap['estimated_delivery_date'];
-    final trackingNumber = trackRaw != null && trackRaw.isNotEmpty ? trackRaw : null;
-    final courierName = courierRaw != null && courierRaw.isNotEmpty ? courierRaw : null;
+    final trackingNumber =
+        trackRaw != null && trackRaw.isNotEmpty ? trackRaw : null;
+    final courierName =
+        courierRaw != null && courierRaw.isNotEmpty ? courierRaw : null;
     final estimatedDeliveryDate = parseEstimatedDeliveryFromDb(estRaw);
     final pkgW = orderMap['package_weight_kg'];
-    final packageWeightKg = pkgW is num ? pkgW.toDouble() : double.tryParse(pkgW?.toString() ?? '');
+    final packageWeightKg =
+        pkgW is num ? pkgW.toDouble() : double.tryParse(pkgW?.toString() ?? '');
     final dimRaw = orderMap['package_dimensions_cm']?.toString().trim();
     final packageDimensionsCm =
         dimRaw != null && dimRaw.isNotEmpty ? dimRaw : null;
@@ -2125,6 +2383,14 @@ class AdminService {
     final shipStateRaw = orderMap['shipping_state']?.toString().trim();
     final shippingStateParsed =
         shipStateRaw != null && shipStateRaw.isNotEmpty ? shipStateRaw : null;
+    final invoiceName =
+      (orderMap['shipping_name_invoice'] ?? orderMap['invoice_name'])?.toString().trim();
+    final invoiceAddressLine =
+      (orderMap['shipping_address_invoice'] ?? orderMap['invoice_address_line'])?.toString().trim();
+    final invoiceCity =
+      (orderMap['shipping_city_invoice'] ?? orderMap['invoice_city'])?.toString().trim();
+    final invoiceState =
+      (orderMap['shipping_state_invoice'] ?? orderMap['invoice_state'])?.toString().trim();
 
     List<AdminOrderTimelineEvent> timeline;
     try {
@@ -2139,8 +2405,8 @@ class AdminService {
         final noteRaw = row['notes']?.toString().trim();
         return AdminOrderTimelineEvent(
           label: _orderStatusLabelForTimeline(st),
-          timestamp:
-              DateTime.tryParse(row['created_at']?.toString() ?? '') ?? DateTime.now(),
+          timestamp: DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+              DateTime.now(),
           notes: noteRaw != null && noteRaw.isNotEmpty ? noteRaw : null,
         );
       }).toList();
@@ -2165,9 +2431,12 @@ class AdminService {
       razorpayPaymentId: rzpId,
       razorpayOrderId: rzpOid,
       paidAt: DateTime.tryParse(
-        orderMap['paid_at']?.toString() ?? orderMap['payment_verified_at']?.toString() ?? '',
+        orderMap['paid_at']?.toString() ??
+            orderMap['payment_verified_at']?.toString() ??
+            '',
       ),
-      paymentVerifiedAt: DateTime.tryParse(orderMap['payment_verified_at']?.toString() ?? ''),
+      paymentVerifiedAt:
+          DateTime.tryParse(orderMap['payment_verified_at']?.toString() ?? ''),
       timeline: timeline,
       trackingNumber: trackingNumber,
       courierName: courierName,
@@ -2188,15 +2457,25 @@ class AdminService {
         orderMap['last_tracking_update']?.toString() ?? '',
       ),
       shippingState: shippingStateParsed,
-      refundStatus: (orderMap['refund_status']?.toString().trim().isNotEmpty ?? false)
-          ? orderMap['refund_status'].toString().trim().toLowerCase()
-          : 'none',
+        invoiceName: invoiceName != null && invoiceName.isNotEmpty ? invoiceName : null,
+        invoiceAddressLine: invoiceAddressLine != null && invoiceAddressLine.isNotEmpty
+          ? invoiceAddressLine
+          : null,
+        invoiceCity: invoiceCity != null && invoiceCity.isNotEmpty ? invoiceCity : null,
+        invoiceState: invoiceState != null && invoiceState.isNotEmpty ? invoiceState : null,
+      refundStatus:
+          (orderMap['refund_status']?.toString().trim().isNotEmpty ?? false)
+              ? orderMap['refund_status'].toString().trim().toLowerCase()
+              : 'none',
       refundAmountPaise: (orderMap['refund_amount'] as num?)?.toInt(),
       refundId: orderColStr('refund_id'),
-      refundRequestedAt: DateTime.tryParse(orderMap['refund_requested_at']?.toString() ?? ''),
-      refundProcessedAt: DateTime.tryParse(orderMap['refund_processed_at']?.toString() ?? ''),
+      refundRequestedAt:
+          DateTime.tryParse(orderMap['refund_requested_at']?.toString() ?? ''),
+      refundProcessedAt:
+          DateTime.tryParse(orderMap['refund_processed_at']?.toString() ?? ''),
       refundInitiatedBy: orderColStr('refund_initiated_by'),
-      refundInitiatedAt: DateTime.tryParse(orderMap['refund_initiated_at']?.toString() ?? ''),
+      refundInitiatedAt:
+          DateTime.tryParse(orderMap['refund_initiated_at']?.toString() ?? ''),
       refundReason: orderColStr('refund_reason'),
     );
   }
@@ -2209,7 +2488,11 @@ class AdminService {
     await _requireAdmin();
     String? oldStatus;
     try {
-      final row = await client.from('orders').select('status').eq('id', orderId).single();
+      final row = await client
+          .from('orders')
+          .select('status')
+          .eq('id', orderId)
+          .single();
       oldStatus = row['status']?.toString();
     } catch (_) {}
     final normalizedStatus = _normalizeOrderStatus(status);
@@ -2254,7 +2537,8 @@ class AdminService {
         },
       );
     } on PostgrestException catch (e) {
-      throw RepositoryException(e.message.trim().isNotEmpty ? e.message : e.toString());
+      throw RepositoryException(
+          e.message.trim().isNotEmpty ? e.message : e.toString());
     }
     await _logAdminAction(
       action: 'order_cancellation_approved',
@@ -2278,7 +2562,8 @@ class AdminService {
         },
       );
     } on PostgrestException catch (e) {
-      throw RepositoryException(e.message.trim().isNotEmpty ? e.message : e.toString());
+      throw RepositoryException(
+          e.message.trim().isNotEmpty ? e.message : e.toString());
     }
     await _logAdminAction(
       action: 'order_cancellation_rejected',
@@ -2299,7 +2584,11 @@ class AdminService {
     await _requireAdmin();
     String? statusRaw;
     try {
-      final row = await client.from('orders').select('status').eq('id', orderId).single();
+      final row = await client
+          .from('orders')
+          .select('status')
+          .eq('id', orderId)
+          .single();
       statusRaw = row['status']?.toString();
     } catch (_) {}
     final terminal = canonicalAdminOrderStatus(statusRaw ?? '');
@@ -2360,8 +2649,7 @@ class AdminService {
       );
     }
     final isCod = (paymentMethodRaw ?? '').trim().toLowerCase() == 'cod';
-    final shouldMoveToProcessing =
-        terminal == 'pending_payment' && isCod;
+    final shouldMoveToProcessing = terminal == 'pending_payment' && isCod;
     await client.from('orders').update({
       'delivery_method': 'manual_delivery',
       'delivery_status': 'assigned',
@@ -2409,7 +2697,8 @@ class AdminService {
       action: 'manual_delivery_status_updated',
       entity: 'order',
       entityId: orderId,
-      message: 'Admin set manual delivery_status=$norm and order status=${statusMap[norm]} for order $orderId',
+      message:
+          'Admin set manual delivery_status=$norm and order status=${statusMap[norm]} for order $orderId',
     );
   }
 
@@ -2432,7 +2721,9 @@ class AdminService {
       final st = canonicalAdminOrderStatus(row['status']?.toString() ?? '');
       final pm = (row['payment_method'] ?? '').toString().trim().toLowerCase();
       if (st == 'pending_payment' && pm == 'cod') {
-        await client.from('orders').update({'status': 'processing'}).eq('id', orderId);
+        await client
+            .from('orders')
+            .update({'status': 'processing'}).eq('id', orderId);
       }
     } catch (_) {}
 
@@ -2552,8 +2843,10 @@ class AdminService {
     }
     final body = <String, dynamic>{
       'order_id': orderId,
-      if (refundAmountPaise != null && refundAmountPaise > 0) 'refund_amount': refundAmountPaise,
-      if (refundReason != null && refundReason.trim().isNotEmpty) 'refund_reason': refundReason.trim(),
+      if (refundAmountPaise != null && refundAmountPaise > 0)
+        'refund_amount': refundAmountPaise,
+      if (refundReason != null && refundReason.trim().isNotEmpty)
+        'refund_reason': refundReason.trim(),
     };
 
     late final int status;
@@ -2624,10 +2917,8 @@ class AdminService {
     await _requireAdmin();
     List<Map<String, dynamic>> profiles;
     try {
-      final profilesData =
-          await client
-              .from('profiles')
-              .select('id, full_name, created_at, email, role, status, blocked_reason, blocked_at');
+      final profilesData = await client.from('profiles').select(
+          'id, full_name, created_at, email, role, status, blocked_reason, blocked_at');
       profiles = (profilesData as List).cast<Map<String, dynamic>>();
     } catch (_) {
       try {
@@ -2636,7 +2927,9 @@ class AdminService {
             .select('id, full_name, created_at, email, role');
         profiles = (profilesData as List).cast<Map<String, dynamic>>();
       } catch (_) {
-        final profilesData = await client.from('profiles').select('id, full_name, created_at, role');
+        final profilesData = await client
+            .from('profiles')
+            .select('id, full_name, created_at, role');
         profiles = (profilesData as List).cast<Map<String, dynamic>>();
       }
     }
@@ -2673,7 +2966,9 @@ class AdminService {
       final fullName = p?['full_name']?.toString().trim();
       final displayName = (fullName != null && fullName.isNotEmpty)
           ? fullName
-          : (email != '-' ? email.split('@').first : 'User ${id.substring(0, id.length >= 8 ? 8 : id.length)}');
+          : (email != '-'
+              ? email.split('@').first
+              : 'User ${id.substring(0, id.length >= 8 ? 8 : id.length)}');
       final createdAtRaw = p?['created_at'];
       final roleRaw = p?['role']?.toString().trim().toLowerCase();
       final role = switch (roleRaw) {
@@ -2684,9 +2979,10 @@ class AdminService {
       final statusRaw = p?['status']?.toString().trim().toLowerCase();
       final status = statusRaw == 'blocked' ? 'blocked' : 'active';
       final blockedReasonRaw = p?['blocked_reason']?.toString().trim();
-      final blockedReason = (blockedReasonRaw != null && blockedReasonRaw.isNotEmpty)
-          ? blockedReasonRaw
-          : null;
+      final blockedReason =
+          (blockedReasonRaw != null && blockedReasonRaw.isNotEmpty)
+              ? blockedReasonRaw
+              : null;
       final blockedAtRaw = p?['blocked_at']?.toString();
 
       return AdminUserRow(
@@ -2701,18 +2997,22 @@ class AdminService {
             : DateTime.tryParse(createdAtRaw.toString()),
         status: status,
         blockedReason: blockedReason,
-        blockedAt: blockedAtRaw == null ? null : DateTime.tryParse(blockedAtRaw),
+        blockedAt:
+            blockedAtRaw == null ? null : DateTime.tryParse(blockedAtRaw),
       );
     }).toList();
   }
 
   Future<Map<String, double>> _fetchTotalSpentByUser() async {
-    final ordersData = await client.from('orders').select('id, user_id, delivery_fee');
+    final ordersData =
+        await client.from('orders').select('id, user_id, delivery_fee');
     final orders = (ordersData as List).cast<Map<String, dynamic>>();
     if (orders.isEmpty) return const {};
 
-    final orderIds =
-        orders.map((o) => (o['id'] ?? '').toString()).where((id) => id.isNotEmpty).toList();
+    final orderIds = orders
+        .map((o) => (o['id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toList();
     final subtotalsByOrder = await _fetchOrderTotals(orderIds);
 
     final totalByUser = <String, double>{};
@@ -2736,7 +3036,8 @@ class AdminService {
     try {
       profile = await client
           .from('profiles')
-          .select('phone, address, email, role, status, blocked_reason, blocked_at')
+          .select(
+              'phone, address, email, role, status, blocked_reason, blocked_at')
           .eq('id', userId)
           .maybeSingle();
     } catch (_) {
@@ -2773,13 +3074,16 @@ class AdminService {
       displayEmail = _resolveUserEmail(null, authEmails[userId]);
     }
 
-    final totalRevenue = orders.fold<double>(0, (sum, o) => sum + o.totalAmount);
+    final totalRevenue =
+        orders.fold<double>(0, (sum, o) => sum + o.totalAmount);
     final totalOrders = orders.length;
-    final averageOrderValue = totalOrders == 0 ? 0.0 : totalRevenue / totalOrders;
+    final averageOrderValue =
+        totalOrders == 0 ? 0.0 : totalRevenue / totalOrders;
     DateTime? firstOrderDate;
     DateTime? lastOrderDate;
     if (orders.isNotEmpty) {
-      final sorted = [...orders]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      final sorted = [...orders]
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
       firstOrderDate = sorted.first.createdAt;
       lastOrderDate = sorted.last.createdAt;
     }
@@ -2797,9 +3101,10 @@ class AdminService {
         totalOrders: baseUser.totalOrders,
         totalSpent: baseUser.totalSpent,
         createdAt: baseUser.createdAt,
-        status: (profile?['status']?.toString().trim().toLowerCase() == 'blocked')
-            ? 'blocked'
-            : baseUser.status,
+        status:
+            (profile?['status']?.toString().trim().toLowerCase() == 'blocked')
+                ? 'blocked'
+                : baseUser.status,
         blockedReason: () {
           final v = profile?['blocked_reason']?.toString().trim();
           if (v == null || v.isEmpty) return baseUser.blockedReason;
@@ -2835,7 +3140,8 @@ class AdminService {
 
     final me = client.auth.currentUser?.id;
     if (blocked && me != null && me == targetUserId) {
-      throw const ValidationException('You cannot block your own admin account.');
+      throw const ValidationException(
+          'You cannot block your own admin account.');
     }
 
     final targetProfile = await client
@@ -2853,23 +3159,27 @@ class AdminService {
     bool targetIsAdmin = false;
     bool targetIsSuperAdmin = false;
     try {
-      final isAdminData = await client.rpc('is_admin', params: {'uid': targetUserId});
+      final isAdminData =
+          await client.rpc('is_admin', params: {'uid': targetUserId});
       targetIsAdmin = isAdminData == true;
     } catch (_) {
       targetIsAdmin = targetRole == 'admin' || targetRole == 'super_admin';
     }
     try {
-      final isSuperData = await client.rpc('is_super_admin', params: {'uid': targetUserId});
+      final isSuperData =
+          await client.rpc('is_super_admin', params: {'uid': targetUserId});
       targetIsSuperAdmin = isSuperData == true;
     } catch (_) {
       targetIsSuperAdmin = targetRole == 'super_admin';
     }
 
     if (targetIsSuperAdmin || targetRole == 'super_admin') {
-      throw const ValidationException('Super admin accounts cannot be blocked.');
+      throw const ValidationException(
+          'Super admin accounts cannot be blocked.');
     }
     if (!isSuperAdmin && (targetIsAdmin || targetRole == 'admin')) {
-      throw const AuthException('Super admin role required to manage admin accounts.');
+      throw const AuthException(
+          'Super admin role required to manage admin accounts.');
     }
 
     final reasonClean = reason?.trim();
@@ -2916,14 +3226,17 @@ class AdminService {
         .select('role')
         .eq('id', targetUserId)
         .maybeSingle();
-    final targetCurrentRole = existing?['role']?.toString().trim().toLowerCase();
+    final targetCurrentRole =
+        existing?['role']?.toString().trim().toLowerCase();
     if (targetCurrentRole == 'super_admin' && normalizedRole != 'super_admin') {
       throw const ValidationException(
         'Super admin role can only be changed manually in a controlled process.',
       );
     }
 
-    await client.from('profiles').update({'role': normalizedRole}).eq('id', targetUserId);
+    await client
+        .from('profiles')
+        .update({'role': normalizedRole}).eq('id', targetUserId);
   }
 
   /// Uploads to [product-images] at `homepage/{folder}/…` for storefront merchandising.
@@ -2943,7 +3256,8 @@ class AdminService {
     await client.storage.from('product-images').uploadBinary(
           objectPath,
           bytes,
-          fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
+          fileOptions:
+              const FileOptions(upsert: true, contentType: 'image/jpeg'),
         );
     return client.storage.from('product-images').getPublicUrl(objectPath);
   }
@@ -2965,7 +3279,9 @@ class AdminService {
     return slug
         .split(RegExp(r'[_\-\s]+'))
         .where((e) => e.isNotEmpty)
-        .map((w) => w.length == 1 ? w.toUpperCase() : '${w[0].toUpperCase()}${w.substring(1)}')
+        .map((w) => w.length == 1
+            ? w.toUpperCase()
+            : '${w[0].toUpperCase()}${w.substring(1)}')
         .join(' ');
   }
 
@@ -2984,16 +3300,21 @@ class AdminService {
         final name = row['name']?.toString().trim() ?? '';
         if (slug.isEmpty) continue;
         inTable.add(slug);
-        fromTable.add(AdminCategoryOption(slug: slug, label: name.isNotEmpty ? name : slug));
+        fromTable.add(AdminCategoryOption(
+            slug: slug, label: name.isNotEmpty ? name : slug));
       }
       if (fromTable.isNotEmpty) {
-        final prodData = await client.from('products').select('category').eq('is_active', true);
+        final prodData = await client
+            .from('products')
+            .select('category')
+            .eq('is_active', true);
         final extras = <AdminCategoryOption>[];
         for (final row in (prodData as List).cast<Map<String, dynamic>>()) {
           final raw = row['category']?.toString().trim().toLowerCase() ?? '';
           if (raw.isEmpty || inTable.contains(raw)) continue;
           inTable.add(raw);
-          extras.add(AdminCategoryOption(slug: raw, label: _titleCaseFromSlug(raw)));
+          extras.add(
+              AdminCategoryOption(slug: raw, label: _titleCaseFromSlug(raw)));
         }
         extras.sort((a, b) => a.slug.compareTo(b.slug));
         return [...fromTable, ...extras];
@@ -3001,7 +3322,8 @@ class AdminService {
     } catch (_) {
       // Table may not exist on older databases; fall through.
     }
-    final data = await client.from('products').select('category').eq('is_active', true);
+    final data =
+        await client.from('products').select('category').eq('is_active', true);
     final slugs = <String>{};
     for (final row in (data as List).cast<Map<String, dynamic>>()) {
       final raw = row['category']?.toString().trim().toLowerCase() ?? '';
@@ -3111,7 +3433,9 @@ class AdminService {
   Future<void> reorderCatalogCategories(List<String> orderedIds) async {
     await _requireAdmin();
     for (var i = 0; i < orderedIds.length; i++) {
-      await client.from('categories').update({'display_order': i * 10}).eq('id', orderedIds[i]);
+      await client
+          .from('categories')
+          .update({'display_order': i * 10}).eq('id', orderedIds[i]);
     }
     await _logAdminAction(
       action: 'catalog_categories_reordered',
@@ -3122,7 +3446,11 @@ class AdminService {
   }
 
   Future<int> _nextSortOrderFor(String table) async {
-    final rows = await client.from(table).select('sort_order').order('sort_order', ascending: false).limit(1);
+    final rows = await client
+        .from(table)
+        .select('sort_order')
+        .order('sort_order', ascending: false)
+        .limit(1);
     if (rows.isNotEmpty) {
       final v = rows.first['sort_order'];
       return (v is num ? v.toInt() : 0) + 1;
@@ -3131,7 +3459,11 @@ class AdminService {
   }
 
   Future<int> _firstSortOrderFor(String table) async {
-    final rows = await client.from(table).select('sort_order').order('sort_order', ascending: true).limit(1);
+    final rows = await client
+        .from(table)
+        .select('sort_order')
+        .order('sort_order', ascending: true)
+        .limit(1);
     if (rows.isNotEmpty) {
       final v = rows.first['sort_order'];
       return (v is num ? v.toInt() : 0) - 1;
@@ -3147,7 +3479,8 @@ class AdminService {
     bool enabled = true,
   }) async {
     await _requireAdmin();
-    final computedSort = sortOrder ?? await _firstSortOrderFor('homepage_hero_banners');
+    final computedSort =
+        sortOrder ?? await _firstSortOrderFor('homepage_hero_banners');
     final row = {
       'image_url': imageUrl,
       'redirect_type': redirectType,
@@ -3159,9 +3492,12 @@ class AdminService {
       await client.from('homepage_hero_banners').insert(row);
     } on PostgrestException catch (e) {
       final msg = e.message.toLowerCase();
-      final legacyConstraintFail = msg.contains('redirect_type') || msg.contains('check constraint');
+      final legacyConstraintFail =
+          msg.contains('redirect_type') || msg.contains('check constraint');
       final canFallback = legacyConstraintFail &&
-          (redirectType == 'external_link' || redirectType == 'collection' || redirectType == 'no_redirect');
+          (redirectType == 'external_link' ||
+              redirectType == 'collection' ||
+              redirectType == 'no_redirect');
       if (!canFallback) rethrow;
       // Legacy DB compatibility: older schema only allowed `path`.
       await client.from('homepage_hero_banners').insert({
@@ -3180,7 +3516,9 @@ class AdminService {
   Future<void> reorderHomeHeroBanners(List<String> orderedIds) async {
     await _requireAdmin();
     for (var i = 0; i < orderedIds.length; i++) {
-      await client.from('homepage_hero_banners').update({'sort_order': i}).eq('id', orderedIds[i]);
+      await client
+          .from('homepage_hero_banners')
+          .update({'sort_order': i}).eq('id', orderedIds[i]);
     }
   }
 
@@ -3204,9 +3542,12 @@ class AdminService {
       await client.from('homepage_hero_banners').update(row).eq('id', id);
     } on PostgrestException catch (e) {
       final msg = e.message.toLowerCase();
-      final legacyConstraintFail = msg.contains('redirect_type') || msg.contains('check constraint');
+      final legacyConstraintFail =
+          msg.contains('redirect_type') || msg.contains('check constraint');
       final canFallback = legacyConstraintFail &&
-          (redirectType == 'external_link' || redirectType == 'collection' || redirectType == 'no_redirect');
+          (redirectType == 'external_link' ||
+              redirectType == 'collection' ||
+              redirectType == 'no_redirect');
       if (!canFallback) rethrow;
       await client.from('homepage_hero_banners').update({
         ...row,
@@ -3253,7 +3594,8 @@ class AdminService {
     bool enabled = true,
   }) async {
     await _requireAdmin();
-    final computedSort = sortOrder ?? await _firstSortOrderFor('homepage_top_categories');
+    final computedSort =
+        sortOrder ?? await _firstSortOrderFor('homepage_top_categories');
     await client.from('homepage_top_categories').insert({
       'label': label,
       'icon_url': iconUrl,
@@ -3272,7 +3614,9 @@ class AdminService {
   Future<void> reorderHomeTopCategories(List<String> orderedIds) async {
     await _requireAdmin();
     for (var i = 0; i < orderedIds.length; i++) {
-      await client.from('homepage_top_categories').update({'sort_order': i}).eq('id', orderedIds[i]);
+      await client
+          .from('homepage_top_categories')
+          .update({'sort_order': i}).eq('id', orderedIds[i]);
     }
   }
 
@@ -3325,19 +3669,21 @@ class AdminService {
     final stamp = DateTime.now().millisecondsSinceEpoch;
     final sanitized = fileName.replaceAll(RegExp(r'[^\w.\-]'), '_');
     final objectPath = 'products/$safeId/image_${stamp}_$sanitized.jpg';
-    await client.storage
-        .from('product-images')
-        .uploadBinary(
+    await client.storage.from('product-images').uploadBinary(
           objectPath,
           bytes,
-          fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
+          fileOptions:
+              const FileOptions(upsert: true, contentType: 'image/jpeg'),
         );
     return client.storage.from('product-images').getPublicUrl(objectPath);
   }
 
   /// Strip characters that break PostgREST `.or()` / `ilike` filters.
   static String _sanitizeSearchInput(String raw) {
-    return raw.replaceAll(RegExp(r'[%_,()]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    return raw
+        .replaceAll(RegExp(r'[%_,()]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   Future<List<AdminSearchResultItem>> searchGlobal(String keyword) async {
@@ -3574,9 +3920,11 @@ class AdminService {
 
     // Production fallback: some historical rows remain "pending" even after payment
     // while payment identifiers/timestamps are already persisted.
-    final hasPaymentId = (row['razorpay_payment_id']?.toString().trim().isNotEmpty ?? false);
+    final hasPaymentId =
+        (row['razorpay_payment_id']?.toString().trim().isNotEmpty ?? false);
     final hasPaidAt = (row['paid_at']?.toString().trim().isNotEmpty ?? false);
-    final hasVerifiedAt = (row['payment_verified_at']?.toString().trim().isNotEmpty ?? false);
+    final hasVerifiedAt =
+        (row['payment_verified_at']?.toString().trim().isNotEmpty ?? false);
     if (hasPaymentId || hasPaidAt || hasVerifiedAt) return 'paid';
 
     return 'pending';
@@ -3624,7 +3972,11 @@ class AdminService {
     final line = addressLine?.trim() ?? '';
     final c = city?.trim() ?? '';
     final pin = postalCode?.trim() ?? '';
-    if (name.isEmpty && ph.isEmpty && line.isEmpty && c.isEmpty && pin.isEmpty) {
+    if (name.isEmpty &&
+        ph.isEmpty &&
+        line.isEmpty &&
+        c.isEmpty &&
+        pin.isEmpty) {
       return '-';
     }
     final buf = StringBuffer();
@@ -3641,8 +3993,12 @@ class AdminService {
   );
 
   /// Reads emails from [profiles] only. Avoids PostgREST access to [auth.users] (often 406 / blocked).
-  Future<Map<String, String>> _fetchAuthEmailsByUserIds(List<String> userIds) async {
-    final ids = userIds.map((e) => e.trim()).where((e) => e.isNotEmpty && _uuidLike.hasMatch(e)).toList();
+  Future<Map<String, String>> _fetchAuthEmailsByUserIds(
+      List<String> userIds) async {
+    final ids = userIds
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty && _uuidLike.hasMatch(e))
+        .toList();
     if (ids.isEmpty) return const {};
     final map = <String, String>{};
     try {
@@ -3814,6 +4170,10 @@ class AdminService {
       paymentMode: product.paymentMode,
       deliveryChargeMode: product.deliveryChargeMode,
       deliveryChargeInr: product.deliveryChargeInr,
+      hsnCode: product.hsnCode,
+      gstRate: product.gstRate,
+      taxStatus: product.taxStatus,
+      priceIncludesGst: product.priceIncludesGst,
     );
   }
 
@@ -3893,8 +4253,9 @@ class AdminService {
       final qty = (line?['quantity'] as num?)?.toInt() ?? 0;
       final lineAmount = unit * qty;
       final imgs = e['return_images'];
-      final imageList =
-          imgs is List ? imgs.map((x) => x.toString()).toList() : const <String>[];
+      final imageList = imgs is List
+          ? imgs.map((x) => x.toString()).toList()
+          : const <String>[];
       final uid = (e['user_id'] ?? '').toString();
       Map<String, dynamic>? refundMap;
       Map<String, dynamic>? replacementCaseMap;
@@ -3907,7 +4268,8 @@ class AdminService {
       }
       final replacementRaw = e['replacement_cases'];
       if (replacementRaw is List && replacementRaw.isNotEmpty) {
-        replacementCaseMap = Map<String, dynamic>.from(replacementRaw.first as Map);
+        replacementCaseMap =
+            Map<String, dynamic>.from(replacementRaw.first as Map);
       } else if (replacementRaw is Map) {
         replacementCaseMap = Map<String, dynamic>.from(replacementRaw);
       }
@@ -3994,7 +4356,8 @@ class AdminService {
           final orderMap = orderRaw is Map<String, dynamic>
               ? orderRaw
               : (orderRaw is Map ? Map<String, dynamic>.from(orderRaw) : null);
-          final t = orderMap?['payment_method']?.toString().trim().toLowerCase();
+          final t =
+              orderMap?['payment_method']?.toString().trim().toLowerCase();
           return (t != null && t.isNotEmpty) ? t : 'razorpay';
         }(),
         paymentStatus: () {
@@ -4002,7 +4365,8 @@ class AdminService {
           final orderMap = orderRaw is Map<String, dynamic>
               ? orderRaw
               : (orderRaw is Map ? Map<String, dynamic>.from(orderRaw) : null);
-          final t = orderMap?['payment_status']?.toString().trim().toLowerCase();
+          final t =
+              orderMap?['payment_status']?.toString().trim().toLowerCase();
           return (t != null && t.isNotEmpty) ? t : 'pending';
         }(),
         orderRefundStatus: () {
@@ -4023,8 +4387,8 @@ class AdminService {
         replacementCaseId: replacementCaseMap?['id']?.toString(),
         replacementCaseStatus: replacementCaseMap?['status']?.toString(),
         replacementPickupStatus: latestPickupMap?['status']?.toString(),
-        replacementPickupScheduledAt:
-            DateTime.tryParse(latestPickupMap?['scheduled_at']?.toString() ?? ''),
+        replacementPickupScheduledAt: DateTime.tryParse(
+            latestPickupMap?['scheduled_at']?.toString() ?? ''),
         replacementAttemptCount:
             (replacementCaseMap?['attempt_count'] as num?)?.toInt() ?? 0,
         replacementLogisticsMode:
@@ -4034,19 +4398,23 @@ class AdminService {
         replacementReverseStatus:
             (replacementCaseMap?['reverse_status'] ?? 'pending').toString(),
         replacementForwardShipmentId: () {
-          final t = replacementCaseMap?['forward_shipment_id']?.toString().trim();
+          final t =
+              replacementCaseMap?['forward_shipment_id']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
         }(),
         replacementReverseShipmentId: () {
-          final t = replacementCaseMap?['reverse_shipment_id']?.toString().trim();
+          final t =
+              replacementCaseMap?['reverse_shipment_id']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
         }(),
         replacementForwardTrackingUrl: () {
-          final t = replacementCaseMap?['forward_tracking_url']?.toString().trim();
+          final t =
+              replacementCaseMap?['forward_tracking_url']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
         }(),
         replacementReverseTrackingUrl: () {
-          final t = replacementCaseMap?['reverse_tracking_url']?.toString().trim();
+          final t =
+              replacementCaseMap?['reverse_tracking_url']?.toString().trim();
           return t != null && t.isNotEmpty ? t : null;
         }(),
       );
@@ -4199,18 +4567,21 @@ class AdminService {
       'return_status': newStatus,
     };
     if (pickupScheduledAt != null) {
-      payload['pickup_scheduled_at'] = pickupScheduledAt.toUtc().toIso8601String();
+      payload['pickup_scheduled_at'] =
+          pickupScheduledAt.toUtc().toIso8601String();
     }
     if (pickupNotes != null) {
-      payload['pickup_notes'] = pickupNotes.trim().isEmpty ? null : pickupNotes.trim();
+      payload['pickup_notes'] =
+          pickupNotes.trim().isEmpty ? null : pickupNotes.trim();
     }
     if (rejectionReason != null) {
       payload['rejection_reason'] =
           rejectionReason.trim().isEmpty ? null : rejectionReason.trim();
     }
     if (pickupCourierPartner != null) {
-      payload['pickup_courier_partner'] =
-          pickupCourierPartner.trim().isEmpty ? null : pickupCourierPartner.trim();
+      payload['pickup_courier_partner'] = pickupCourierPartner.trim().isEmpty
+          ? null
+          : pickupCourierPartner.trim();
     }
     if (warehouseReceiptAt != null) {
       payload['warehouse_receipt_at'] =
@@ -4251,7 +4622,11 @@ class AdminService {
         'Refund can only be created after the return is marked as returned.',
       );
     }
-    final existing = await client.from('refunds').select('id').eq('return_id', returnId).maybeSingle();
+    final existing = await client
+        .from('refunds')
+        .select('id')
+        .eq('return_id', returnId)
+        .maybeSingle();
     if (existing != null) {
       throw RepositoryException('A refund already exists for this return.');
     }
@@ -4290,7 +4665,8 @@ class AdminService {
           'Refund amount cannot exceed the original line total (unit price × quantity).',
         );
       }
-      if (msg.contains('refund_amount_positive') || msg.contains('refund_amount')) {
+      if (msg.contains('refund_amount_positive') ||
+          msg.contains('refund_amount')) {
         throw RepositoryException('Refund amount must be greater than zero.');
       }
       if (msg.contains('return_not_ready_for_refund')) {
@@ -4379,10 +4755,13 @@ class AdminService {
       try {
         final adminId = client.auth.currentUser?.id;
         if (adminId == null) return;
-        final combined = (message != null && message.isNotEmpty) ? '$action: $message' : action;
+        final combined = (message != null && message.isNotEmpty)
+            ? '$action: $message'
+            : action;
         await client.from('admin_logs').insert({
           'admin_id': adminId,
-          'action': combined.length > 2000 ? combined.substring(0, 2000) : combined,
+          'action':
+              combined.length > 2000 ? combined.substring(0, 2000) : combined,
           'entity': entity,
           'entity_id': entityId,
         });

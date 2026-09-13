@@ -98,7 +98,8 @@ class _HeroBannersTab extends ConsumerWidget {
             ),
             Expanded(
               child: rows.isEmpty
-                  ? const Center(child: Text('No banners. Add one to show the carousel.'))
+                  ? const Center(
+                      child: Text('No banners. Add one to show the carousel.'))
                   : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       buildDefaultDragHandles: false,
@@ -108,7 +109,9 @@ class _HeroBannersTab extends ConsumerWidget {
                         if (newIndex > oldIndex) newIndex -= 1;
                         final item = updated.removeAt(oldIndex);
                         updated.insert(newIndex, item);
-                        await ref.read(adminServiceProvider).reorderHomeHeroBanners(
+                        await ref
+                            .read(adminServiceProvider)
+                            .reorderHomeHeroBanners(
                               updated.map((e) => e.id).toList(),
                             );
                         ref.invalidate(adminHomeHeroBannersProvider);
@@ -127,7 +130,8 @@ class _HeroBannersTab extends ConsumerWidget {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            title: Text('${r.redirectType} → ${r.redirectValue.isEmpty ? 'none' : r.redirectValue}'),
+                            title: Text(
+                                '${r.redirectType} → ${r.redirectValue.isEmpty ? 'none' : r.redirectValue}'),
                             subtitle: Text(r.enabled ? 'Active' : 'Inactive'),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -135,18 +139,21 @@ class _HeroBannersTab extends ConsumerWidget {
                                 ReorderableDragStartListener(
                                   index: i,
                                   child: const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 4),
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 4),
                                     child: Icon(Icons.drag_indicator),
                                   ),
                                 ),
                                 IconButton(
                                   tooltip: 'Edit',
                                   icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () => _showBannerEditor(context, ref, r),
+                                  onPressed: () =>
+                                      _showBannerEditor(context, ref, r),
                                 ),
                                 IconButton(
                                   tooltip: 'Delete',
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.red),
                                   onPressed: () async {
                                     final ok = await showDialog<bool>(
                                           context: context,
@@ -154,11 +161,13 @@ class _HeroBannersTab extends ConsumerWidget {
                                             title: const Text('Delete banner?'),
                                             actions: [
                                               TextButton(
-                                                onPressed: () => Navigator.pop(context, false),
+                                                onPressed: () => Navigator.pop(
+                                                    context, false),
                                                 child: const Text('Cancel'),
                                               ),
                                               FilledButton(
-                                                onPressed: () => Navigator.pop(context, true),
+                                                onPressed: () => Navigator.pop(
+                                                    context, true),
                                                 child: const Text('Delete'),
                                               ),
                                             ],
@@ -166,8 +175,11 @@ class _HeroBannersTab extends ConsumerWidget {
                                         ) ??
                                         false;
                                     if (!ok || !context.mounted) return;
-                                    await ref.read(adminServiceProvider).deleteHomeHeroBanner(r.id);
-                                    ref.invalidate(adminHomeHeroBannersProvider);
+                                    await ref
+                                        .read(adminServiceProvider)
+                                        .deleteHomeHeroBanner(r.id);
+                                    ref.invalidate(
+                                        adminHomeHeroBannersProvider);
                                   },
                                 ),
                               ],
@@ -189,7 +201,8 @@ Future<void> _showBannerEditor(
   WidgetRef ref,
   AdminHomeHeroBannerRow? existing,
 ) async {
-  final categoryOptions = await ref.read(adminCatalogCategoryOptionsProvider.future);
+  final categoryOptions =
+      await ref.read(adminCatalogCategoryOptionsProvider.future);
   final products = await ref.read(adminProductsProvider.future);
 
   final imageUrlCtrl = TextEditingController(text: existing?.imageUrl ?? '');
@@ -199,9 +212,12 @@ Future<void> _showBannerEditor(
   var redirectType = existing?.redirectType ?? 'category';
   var active = existing?.enabled ?? true;
   var uploading = false;
-  String? selectedCategory = existing?.redirectType == 'category' ? existing?.redirectValue : null;
-  String? selectedProduct = existing?.redirectType == 'product' ? existing?.redirectValue : null;
-  String? selectedCollection = existing?.redirectType == 'collection' ? existing?.redirectValue : null;
+  String? selectedCategory =
+      existing?.redirectType == 'category' ? existing?.redirectValue : null;
+  String? selectedProduct =
+      existing?.redirectType == 'product' ? existing?.redirectValue : null;
+  String? selectedCollection =
+      existing?.redirectType == 'collection' ? existing?.redirectValue : null;
 
   await showDialog<void>(
     context: context,
@@ -229,10 +245,12 @@ Future<void> _showBannerEditor(
         }
 
         final manualOverride = manualOverrideCtrl.text.trim();
-        final finalRedirectValue = manualOverride.isNotEmpty ? manualOverride : selectedTarget();
+        final finalRedirectValue =
+            manualOverride.isNotEmpty ? manualOverride : selectedTarget();
 
         return AlertDialog(
-          title: Text(existing == null ? 'Add hero banner' : 'Edit hero banner'),
+          title:
+              Text(existing == null ? 'Add hero banner' : 'Edit hero banner'),
           content: SizedBox(
             width: 520,
             child: SingleChildScrollView(
@@ -244,7 +262,10 @@ Future<void> _showBannerEditor(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
-                      color: Theme.of(ctx).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                      color: Theme.of(ctx)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.35),
                     ),
                     child: const Text(
                       'Required fields are marked with *.\n'
@@ -268,7 +289,8 @@ Future<void> _showBannerEditor(
                               setUploading: (v) {
                                 if (ctx.mounted) setLocal(() => uploading = v);
                               },
-                              onUploaded: (url) => setLocal(() => uploadedImageUrl = url),
+                              onUploaded: (url) =>
+                                  setLocal(() => uploadedImageUrl = url),
                             );
                           },
                     icon: uploading
@@ -278,14 +300,17 @@ Future<void> _showBannerEditor(
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.upload),
-                    label: Text(uploading ? 'Uploading…' : 'Upload banner image (recommended)'),
+                    label: Text(uploading
+                        ? 'Uploading…'
+                        : 'Upload banner image (recommended)'),
                   ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: imageUrlCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Paste image URL (optional)',
-                      helperText: 'Recommended size: 1200 x 500 (3:1). Uploaded image takes priority.',
+                      helperText:
+                          'Recommended size: 1200 x 500 (3:1). Uploaded image takes priority.',
                     ),
                     onChanged: (_) => setLocal(() {}),
                   ),
@@ -294,13 +319,19 @@ Future<void> _showBannerEditor(
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     initialValue: redirectType,
-                    decoration: const InputDecoration(labelText: 'Redirect type *'),
+                    decoration:
+                        const InputDecoration(labelText: 'Redirect type *'),
                     items: const [
-                      DropdownMenuItem(value: 'category', child: Text('Category')),
-                      DropdownMenuItem(value: 'product', child: Text('Product')),
-                      DropdownMenuItem(value: 'collection', child: Text('Collection')),
-                      DropdownMenuItem(value: 'external_link', child: Text('External Link')),
-                      DropdownMenuItem(value: 'no_redirect', child: Text('No Redirect')),
+                      DropdownMenuItem(
+                          value: 'category', child: Text('Category')),
+                      DropdownMenuItem(
+                          value: 'product', child: Text('Product')),
+                      DropdownMenuItem(
+                          value: 'collection', child: Text('Collection')),
+                      DropdownMenuItem(
+                          value: 'external_link', child: Text('External Link')),
+                      DropdownMenuItem(
+                          value: 'no_redirect', child: Text('No Redirect')),
                     ],
                     onChanged: (v) {
                       if (v == null) return;
@@ -334,7 +365,8 @@ Future<void> _showBannerEditor(
                           .map(
                             (p) => DropdownMenuEntry<String>(
                               value: p.id,
-                              label: '${p.title} (${p.id.substring(0, p.id.length > 8 ? 8 : p.id.length)})',
+                              label:
+                                  '${p.title} (${p.id.substring(0, p.id.length > 8 ? 8 : p.id.length)})',
                             ),
                           )
                           .toList(),
@@ -347,7 +379,8 @@ Future<void> _showBannerEditor(
                         labelText: 'Select collection (recommended)',
                       ),
                       items: _kCollections
-                          .map((e) => DropdownMenuItem(value: e['key'], child: Text(e['label']!)))
+                          .map((e) => DropdownMenuItem(
+                              value: e['key'], child: Text(e['label']!)))
                           .toList(),
                       onChanged: (v) => setLocal(() => selectedCollection = v),
                     ),
@@ -364,18 +397,21 @@ Future<void> _showBannerEditor(
                       controller: manualOverrideCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Manual slug / ID (optional override)',
-                        helperText: 'If filled, this overrides selected target.',
+                        helperText:
+                            'If filled, this overrides selected target.',
                       ),
                     ),
                   const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Active'),
-                    subtitle: const Text('Active banners appear in the homepage carousel.'),
+                    subtitle: const Text(
+                        'Active banners appear in the homepage carousel.'),
                     value: active,
                     onChanged: (v) => setLocal(() => active = v),
                   ),
-                  if (finalRedirectValue.isNotEmpty && redirectType != 'no_redirect')
+                  if (finalRedirectValue.isNotEmpty &&
+                      redirectType != 'no_redirect')
                     Text(
                       'Final redirect target: $finalRedirectValue',
                       style: Theme.of(ctx).textTheme.bodySmall,
@@ -385,7 +421,9 @@ Future<void> _showBannerEditor(
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             FilledButton(
               onPressed: () async {
                 final image = effectiveImage.trim();
@@ -395,9 +433,12 @@ Future<void> _showBannerEditor(
                   );
                   return;
                 }
-                if (redirectType != 'no_redirect' && finalRedirectValue.trim().isEmpty) {
+                if (redirectType != 'no_redirect' &&
+                    finalRedirectValue.trim().isEmpty) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('Please select a redirect target or add manual override.')),
+                    const SnackBar(
+                        content: Text(
+                            'Please select a redirect target or add manual override.')),
                   );
                   return;
                 }
@@ -415,7 +456,8 @@ Future<void> _showBannerEditor(
                   if (!valid) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       const SnackBar(
-                        content: Text('Enter a valid external URL (example: https://gmail.com).'),
+                        content: Text(
+                            'Enter a valid external URL (example: https://gmail.com).'),
                       ),
                     );
                     return;
@@ -477,7 +519,8 @@ class _BannerPreviewCard extends StatelessWidget {
             aspectRatio: 3 / 1,
             child: imageUrl.isEmpty
                 ? Container(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     alignment: Alignment.center,
                     child: const Text('Banner preview'),
                   )
@@ -526,7 +569,8 @@ class _TopCategoriesTab extends ConsumerWidget {
             ),
             Expanded(
               child: rows.isEmpty
-                  ? const Center(child: Text('No chips. Add categories for the home row.'))
+                  ? const Center(
+                      child: Text('No chips. Add categories for the home row.'))
                   : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       buildDefaultDragHandles: false,
@@ -536,7 +580,9 @@ class _TopCategoriesTab extends ConsumerWidget {
                         if (newIndex > oldIndex) newIndex -= 1;
                         final item = updated.removeAt(oldIndex);
                         updated.insert(newIndex, item);
-                        await ref.read(adminServiceProvider).reorderHomeTopCategories(
+                        await ref
+                            .read(adminServiceProvider)
+                            .reorderHomeTopCategories(
                               updated.map((e) => e.id).toList(),
                             );
                         ref.invalidate(adminHomeTopCategoriesProvider);
@@ -555,37 +601,44 @@ class _TopCategoriesTab extends ConsumerWidget {
                               ),
                             ),
                             title: Text(r.label),
-                            subtitle: Text('${r.categorySlug} · ${r.enabled ? 'Visible' : 'Hidden'}'),
+                            subtitle: Text(
+                                '${r.categorySlug} · ${r.enabled ? 'Visible' : 'Hidden'}'),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 ReorderableDragStartListener(
                                   index: i,
                                   child: const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 4),
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 4),
                                     child: Icon(Icons.drag_indicator),
                                   ),
                                 ),
                                 IconButton(
                                   tooltip: 'Edit',
                                   icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () => _showCategoryEditor(context, ref, r),
+                                  onPressed: () =>
+                                      _showCategoryEditor(context, ref, r),
                                 ),
                                 IconButton(
                                   tooltip: 'Delete',
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.red),
                                   onPressed: () async {
                                     final ok = await showDialog<bool>(
                                           context: context,
                                           builder: (_) => AlertDialog(
-                                            title: const Text('Delete category chip?'),
+                                            title: const Text(
+                                                'Delete category chip?'),
                                             actions: [
                                               TextButton(
-                                                onPressed: () => Navigator.pop(context, false),
+                                                onPressed: () => Navigator.pop(
+                                                    context, false),
                                                 child: const Text('Cancel'),
                                               ),
                                               FilledButton(
-                                                onPressed: () => Navigator.pop(context, true),
+                                                onPressed: () => Navigator.pop(
+                                                    context, true),
                                                 child: const Text('Delete'),
                                               ),
                                             ],
@@ -593,8 +646,11 @@ class _TopCategoriesTab extends ConsumerWidget {
                                         ) ??
                                         false;
                                     if (!ok || !context.mounted) return;
-                                    await ref.read(adminServiceProvider).deleteHomeTopCategory(r.id);
-                                    ref.invalidate(adminHomeTopCategoriesProvider);
+                                    await ref
+                                        .read(adminServiceProvider)
+                                        .deleteHomeTopCategory(r.id);
+                                    ref.invalidate(
+                                        adminHomeTopCategoriesProvider);
                                   },
                                 ),
                               ],
@@ -636,10 +692,12 @@ Future<void> _showCategoryEditor(
             ? uploadedIconUrl.trim()
             : iconUrlCtrl.text.trim();
         final manualSlug = manualSlugCtrl.text.trim().toLowerCase();
-        final finalSlug = manualSlug.isNotEmpty ? manualSlug : (selectedSlug ?? '');
+        final finalSlug =
+            manualSlug.isNotEmpty ? manualSlug : (selectedSlug ?? '');
 
         return AlertDialog(
-          title: Text(existing == null ? 'Add top category' : 'Edit top category'),
+          title:
+              Text(existing == null ? 'Add top category' : 'Edit top category'),
           content: SizedBox(
             width: 520,
             child: SingleChildScrollView(
@@ -650,7 +708,10 @@ Future<void> _showCategoryEditor(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
-                      color: Theme.of(ctx).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                      color: Theme.of(ctx)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.35),
                     ),
                     child: const Text(
                       'Select existing category first, then edit label only if needed.\n'
@@ -664,16 +725,19 @@ Future<void> _showCategoryEditor(
                     initialSelection: selectedSlug,
                     label: const Text('Category * (recommended)'),
                     dropdownMenuEntries: options
-                        .map((e) => DropdownMenuEntry<String>(value: e.slug, label: '${e.label} (${e.slug})'))
+                        .map((e) => DropdownMenuEntry<String>(
+                            value: e.slug, label: '${e.label} (${e.slug})'))
                         .toList(),
                     onSelected: (v) {
                       if (v == null) return;
-                      final matched = options.where((e) => e.slug == v).toList();
+                      final matched =
+                          options.where((e) => e.slug == v).toList();
                       final lbl = matched.isEmpty ? v : matched.first.label;
                       setLocal(() {
                         selectedSlug = v;
                         selectedLabel = lbl;
-                        if (labelCtrl.text.trim().isEmpty || labelCtrl.text.trim() == selectedLabel) {
+                        if (labelCtrl.text.trim().isEmpty ||
+                            labelCtrl.text.trim() == selectedLabel) {
                           labelCtrl.text = lbl;
                         }
                       });
@@ -683,14 +747,17 @@ Future<void> _showCategoryEditor(
                   TextField(
                     controller: manualSlugCtrl,
                     onChanged: (raw) {
-                      final cleaned = raw.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_-]'), '');
+                      final cleaned = raw
+                          .toLowerCase()
+                          .replaceAll(RegExp(r'[^a-z0-9_-]'), '');
                       if (cleaned == raw) {
                         setLocal(() {});
                         return;
                       }
                       manualSlugCtrl.value = TextEditingValue(
                         text: cleaned,
-                        selection: TextSelection.collapsed(offset: cleaned.length),
+                        selection:
+                            TextSelection.collapsed(offset: cleaned.length),
                       );
                       setLocal(() {});
                     },
@@ -704,7 +771,8 @@ Future<void> _showCategoryEditor(
                     controller: labelCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Label *',
-                      helperText: 'Auto-filled from selected category, editable',
+                      helperText:
+                          'Auto-filled from selected category, editable',
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -724,7 +792,8 @@ Future<void> _showCategoryEditor(
                               setUploading: (v) {
                                 if (ctx.mounted) setLocal(() => uploading = v);
                               },
-                              onUploaded: (url) => setLocal(() => uploadedIconUrl = url),
+                              onUploaded: (url) =>
+                                  setLocal(() => uploadedIconUrl = url),
                             );
                           },
                     icon: uploading
@@ -734,14 +803,16 @@ Future<void> _showCategoryEditor(
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.upload),
-                    label: Text(uploading ? 'Uploading…' : 'Upload icon (recommended)'),
+                    label: Text(
+                        uploading ? 'Uploading…' : 'Upload icon (recommended)'),
                   ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: iconUrlCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Paste icon image URL (optional)',
-                      helperText: 'Recommended size: 512 x 512 square. Uploaded image takes priority.',
+                      helperText:
+                          'Recommended size: 512 x 512 square. Uploaded image takes priority.',
                     ),
                     onChanged: (_) => setLocal(() {}),
                   ),
@@ -751,18 +822,22 @@ Future<void> _showCategoryEditor(
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Visible'),
-                    subtitle: const Text('Visible categories appear on the homepage.'),
+                    subtitle: const Text(
+                        'Visible categories appear on the homepage.'),
                     value: visible,
                     onChanged: (v) => setLocal(() => visible = v),
                   ),
                   if (finalSlug.isNotEmpty)
-                    Text('Final category slug: $finalSlug', style: Theme.of(ctx).textTheme.bodySmall),
+                    Text('Final category slug: $finalSlug',
+                        style: Theme.of(ctx).textTheme.bodySmall),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             FilledButton(
               onPressed: () async {
                 final label = labelCtrl.text.trim();
@@ -770,13 +845,16 @@ Future<void> _showCategoryEditor(
                 final slug = finalSlug.trim().toLowerCase();
                 if (label.isEmpty || iconUrl.isEmpty || slug.isEmpty) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('Category, label, and icon are required.')),
+                    const SnackBar(
+                        content:
+                            Text('Category, label, and icon are required.')),
                   );
                   return;
                 }
                 if (!RegExp(r'^[a-z0-9_-]+$').hasMatch(slug)) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('Slug can use only a-z, 0-9, - and _.')),
+                    const SnackBar(
+                        content: Text('Slug can use only a-z, 0-9, - and _.')),
                   );
                   return;
                 }
@@ -855,7 +933,8 @@ class _ProductSectionsTab extends ConsumerStatefulWidget {
   const _ProductSectionsTab();
 
   @override
-  ConsumerState<_ProductSectionsTab> createState() => _ProductSectionsTabState();
+  ConsumerState<_ProductSectionsTab> createState() =>
+      _ProductSectionsTabState();
 }
 
 class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
@@ -900,6 +979,10 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
       paymentMode: p.paymentMode,
       deliveryChargeMode: p.deliveryChargeMode,
       deliveryChargeInr: p.deliveryChargeInr,
+      hsnCode: p.hsnCode,
+      gstRate: p.gstRate,
+      taxStatus: p.taxStatus,
+      priceIncludesGst: p.priceIncludesGst,
       variants: variants,
     );
   }
@@ -927,7 +1010,8 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
     try {
       var initialVariants = const <AdminVariantUpsert>[];
       try {
-        initialVariants = await ref.read(adminServiceProvider).fetchProductVariants(p.id);
+        initialVariants =
+            await ref.read(adminServiceProvider).fetchProductVariants(p.id);
       } catch (_) {}
       await ref.read(adminServiceProvider).updateProduct(
             p.id,
@@ -973,9 +1057,15 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.35),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.55),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: 0.55),
                 ),
               ),
               child: const Text(
@@ -1005,8 +1095,10 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
                         final p = filtered[i];
                         final override = _sectionOverrides[p.id];
                         final isPopular = override?.popular ?? p.isPopular;
-                        final isRecommended = override?.recommended ?? p.isRecommended;
-                        final isFestivalSpecial = override?.festival ?? p.isFestivalSpecial;
+                        final isRecommended =
+                            override?.recommended ?? p.isRecommended;
+                        final isFestivalSpecial =
+                            override?.festival ?? p.isFestivalSpecial;
                         return Card(
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -1017,14 +1109,18 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
                                   p.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
                                         fontWeight: FontWeight.w700,
                                       ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   (p.category ?? 'general').toUpperCase(),
-                                  style: Theme.of(context).textTheme.labelMedium,
+                                  style:
+                                      Theme.of(context).textTheme.labelMedium,
                                 ),
                                 const SizedBox(height: 8),
                                 Wrap(
@@ -1042,14 +1138,16 @@ class _ProductSectionsTabState extends ConsumerState<_ProductSectionsTab>
                                       label: 'Recommended',
                                       value: isRecommended,
                                       onChanged: (v) async {
-                                        await _setSectionFlag(p, isRecommended: v);
+                                        await _setSectionFlag(p,
+                                            isRecommended: v);
                                       },
                                     ),
                                     _SectionToggle(
                                       label: 'Festival special',
                                       value: isFestivalSpecial,
                                       onChanged: (v) async {
-                                        await _setSectionFlag(p, isFestivalSpecial: v);
+                                        await _setSectionFlag(p,
+                                            isFestivalSpecial: v);
                                       },
                                     ),
                                   ],
@@ -1102,7 +1200,9 @@ class _SectionToggle extends StatelessWidget {
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
-            color: value ? selectedBg : scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+            color: value
+                ? selectedBg
+                : scheme.surfaceContainerHighest.withValues(alpha: 0.45),
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
               color: value

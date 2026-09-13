@@ -12,6 +12,7 @@ import 'package:ecommerce_app/presentation/widgets/order_status_chip.dart';
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 
 /// Single order summary: image left, details center, status badge right; actions row below.
 class OrderHistoryOrderCard extends ConsumerWidget {
@@ -24,8 +25,9 @@ class OrderHistoryOrderCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final primary = _primaryLine(order);
-    final imageUrl = primary.imageUrls.isNotEmpty ? primary.imageUrls.first : null;
+    final primary = _primaryLine(order, AppLocalizations.of(context).orderItem);
+    final imageUrl =
+        primary.imageUrls.isNotEmpty ? primary.imageUrls.first : null;
     final totalQty = order.items.fold<int>(0, (s, e) => s + e.quantity);
     final moreCount = order.items.length > 1 ? order.items.length - 1 : 0;
     final canOpenProduct = primary.productId.isNotEmpty;
@@ -47,7 +49,8 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                     if (articleId != null && articleId.isNotEmpty) {
                       await Navigator.of(context).push<void>(
                         MaterialPageRoute<void>(
-                          builder: (_) => ArticleDetailPage(articleId: articleId),
+                          builder: (_) =>
+                              ArticleDetailPage(articleId: articleId),
                         ),
                       );
                       return;
@@ -62,7 +65,8 @@ class OrderHistoryOrderCard extends ConsumerWidget {
               padding: const EdgeInsets.all(12),
               child: LayoutBuilder(
                 builder: (context, rowConstraints) {
-                  final badgeColumnWidth = (rowConstraints.maxWidth * 0.42).clamp(118.0, 168.0);
+                  final badgeColumnWidth =
+                      (rowConstraints.maxWidth * 0.42).clamp(118.0, 168.0);
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -78,17 +82,26 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              primary.title.isNotEmpty ? primary.title : 'Order item',
+                              primary.title.isNotEmpty
+                                  ? primary.title
+                                  : AppLocalizations.of(context).orderItem,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Order #${formatOrderIdDisplay(order.id)}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              AppLocalizations.of(context)
+                                  .orderNumber(formatOrderIdDisplay(order.id)),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
                                     color: scheme.onSurfaceVariant,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -96,23 +109,37 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                             if (moreCount > 0) ...[
                               const SizedBox(height: 4),
                               Text(
-                                '+$moreCount more ${moreCount == 1 ? 'item' : 'items'}',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                AppLocalizations.of(context).moreItems(
+                                  moreCount,
+                                  moreCount == 1 ? 'item' : 'items',
+                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
                                       color: scheme.outline,
                                     ),
                               ),
                             ],
                             const SizedBox(height: 6),
                             Text(
-                              'Order date: ${formatShortOrderDate(order.createdAt)}',
+                              AppLocalizations.of(context).orderDate(
+                                formatShortOrderDate(order.createdAt),
+                              ),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Qty: $totalQty · ${formatRupee(order.grandTotal)}',
+                              AppLocalizations.of(context).quantityAndAmount(
+                                totalQty,
+                                formatRupee(order.grandTotal),
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
                                     fontWeight: FontWeight.w500,
                                     color: AppColors.priceText,
                                   ),
@@ -127,9 +154,11 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            OrderStatusChip(status: order.status, compact: true),
+                            OrderStatusChip(
+                                status: order.status, compact: true),
                             const SizedBox(height: 6),
-                            OrderPaymentStatusBadge(status: order.paymentStatus, compact: true),
+                            OrderPaymentStatusBadge(
+                                status: order.paymentStatus, compact: true),
                           ],
                         ),
                       ),
@@ -153,13 +182,13 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                     arguments: order.id,
                   ),
                   icon: const Icon(Icons.receipt_long_outlined, size: 18),
-                  label: const Text('View order details'),
+                  label: Text(AppLocalizations.of(context).viewOrderDetails),
                 ),
                 if (!cancelled && canOpenProduct)
                   TextButton.icon(
                     onPressed: () => _buyAgain(context, ref, primary),
                     icon: const Icon(Icons.shopping_bag_outlined, size: 18),
-                    label: const Text('Buy again'),
+                    label: Text(AppLocalizations.of(context).buyAgain),
                   ),
                 if (order.status == OrderStatus.delivered && canOpenProduct)
                   TextButton.icon(
@@ -171,7 +200,7 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                       },
                     ),
                     icon: const Icon(Icons.rate_review_outlined, size: 18),
-                    label: const Text('Write review'),
+                    label: Text(AppLocalizations.of(context).writeReview),
                   ),
                 if (order.status == OrderStatus.shipped ||
                     order.status == OrderStatus.outForDelivery)
@@ -181,7 +210,7 @@ class OrderHistoryOrderCard extends ConsumerWidget {
                       arguments: order.id,
                     ),
                     icon: const Icon(Icons.local_shipping_outlined, size: 18),
-                    label: const Text('Track order'),
+                    label: Text(AppLocalizations.of(context).trackOrder),
                   ),
               ],
             ),
@@ -191,11 +220,11 @@ class OrderHistoryOrderCard extends ConsumerWidget {
     );
   }
 
-  OrderItem _primaryLine(Order order) {
+  OrderItem _primaryLine(Order order, String fallbackTitle) {
     if (order.items.isEmpty) {
       return OrderItem(
         productId: '',
-        title: 'No line items',
+        title: fallbackTitle,
         imageUrls: const [],
         unitPrice: 0,
         currency: order.currency,
@@ -205,7 +234,8 @@ class OrderHistoryOrderCard extends ConsumerWidget {
     return order.items.first;
   }
 
-  Future<void> _buyAgain(BuildContext context, WidgetRef ref, OrderItem line) async {
+  Future<void> _buyAgain(
+      BuildContext context, WidgetRef ref, OrderItem line) async {
     if (line.productId.isEmpty) return;
     final qty = line.quantity < 1 ? 1 : line.quantity;
     await openBuyNowCheckout(

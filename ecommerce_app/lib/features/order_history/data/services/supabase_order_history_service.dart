@@ -14,14 +14,18 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
     implements OrderHistoryRepository {
   SupabaseOrderHistoryService(super.client);
 
-  static const _orderSelect = 'id, user_id, status, currency, created_at, delivered_at, return_deadline, delivery_fee, '
+  static const _orderSelect =
+      'id, user_id, status, currency, created_at, delivered_at, return_deadline, delivery_fee, '
       'tracking_number, courier_name, estimated_delivery_date, '
       'payment_method, payment_status, razorpay_payment_id, '
       'delivery_method, delivery_status, delivery_partner_name, delivery_partner_phone, shipping_provider, '
-      'shipment_id, awb_code, shipment_status, tracking_url, shipped_at, last_tracking_update';
+      'shipment_id, awb_code, shipment_status, tracking_url, shipped_at, last_tracking_update, '
+      'invoice_name, invoice_address_line, invoice_city, invoice_state';
 
   static const _orderSelectDetail = '$_orderSelect, '
-      'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, shipping_state';
+      'shipping_full_name, shipping_phone, shipping_address_line, shipping_city, shipping_postal_code, shipping_state, '
+      'shipping_name_original, shipping_address_original, shipping_city_original, shipping_state_original, '
+      'shipping_name_invoice, shipping_address_invoice, shipping_city_invoice, shipping_state_invoice';
 
   @override
   Future<List<Order>> fetchOrders() async {
@@ -88,8 +92,10 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
       return (orders: <Order>[], hasMore: false);
     }
 
-    final orderIds =
-        slice.map((e) => (e['id'] ?? '').toString()).where((id) => id.isNotEmpty).toList();
+    final orderIds = slice
+        .map((e) => (e['id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toList();
     final itemsByOrder = await _fetchItemsForOrders(orderIds);
 
     final result = <Order>[];
@@ -207,12 +213,14 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
     return (orders: result, hasMore: hasMore);
   }
 
-  Future<Map<String, List<OrderItemModel>>> _fetchItemsForOrders(List<String> orderIds) async {
+  Future<Map<String, List<OrderItemModel>>> _fetchItemsForOrders(
+      List<String> orderIds) async {
     if (orderIds.isEmpty) return {};
     final itemsData = await guard(
       () => client
           .from('order_items')
-          .select('id, order_id, product_id, title, image_urls, unit_price, currency, quantity')
+          .select(
+              'id, order_id, product_id, title, image_urls, unit_price, currency, quantity, hsn_code, tax_status, taxable_value, gst_rate, cgst_amount, sgst_amount, igst_amount, price_includes_gst')
           .inFilter('order_id', orderIds)
           .order('created_at', ascending: true),
     );
@@ -271,7 +279,8 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
     final itemsData = await guard(
       () => client
           .from('order_items')
-          .select('id, order_id, product_id, title, image_urls, unit_price, currency, quantity')
+          .select(
+              'id, order_id, product_id, title, image_urls, unit_price, currency, quantity, hsn_code, tax_status, taxable_value, gst_rate, cgst_amount, sgst_amount, igst_amount, price_includes_gst')
           .eq('order_id', orderId)
           .order('created_at', ascending: true),
     );
@@ -315,12 +324,27 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
     final line = row['shipping_address_line']?.toString().trim();
     final city = row['shipping_city']?.toString().trim();
     final pin = row['shipping_postal_code']?.toString().trim();
+    final invoiceName = (row['shipping_name_invoice'] ?? row['invoice_name'])?.toString().trim();
+    final invoiceAddressLine =
+      (row['shipping_address_invoice'] ?? row['invoice_address_line'])?.toString().trim();
+    final invoiceCity = (row['shipping_city_invoice'] ?? row['invoice_city'])?.toString().trim();
+    final invoiceState =
+      (row['shipping_state_invoice'] ?? row['invoice_state'])?.toString().trim();
     final info = OrderShippingInfo(
       fullName: name != null && name.isNotEmpty ? name : null,
       phone: phone != null && phone.isNotEmpty ? phone : null,
       addressLine: line != null && line.isNotEmpty ? line : null,
       city: city != null && city.isNotEmpty ? city : null,
+        state: row['shipping_state']?.toString().trim().isNotEmpty == true
+          ? row['shipping_state'].toString().trim()
+          : null,
       postalCode: pin != null && pin.isNotEmpty ? pin : null,
+        invoiceName: invoiceName != null && invoiceName.isNotEmpty ? invoiceName : null,
+        invoiceAddressLine: invoiceAddressLine != null && invoiceAddressLine.isNotEmpty
+          ? invoiceAddressLine
+          : null,
+        invoiceCity: invoiceCity != null && invoiceCity.isNotEmpty ? invoiceCity : null,
+        invoiceState: invoiceState != null && invoiceState.isNotEmpty ? invoiceState : null,
     );
     return info.hasStructuredAddress ? info : null;
   }
@@ -374,7 +398,8 @@ class SupabaseOrderHistoryService extends SupabaseServiceBase
   }
 
   @override
-  Future<void> requestOrderCancellation(String orderId, {String? reason}) async {
+  Future<void> requestOrderCancellation(String orderId,
+      {String? reason}) async {
     final authUser = client.auth.currentUser;
     if (authUser == null) {
       throw const AuthException('Sign in required.');

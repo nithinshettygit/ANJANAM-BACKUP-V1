@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecommerce_app/firebase_options.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 
 class SignupPage extends ConsumerStatefulWidget {
   const SignupPage({super.key});
@@ -53,10 +54,9 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       final session = ref.read(supabaseClientProvider).auth.currentSession;
       if (session == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Your account has been created. If email confirmation is required, '
-              'please check your inbox before signing in.',
+              AppLocalizations.of(context).checkInboxBeforeSignIn,
             ),
           ),
         );
@@ -68,7 +68,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
             loginType: LoginType.email,
           );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration completed successfully.')),
+          SnackBar(content: Text(AppLocalizations.of(context).registrationSuccessful)),
       );
       goToStorefrontAfterCustomerAuth(ref, context);
     } catch (e) {
@@ -98,8 +98,8 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     }
     if (kIsWeb && Firebase.apps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Google sign-up is unavailable right now. Please refresh and try again.'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).googleSignupUnavailable),
         ),
       );
       return;
@@ -121,7 +121,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration completed successfully.')),
+        SnackBar(content: Text(AppLocalizations.of(context).registrationSuccessful)),
       );
       goToStorefrontAfterCustomerAuth(ref, context);
     } on FirebaseAuthException catch (e) {
@@ -135,7 +135,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
         SnackBar(
           content: Text(
             isCancel
-                ? 'Google sign-in cancelled.'
+                ? AppLocalizations.of(context).googleSignInCancelled
                 : isPopupIssue
                     ? 'Google popup blocked or not enabled in Firebase Auth (${e.code}).'
                 : (e.message?.trim().isNotEmpty == true
@@ -158,7 +158,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign Up'),
+        title: Text(AppLocalizations.of(context).signUp),
         // Web/iPad only: always show back (stack may be empty after auth redirect).
         leading: kIsWeb
             ? IconButton(
@@ -185,12 +185,12 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                 TextFormField(
                   controller: _userNameController,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(labelText: 'Username'),
+                  decoration: InputDecoration(labelText: AppLocalizations.of(context).username),
                   validator: (v) {
                     final t = v?.trim() ?? '';
-                    if (t.isEmpty) return 'Username is required';
-                    if (t.length < 2) return 'Username must be at least 2 characters';
-                    if (t.length > 80) return 'Username is too long';
+                    if (t.isEmpty) return AppLocalizations.of(context).usernameRequired;
+                    if (t.length < 2) return AppLocalizations.of(context).usernameMinLength;
+                    if (t.length > 80) return AppLocalizations.of(context).usernameTooLong;
                     return null;
                   },
                 ),
@@ -198,24 +198,30 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  decoration: InputDecoration(labelText: AppLocalizations.of(context).email),
                   validator: validateEmailField,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
+                  decoration: InputDecoration(labelText: AppLocalizations.of(context).password),
                   validator: validatePasswordField,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _confirmController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Confirm Password'),
+                  decoration: InputDecoration(
+                    labelText: AppLocalizations.of(context).confirmPassword,
+                  ),
                   validator: (v) {
-                    if (v == null || v.isEmpty) return 'Confirm password is required';
-                    if (v != _passwordController.text) return 'Passwords do not match';
+                    if (v == null || v.isEmpty) {
+                      return AppLocalizations.of(context).confirmPasswordRequired;
+                    }
+                    if (v != _passwordController.text) {
+                      return AppLocalizations.of(context).passwordsDoNotMatch;
+                    }
                     return null;
                   },
                 ),
@@ -224,7 +230,11 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _isSubmitting ? null : _submit,
-                    child: Text(_isSubmitting ? 'Creating account...' : 'Sign Up'),
+                    child: Text(
+                      _isSubmitting
+                          ? AppLocalizations.of(context).creatingAccount
+                          : AppLocalizations.of(context).signUp,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -240,14 +250,16 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                           )
                         : const Icon(Icons.g_mobiledata_rounded),
                     label: Text(
-                      _isGoogleSubmitting ? 'Connecting to Google...' : 'Continue with Google',
+                        _isGoogleSubmitting
+                          ? AppLocalizations.of(context).connectingToGoogle
+                          : AppLocalizations.of(context).continueWithGoogle,
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () => Navigator.of(context).pushReplacementNamed('/login/email'),
-                  child: const Text('Already have an account? Sign in'),
+                  child: Text(AppLocalizations.of(context).alreadyHaveAccountSignIn),
                 ),
               ],
             ),

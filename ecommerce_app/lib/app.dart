@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'l10n/app_localizations.dart';
 
 import 'core/auth/auth_email_link_navigation.dart';
 import 'core/config/auth_redirect_config.dart';
@@ -24,7 +25,9 @@ import 'features/auth/state/auth_session_provider.dart';
 import 'features/notifications/data/services/supabase_device_token_service.dart';
 import 'features/notifications/state/notifications_controller.dart';
 import 'core/auth/blocked_account_gate.dart';
+import 'core/localization/app_locale_controller.dart';
 import 'presentation/routing/app_router.dart';
+import 'presentation/pages/language_selection_page.dart';
 
 /// Web cold-load: use the browser path (e.g. /product/<id>) instead of defaulting to / only.
 /// Recovery emails that fall back to Site URL (`/`) still open the set-password screen.
@@ -292,16 +295,28 @@ class _EcommerceAppState extends ConsumerState<EcommerceApp>
 
   @override
   Widget build(BuildContext context) {
+    final localeState = ref.watch(appLocaleControllerProvider);
+    final selectedLanguage = localeState.asData?.value;
+
     return MaterialApp(
-      title: kIsWeb ? 'ANJANAM' : 'ANJANAM',
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.light,
+      locale: selectedLanguage?.locale ?? const Locale('en'),
+      supportedLocales: AppLanguage.values.map((language) => language.locale),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       navigatorKey: notificationNavigatorKey,
       onGenerateRoute: AppRouter.onGenerateRoute,
       onGenerateInitialRoutes: kIsWeb ? _webGenerateInitialRoutes : null,
       builder: (context, child) {
+        if (!localeState.hasValue) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        if (selectedLanguage == null && !kIsWeb) {
+          return const LanguageSelectionPage(isFirstLaunch: true);
+        }
         final body = child ?? const SizedBox.shrink();
         if (!_isOffline) return body;
         return Stack(

@@ -21,6 +21,7 @@ import 'admin_users_page.dart';
 import 'admin_videos_page.dart';
 import 'admin_articles_page.dart';
 import 'admin_explore_suggestions_page.dart';
+import 'admin_document_settings_page.dart';
 
 class AdminShellPage extends ConsumerWidget {
   final String currentRoute;
@@ -85,6 +86,8 @@ class AdminShellPage extends ConsumerWidget {
         return const AdminCategoriesPage();
       case '/admin/notifications':
         return const AdminNotificationsPage();
+      case '/admin/document-settings':
+        return const AdminDocumentSettingsPage();
       case '/admin/admin-notifications':
         return const AdminAlertsPage();
       case '/admin/returns':

@@ -2,6 +2,7 @@ import 'package:ecommerce_app/core/auth/blocked_account_gate.dart';
 import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 
 /// Where the auth error was surfaced (affects titles and secondary actions).
 enum AuthIssueFlow { login, signup, signOut, passwordReset }
@@ -20,23 +21,23 @@ Future<void> presentSignInToManageCartDialog(BuildContext context) async {
           color: scheme.primary,
           size: 32,
         ),
-        title: const Text('Sign in to add to cart'),
+        title: Text(AppLocalizations.of(context).signInToAddToCart),
         content: Text(
-          'Sign in required to manage cart.',
+          AppLocalizations.of(context).signInRequiredToManageCart,
           style: theme.textTheme.bodyLarge?.copyWith(height: 1.35),
         ),
         actionsAlignment: MainAxisAlignment.end,
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
+            child: Text(AppLocalizations.of(context).close),
           ),
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               Navigator.of(context).pushNamed('/login');
             },
-            child: const Text('Sign in'),
+            child: Text(AppLocalizations.of(context).signIn),
           ),
         ],
       );

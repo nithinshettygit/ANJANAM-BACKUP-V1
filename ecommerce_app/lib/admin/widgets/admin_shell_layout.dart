@@ -32,24 +32,63 @@ class AdminShellLayout extends StatefulWidget {
   });
 
   static const menu = <AdminMenuItem>[
-    AdminMenuItem(label: 'Dashboard', icon: Icons.dashboard_outlined, route: '/admin'),
-    AdminMenuItem(label: 'Homepage', icon: Icons.home_work_outlined, route: '/admin/homepage'),
-    AdminMenuItem(label: 'Videos', icon: Icons.play_circle_outline, route: '/admin/videos'),
-    AdminMenuItem(label: 'Articles', icon: Icons.article_outlined, route: '/admin/articles'),
+    AdminMenuItem(
+        label: 'Dashboard', icon: Icons.dashboard_outlined, route: '/admin'),
+    AdminMenuItem(
+        label: 'Homepage',
+        icon: Icons.home_work_outlined,
+        route: '/admin/homepage'),
+    AdminMenuItem(
+        label: 'Videos',
+        icon: Icons.play_circle_outline,
+        route: '/admin/videos'),
+    AdminMenuItem(
+        label: 'Articles',
+        icon: Icons.article_outlined,
+        route: '/admin/articles'),
     AdminMenuItem(
       label: 'Explore Suggestions',
       icon: Icons.view_carousel_outlined,
       route: '/admin/explore-suggestions',
     ),
-    AdminMenuItem(label: 'Categories', icon: Icons.category_outlined, route: '/admin/categories'),
-    AdminMenuItem(label: 'Products', icon: Icons.inventory_2_outlined, route: '/admin/products'),
-    AdminMenuItem(label: 'Product Questions', icon: Icons.question_answer_outlined, route: '/admin/product-questions'),
-    AdminMenuItem(label: 'Product Reviews', icon: Icons.reviews_outlined, route: '/admin/product-reviews'),
-    AdminMenuItem(label: 'Orders', icon: Icons.receipt_long_outlined, route: '/admin/orders'),
-    AdminMenuItem(label: 'Returns', icon: Icons.assignment_return_outlined, route: '/admin/returns'),
-    AdminMenuItem(label: 'Users', icon: Icons.groups_outlined, route: '/admin/users'),
-    AdminMenuItem(label: 'Inventory', icon: Icons.warehouse_outlined, route: '/admin/inventory'),
-    AdminMenuItem(label: 'Notifications', icon: Icons.notifications_outlined, route: '/admin/notifications'),
+    AdminMenuItem(
+        label: 'Categories',
+        icon: Icons.category_outlined,
+        route: '/admin/categories'),
+    AdminMenuItem(
+        label: 'Products',
+        icon: Icons.inventory_2_outlined,
+        route: '/admin/products'),
+    AdminMenuItem(
+        label: 'Product Questions',
+        icon: Icons.question_answer_outlined,
+        route: '/admin/product-questions'),
+    AdminMenuItem(
+        label: 'Product Reviews',
+        icon: Icons.reviews_outlined,
+        route: '/admin/product-reviews'),
+    AdminMenuItem(
+        label: 'Orders',
+        icon: Icons.receipt_long_outlined,
+        route: '/admin/orders'),
+    AdminMenuItem(
+        label: 'Returns',
+        icon: Icons.assignment_return_outlined,
+        route: '/admin/returns'),
+    AdminMenuItem(
+        label: 'Users', icon: Icons.groups_outlined, route: '/admin/users'),
+    AdminMenuItem(
+        label: 'Inventory',
+        icon: Icons.warehouse_outlined,
+        route: '/admin/inventory'),
+    AdminMenuItem(
+        label: 'Notifications',
+        icon: Icons.notifications_outlined,
+        route: '/admin/notifications'),
+    AdminMenuItem(
+        label: 'Invoice & Label Settings',
+        icon: Icons.receipt_long_outlined,
+        route: '/admin/document-settings'),
     AdminMenuItem(
       label: 'Admin Alerts',
       icon: Icons.notification_important_outlined,
@@ -124,7 +163,8 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
                   switch (value) {
                     case _NotificationMenuAction.openAll:
                       if (mounted) {
-                        Navigator.of(context).pushReplacementNamed('/admin/admin-notifications');
+                        Navigator.of(context)
+                            .pushReplacementNamed('/admin/admin-notifications');
                       }
                       break;
                     case _NotificationMenuAction.markAllRead:
@@ -138,7 +178,8 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
                       enabled: false,
                       child: SizedBox(
                         width: 340,
-                        child: _NotificationPreviewList(service: _notificationService),
+                        child: _NotificationPreviewList(
+                            service: _notificationService),
                       ),
                     ),
                     const PopupMenuDivider(),
@@ -149,7 +190,9 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
                     PopupMenuItem<_NotificationMenuAction>(
                       value: _NotificationMenuAction.markAllRead,
                       enabled: unreadCount > 0,
-                      child: Text(unreadCount > 0 ? 'Mark all as read' : 'All caught up'),
+                      child: Text(unreadCount > 0
+                          ? 'Mark all as read'
+                          : 'All caught up'),
                     ),
                   ];
                 },
@@ -160,14 +203,16 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
                     children: [
                       const CircleAvatar(
                         backgroundColor: Colors.white,
-                        child: Icon(Icons.notifications_outlined, color: AppColors.charcoalBlack),
+                        child: Icon(Icons.notifications_outlined,
+                            color: AppColors.charcoalBlack),
                       ),
                       if (unreadCount > 0)
                         Positioned(
                           right: -2,
                           top: -2,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: Colors.red,
                               borderRadius: BorderRadius.circular(10),
@@ -200,7 +245,8 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
           FilledButton.icon(
             onPressed: widget.onLogout,
             icon: Icon(Icons.logout, color: AppColors.charcoalBlack),
-            label: Text('Logout', style: TextStyle(color: AppColors.charcoalBlack)),
+            label: Text('Logout',
+                style: TextStyle(color: AppColors.charcoalBlack)),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.errorRed,
               foregroundColor: AppColors.charcoalBlack,
@@ -223,9 +269,7 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
               padding: EdgeInsets.fromLTRB(
                 isCompact ? 10 : (kIsWeb ? 18 : 14),
                 isCompact ? 8 : (kIsWeb ? 12 : 10),
-                isCompact
-                    ? 10
-                    : (kIsWeb ? 18 : 14),
+                isCompact ? 10 : (kIsWeb ? 18 : 14),
                 isCompact ? 10 : (kIsWeb ? 16 : 12),
               ),
               child: SelectionArea(child: widget.body),
@@ -236,7 +280,8 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
     );
   }
 
-  Widget _buildMenuList(BuildContext context, {required bool closeDrawerOnTap}) {
+  Widget _buildMenuList(BuildContext context,
+      {required bool closeDrawerOnTap}) {
     return ListView.builder(
       itemCount: AdminShellLayout.menu.length,
       itemBuilder: (context, index) {
@@ -256,7 +301,9 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
             },
             child: Container(
               decoration: BoxDecoration(
-                color: selected ? AppColors.deepGold.withValues(alpha: 0.14) : Colors.white,
+                color: selected
+                    ? AppColors.deepGold.withValues(alpha: 0.14)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -274,8 +321,10 @@ class _AdminShellLayoutState extends State<AdminShellLayout> {
                       overflow: TextOverflow.ellipsis,
                       softWrap: false,
                       style: TextStyle(
-                        color: selected ? AppColors.deepGold : AppColors.textDark,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                        color:
+                            selected ? AppColors.deepGold : AppColors.textDark,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
                   ),
@@ -336,7 +385,8 @@ class _NotificationPreviewList extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontWeight: n.isRead ? FontWeight.w500 : FontWeight.w700,
+                          fontWeight:
+                              n.isRead ? FontWeight.w500 : FontWeight.w700,
                         ),
                       ),
                     ),

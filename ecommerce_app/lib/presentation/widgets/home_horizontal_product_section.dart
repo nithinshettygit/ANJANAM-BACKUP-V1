@@ -14,6 +14,7 @@ import 'home_layout_metrics.dart';
 import 'home_product_discovery_card.dart';
 import 'home_recommended_product_card.dart';
 import 'web_horizontal_rail_list.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Layout variants for mixed home merchandising.
 enum HomeStorefrontProductLayout {
@@ -184,7 +185,7 @@ class HomeStorefrontSectionHeader extends StatelessWidget {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
-                  'View all >',
+                  AppLocalizations.of(context).viewAll,
                   style: TextStyle(
                     fontSize: HomeLayoutMetrics.homeSectionViewAllFontSize(context),
                     fontWeight: FontWeight.w600,

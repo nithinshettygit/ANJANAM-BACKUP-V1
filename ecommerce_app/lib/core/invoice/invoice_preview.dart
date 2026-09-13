@@ -10,3 +10,11 @@ Future<void> previewInvoicePdf(
 }) async {
   await impl.openInvoicePreview(pdfBytes, name: name);
 }
+
+/// Downloads/previews PDF bytes using the platform's application-level preview & download flow.
+Future<void> downloadInvoicePdf(
+  Uint8List pdfBytes, {
+  String name = 'invoice',
+}) async {
+  await previewInvoicePdf(pdfBytes, name: name);
+}

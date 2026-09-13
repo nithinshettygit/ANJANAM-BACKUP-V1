@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecommerce_app/firebase_options.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 
 const int _kMaxEmailFailures = 5;
 const Duration _kEmailLockDuration = Duration(minutes: 15);
@@ -91,7 +92,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Login successful')),
+      SnackBar(content: Text(AppLocalizations.of(context).loginSuccessful)),
     );
     _emailFailCount = 0;
     _emailLockedUntil = null;
@@ -168,8 +169,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
     if (kIsWeb && Firebase.apps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Google login is unavailable right now. Please refresh and try again.'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).googleLoginUnavailable),
         ),
       );
       return;
@@ -191,7 +192,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login successful')),
+        SnackBar(content: Text(AppLocalizations.of(context).loginSuccessful)),
       );
       goToStorefrontAfterCustomerAuth(ref, context);
     } on FirebaseAuthException catch (e) {
@@ -205,7 +206,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         SnackBar(
           content: Text(
             isCancel
-                ? 'Google sign-in cancelled.'
+                ? AppLocalizations.of(context).googleSignInCancelled
                 : isPopupIssue
                     ? 'Google popup blocked or not enabled in Firebase Auth (${e.code}).'
                     : _networkAwareMessage(e),
@@ -243,7 +244,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (email.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email to reset password')),
+        SnackBar(content: Text(AppLocalizations.of(context).enterEmailToReset)),
       );
       return;
     }
@@ -259,10 +260,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await ref.read(authActionsProvider.notifier).sendPasswordResetEmail(email: email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'If an account exists for this email, we sent reset instructions. '
-            'Links expire after a short time for security.',
+            AppLocalizations.of(context).resetInstructionsSent,
           ),
         ),
       );
@@ -314,7 +314,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Login'),
+        title: Text(AppLocalizations.of(context).login),
         // Web/iPad only: always show back (stack may be empty after auth redirect).
         leading: kIsWeb
             ? IconButton(
@@ -342,7 +342,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.username],
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  decoration: InputDecoration(labelText: AppLocalizations.of(context).email),
                   validator: validateEmailField,
                 ),
                 const SizedBox(height: 12),
@@ -350,22 +350,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   controller: _passwordController,
                   obscureText: true,
                   autofillHints: const [AutofillHints.password],
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
+                    decoration: InputDecoration(labelText: AppLocalizations.of(context).password),
+                    validator: (v) => (v == null || v.isEmpty)
+                      ? AppLocalizations.of(context).passwordRequired
+                      : null,
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _isSubmitting ? null : _submit,
-                    child: Text(_isSubmitting ? 'Logging in...' : 'Login'),
+                    child: Text(
+                      _isSubmitting
+                          ? AppLocalizations.of(context).loggingIn
+                          : AppLocalizations.of(context).login,
+                    ),
                   ),
                 ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: _isSubmitting ? null : _sendPasswordReset,
-                    child: const Text('Forgot password?'),
+                    child: Text(AppLocalizations.of(context).forgotPassword),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -381,14 +387,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           )
                         : const Icon(Icons.g_mobiledata_rounded),
                     label: Text(
-                      _isGoogleSubmitting ? 'Connecting to Google...' : 'Continue with Google',
+                        _isGoogleSubmitting
+                          ? AppLocalizations.of(context).connectingToGoogle
+                          : AppLocalizations.of(context).continueWithGoogle,
                     ),
                   ),
                 ),
                 const SizedBox(height: 4),
                 TextButton(
                   onPressed: () => Navigator.of(context).pushNamed('/signup'),
-                  child: const Text('Don\'t have an account? Sign up'),
+                  child: Text(AppLocalizations.of(context).noAccountSignUp),
                 ),
               ],
             ),

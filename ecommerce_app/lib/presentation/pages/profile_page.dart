@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../l10n/app_localizations.dart';
 
 import '../../core/supabase/supabase_client_provider.dart';
 import '../../core/theme/wishlist_heart_sizes.dart';
@@ -16,6 +17,7 @@ import '../utils/open_storefront_legal_page.dart';
 import '../widgets/legal_support_links.dart';
 import '../widgets/support_section.dart';
 import '../../core/config/storefront_legal_urls.dart';
+import 'settings_page.dart';
 
 class _ProfileSnapshot {
   final String fullName;
@@ -92,8 +94,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 4,
-        title: const Text(
-          'Account',
+        title: Text(
+          AppLocalizations.of(context).account,
           style: TextStyle(
             fontSize: 21,
             fontWeight: FontWeight.w700,
@@ -117,7 +119,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           final raw = error.toString().toLowerCase();
           final message = raw.contains('refresh_token') || raw.contains('refresh token')
               ? 'Your saved sign-in is no longer valid. Please sign in again.'
-              : 'We could not load your account. Please try signing in again.';
+              : AppLocalizations.of(context).accountLoadError;
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -129,7 +131,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   FilledButton(
                     onPressed: () =>
                         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
-                    child: const Text('Go to sign in'),
+                    child: Text(AppLocalizations.of(context).goToSignIn),
                   ),
                 ],
               ),
@@ -140,7 +142,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           if (user == null) return const Center(child: CircularProgressIndicator());
           return profile.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(child: Text('Failed to load profile: $error')),
+            error: (error, _) => Center(
+              child: Text(AppLocalizations.of(context).profileLoadError(error.toString())),
+            ),
             data: (snapshot) {
               final effectiveSnapshot = _localProfileSnapshotOverride ?? snapshot;
               final displayName = effectiveSnapshot.fullName.trim().isNotEmpty
@@ -190,11 +194,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       },
                     ),
                     const SizedBox(height: 14),
-                    const _Label('Customer details'),
+                    _Label(AppLocalizations.of(context).customerDetailsSection),
                     _SingleMenuCard(
                       icon: Icons.badge_outlined,
-                      title: 'Customer Details',
-                      subtitle: 'View account details',
+                      title: AppLocalizations.of(context).customerDetails,
+                      subtitle: AppLocalizations.of(context).viewAccountDetails,
                       onTap: () => Navigator.of(context).pushNamed('/customer-details'),
                     ),
                     const SizedBox(height: 10),
@@ -204,8 +208,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         Expanded(
                           child: _QuickActionBox(
                             icon: Icons.receipt_long_outlined,
-                            title: 'My Orders',
-                            subtitle: 'Track orders',
+                            title: AppLocalizations.of(context).myOrdersSection,
+                            subtitle: AppLocalizations.of(context).trackOrders,
                             onTap: () => Navigator.of(context).pushNamed('/orders'),
                           ),
                         ),
@@ -214,21 +218,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           child: _QuickActionBox(
                             icon: Icons.favorite_border,
                             iconSize: WishlistHeartSizes.profileQuickAction,
-                            title: 'Wishlist',
-                            subtitle: 'Saved items',
+                            title: AppLocalizations.of(context).savedWishlist,
+                            subtitle: AppLocalizations.of(context).savedItems,
                             onTap: () => Navigator.of(context).pushNamed('/wishlist'),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    const _Label('Support'),
+                    _Label(AppLocalizations.of(context).support),
                     const SupportSection(),
                     const SizedBox(height: 14),
-                    const _Label('Legal & Support'),
+                    _Label(AppLocalizations.of(context).legalAndSupport),
                     const LegalSupportLinksCard(),
                     const SizedBox(height: 14),
-                    const _Label('Account options'),
+                    _Label(AppLocalizations.of(context).accountOptions),
                     Card(
                       elevation: 1,
                       shadowColor: Colors.black12,
@@ -237,8 +241,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         children: [
                           _MenuRow(
                             icon: Icons.person_outline,
-                            title: 'My Profile',
-                            subtitle: 'Edit personal details',
+                            title: AppLocalizations.of(context).myProfile,
+                            subtitle: AppLocalizations.of(context).editPersonalDetails,
                             onTap: () async {
                               final updatedSnapshot = await Navigator.of(context).push<_ProfileSnapshot>(
                                 MaterialPageRoute<_ProfileSnapshot>(
@@ -260,8 +264,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           ),
                           _MenuRow(
                             icon: Icons.location_on_outlined,
-                            title: 'Delivery Addresses',
-                            subtitle: 'Manage saved addresses',
+                            title: AppLocalizations.of(context).deliveryAddresses,
+                            subtitle: AppLocalizations.of(context).manageSavedAddresses,
                             onTap: () async {
                               await Navigator.of(context).push(
                                 MaterialPageRoute<void>(builder: (_) => const _AddressesPage()),
@@ -271,16 +275,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           ),
                         _MenuRow(
                           icon: Icons.settings_outlined,
-                          title: 'Settings',
-                          subtitle: 'Manage app preferences',
-                          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Settings page will be available soon.')),
+                          title: AppLocalizations.of(context).settings,
+                          subtitle: AppLocalizations.of(context).manageAppPreferences,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
                           ),
                         ),
                           _MenuRow(
                             icon: Icons.help_outline,
-                            title: 'Help / Support',
-                            subtitle: 'FAQs and contact',
+                            title: AppLocalizations.of(context).helpSupport,
+                            subtitle: AppLocalizations.of(context).faqsContact,
                             onTap: () => openStorefrontLegalPage(context, StorefrontLegalPage.support),
                             showDivider: false,
                           ),
@@ -294,7 +298,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       foregroundColor: Colors.red.shade700,
                     ),
                     onPressed: () => _signOutWithFormalErrors(context, ref),
-                    child: const Text('Logout'),
+                    child: Text(AppLocalizations.of(context).logout),
                   ),
                   ],
                 ),
@@ -640,9 +644,16 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
                   children: [
                     TextFormField(
                       controller: _nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Full Name'),
-                      validator: (value) =>
-                          (value ?? '').trim().isEmpty ? 'Name cannot be empty.' : null,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name',
+                        errorMaxLines: 3,
+                      ),
+                      validator: (value) => ShippingDetails.validateEnglishAddressText(
+                        value,
+                        minLength: 1,
+                        requiredMessage: 'Name cannot be empty.',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextFormField(
@@ -651,6 +662,7 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
                       decoration: const InputDecoration(
                         labelText: 'Email',
                         helperText: 'Email is managed by authentication provider.',
+                        errorMaxLines: 3,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -658,7 +670,10 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
                       controller: _phoneCtrl,
                       keyboardType: TextInputType.phone,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(labelText: 'Phone Number'),
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        errorMaxLines: 3,
+                      ),
                       validator: (value) => ShippingDetails.isValidIndianPhone((value ?? '').trim())
                           ? null
                           : 'Enter valid 10-digit phone.',
@@ -666,10 +681,16 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _addressCtrl,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                       maxLines: 2,
                       decoration: const InputDecoration(
                         labelText: 'Address (Optional)',
                         hintText: 'House/Flat, Street/Area',
+                        errorMaxLines: 3,
+                      ),
+                      validator: (value) => ShippingDetails.validateEnglishAddressText(
+                        value,
+                        required: false,
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -951,78 +972,128 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.initial == null ? 'Add Address' : 'Edit Address')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Full Name *'),
-                      validator: (value) =>
-                          (value ?? '').trim().isEmpty ? 'Full name is required.' : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(labelText: 'Phone Number *'),
-                      validator: (value) => ShippingDetails.isValidIndianPhone((value ?? '').trim())
-                          ? null
-                          : 'Enter valid 10-digit phone.',
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _line1Ctrl,
-                      decoration: const InputDecoration(labelText: 'Address Line 1 *'),
-                      validator: (value) =>
-                          (value ?? '').trim().isEmpty ? 'Address line 1 is required.' : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _line2Ctrl,
-                      decoration: const InputDecoration(
-                        labelText:
-                            'Address Line 2 (Landmark / Store / Building) — optional',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _cityCtrl,
-                      decoration: const InputDecoration(labelText: 'City *'),
-                      validator: (value) =>
-                          (value ?? '').trim().isEmpty ? 'City is required.' : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _stateCtrl,
-                      decoration: const InputDecoration(labelText: 'State *'),
-                      validator: (value) =>
-                          (value ?? '').trim().isEmpty ? 'State is required.' : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _postalCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(labelText: 'Postal Code *'),
-                      validator: (value) => ShippingDetails.isValidIndianPostal((value ?? '').trim())
-                          ? null
-                          : 'Enter valid 6-digit postal code.',
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _countryCtrl,
-                      decoration: const InputDecoration(labelText: 'Country *'),
-                      validator: (value) =>
-                          (value ?? '').trim().isEmpty ? 'Country is required.' : null,
-                    ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 540),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: _nameCtrl,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            labelText: 'Full Name *',
+                            errorMaxLines: 3,
+                          ),
+                          validator: (value) => ShippingDetails.validateEnglishAddressText(
+                            value,
+                            minLength: 1,
+                            requiredMessage: 'Full name is required.',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _phoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          decoration: const InputDecoration(
+                            labelText: 'Phone Number *',
+                            errorMaxLines: 3,
+                          ),
+                          validator: (value) => ShippingDetails.isValidIndianPhone((value ?? '').trim())
+                              ? null
+                              : 'Enter valid 10-digit phone.',
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _line1Ctrl,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            labelText: 'Address Line 1 *',
+                            errorMaxLines: 3,
+                          ),
+                          validator: (value) => ShippingDetails.validateEnglishAddressText(
+                            value,
+                            minLength: 1,
+                            requiredMessage: 'Address line 1 is required.',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _line2Ctrl,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            labelText:
+                                'Address Line 2 (Landmark / Store / Building) — optional',
+                            errorMaxLines: 3,
+                          ),
+                          validator: (value) => ShippingDetails.validateEnglishAddressText(
+                            value,
+                            required: false,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _cityCtrl,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            labelText: 'City *',
+                            errorMaxLines: 3,
+                          ),
+                          validator: (value) => ShippingDetails.validateEnglishAddressText(
+                            value,
+                            minLength: 1,
+                            requiredMessage: 'City is required.',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _stateCtrl,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            labelText: 'State *',
+                            errorMaxLines: 3,
+                          ),
+                          validator: (value) => ShippingDetails.validateEnglishAddressText(
+                            value,
+                            minLength: 1,
+                            requiredMessage: 'State is required.',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _postalCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          decoration: const InputDecoration(
+                            labelText: 'Postal Code *',
+                            errorMaxLines: 3,
+                          ),
+                          validator: (value) => ShippingDetails.isValidIndianPostal((value ?? '').trim())
+                              ? null
+                              : 'Enter valid 6-digit postal code.',
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _countryCtrl,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            labelText: 'Country *',
+                            errorMaxLines: 3,
+                          ),
+                          validator: (value) => ShippingDetails.validateEnglishAddressText(
+                            value,
+                            minLength: 1,
+                            requiredMessage: 'Country is required.',
+                          ),
+                        ),
                     const SizedBox(height: 8),
                     SwitchListTile(
                       value: _isDefault,
@@ -1055,7 +1126,9 @@ class _AddressFormPageState extends ConsumerState<_AddressFormPage> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 }
 

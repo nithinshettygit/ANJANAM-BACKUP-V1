@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_exception.dart';
+import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/wishlist_heart_sizes.dart';
 import '../../features/cart/state/cart_controller.dart';
@@ -304,7 +305,11 @@ class HomeRecommendedProductCard extends ConsumerWidget {
                                   minimumSize: Size.zero,
                                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 ),
-                                child: Text(inCart ? 'Go to Cart' : 'Add to cart'),
+                                child: Text(
+                                  inCart
+                                      ? AppLocalizations.of(context).goToCart
+                                      : AppLocalizations.of(context).addToCart,
+                                ),
                               ),
                             ),
                           ],

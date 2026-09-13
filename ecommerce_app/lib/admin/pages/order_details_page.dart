@@ -40,7 +40,8 @@ class AdminOrderDetailsPage extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<AdminOrderDetailsPage> createState() => _AdminOrderDetailsPageState();
+  ConsumerState<AdminOrderDetailsPage> createState() =>
+      _AdminOrderDetailsPageState();
 }
 
 class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
@@ -71,6 +72,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     super.initState();
     _subscribeOrderRealtime();
   }
+
   bool _refundBusy = false;
   bool _labelDownloadBusy = false;
 
@@ -146,7 +148,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   bool _fulfillmentRecoveryMode(AdminOrderDetails details) {
     final st = canonicalAdminOrderStatus(details.order.status);
     if (st != 'cancelled') return false;
-    if ((details.deliveryMethod ?? '').toLowerCase().trim() != 'shiprocket_delivery') {
+    if ((details.deliveryMethod ?? '').toLowerCase().trim() !=
+        'shiprocket_delivery') {
       return false;
     }
     final ds = (details.deliveryStatus ?? '').toLowerCase().trim();
@@ -165,18 +168,23 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
         ? ''
         : details.packageWeightKg!.toString();
     final serverD = (details.packageDimensionsCm ?? '').trim();
-    if (t != serverT || c != serverC || w != serverW || d != serverD) return true;
+    if (t != serverT || c != serverC || w != serverW || d != serverD)
+      return true;
     final pick = _estDelivery;
     final srv = details.estimatedDeliveryDate;
     if (pick == null && srv == null) return false;
     if (pick == null || srv == null) return true;
-    return pick.year != srv.year || pick.month != srv.month || pick.day != srv.day;
+    return pick.year != srv.year ||
+        pick.month != srv.month ||
+        pick.day != srv.day;
   }
 
-  void _syncShipmentFieldsFromDetails(AdminOrderDetails details, String orderId) {
+  void _syncShipmentFieldsFromDetails(
+      AdminOrderDetails details, String orderId) {
     if (_shipmentDirty) return;
     final nextSignature = _shipmentSignatureFrom(details);
-    if (_syncedShipmentOrderId == orderId && _syncedShipmentSignature == nextSignature) {
+    if (_syncedShipmentOrderId == orderId &&
+        _syncedShipmentSignature == nextSignature) {
       return;
     }
     _trackCtrl.text = details.trackingNumber ?? '';
@@ -216,7 +224,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
 
   String _formatWeightKg(double value) {
     final fixed = value.toStringAsFixed(3);
-    return fixed.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+    return fixed
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   List<double>? _parseDims3(String raw) {
@@ -236,13 +246,17 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   String _formatDims3(List<double> dims) {
     String f(double v) {
       final s = v.toStringAsFixed(2);
-      return s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+      return s
+          .replaceFirst(RegExp(r'0+$'), '')
+          .replaceFirst(RegExp(r'\.$'), '');
     }
+
     return '${f(dims[0])}x${f(dims[1])}x${f(dims[2])}';
   }
 
   void _applyManualPkgDefaultsToForm(AdminOrderDetails details) {
-    final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() == 'manual_delivery';
+    final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() ==
+        'manual_delivery';
     if (!isManual || _shipmentDirty) return;
     var changed = false;
     if (_manualAutoWeightKg != null) {
@@ -252,7 +266,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
         changed = true;
       }
     }
-    if (_manualAutoDimensionsCm != null && _manualAutoDimensionsCm!.trim().isNotEmpty) {
+    if (_manualAutoDimensionsCm != null &&
+        _manualAutoDimensionsCm!.trim().isNotEmpty) {
       final next = _manualAutoDimensionsCm!.trim();
       if (_pkgDimCtrl.text.trim() != next) {
         _pkgDimCtrl.text = next;
@@ -263,10 +278,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
   }
 
   Future<void> _ensureManualPkgDefaults(AdminOrderDetails details) async {
-    final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() == 'manual_delivery';
+    final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() ==
+        'manual_delivery';
     if (!isManual) return;
     final key = _manualPkgDefaultsSignature(details);
-    if (_manualPkgDefaultsOrderId == details.order.id && _manualPkgDefaultsKey == key) {
+    if (_manualPkgDefaultsOrderId == details.order.id &&
+        _manualPkgDefaultsKey == key) {
       _applyManualPkgDefaultsToForm(details);
       return;
     }
@@ -332,7 +349,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
           totalWeight += (w * item.quantity);
           hasAnyWeight = true;
         }
-        final d = (variant?['dimensions'] ?? p?['dimensions'])?.toString().trim();
+        final d =
+            (variant?['dimensions'] ?? p?['dimensions'])?.toString().trim();
         if (d != null && d.isNotEmpty) {
           dimTexts.add(d);
           final parsed = _parseDims3(d);
@@ -364,7 +382,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       setState(() {
         _manualPkgDefaultsOrderId = details.order.id;
         _manualPkgDefaultsKey = key;
-        _manualAutoWeightKg = hasAnyWeight && totalWeight > 0 ? totalWeight : null;
+        _manualAutoWeightKg =
+            hasAnyWeight && totalWeight > 0 ? totalWeight : null;
         _manualAutoDimensionsCm = derivedDims;
       });
       _applyManualPkgDefaultsToForm(details);
@@ -396,7 +415,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill shipment details here before marking as shipped.'),
+          content: Text(
+              'Please fill shipment details here before marking as shipped.'),
         ),
       );
     });
@@ -491,7 +511,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     final courier = (details.courierName ?? '').trim();
     final weightOk = (details.packageWeightKg ?? 0) > 0;
     final dims = (details.packageDimensionsCm ?? '').trim();
-    return tracking.isNotEmpty && courier.isNotEmpty && weightOk && dims.isNotEmpty;
+    return tracking.isNotEmpty &&
+        courier.isNotEmpty &&
+        weightOk &&
+        dims.isNotEmpty;
   }
 
   Color _stageButtonColor(
@@ -537,8 +560,10 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     String orderId,
     AdminOrderDetails details,
   ) async {
-    final nameCtrl = TextEditingController(text: details.deliveryPartnerName ?? '');
-    final phoneCtrl = TextEditingController(text: details.deliveryPartnerPhone ?? '');
+    final nameCtrl =
+        TextEditingController(text: details.deliveryPartnerName ?? '');
+    final phoneCtrl =
+        TextEditingController(text: details.deliveryPartnerPhone ?? '');
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -568,8 +593,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save')),
         ],
       ),
     );
@@ -609,14 +638,16 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     AdminOrderDetails details,
   ) async {
     if (status == 'out_for_delivery') {
-      final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() == 'manual_delivery';
+      final isManual = (details.deliveryMethod ?? '').toLowerCase().trim() ==
+          'manual_delivery';
       final effectiveWeightText = isManual && _manualAutoWeightKg != null
           ? _formatWeightKg(_manualAutoWeightKg!)
           : _pkgWeightCtrl.text.trim();
-      final effectiveDimsText =
-          isManual && _manualAutoDimensionsCm != null && _manualAutoDimensionsCm!.trim().isNotEmpty
-              ? _manualAutoDimensionsCm!.trim()
-              : _pkgDimCtrl.text.trim();
+      final effectiveDimsText = isManual &&
+              _manualAutoDimensionsCm != null &&
+              _manualAutoDimensionsCm!.trim().isNotEmpty
+          ? _manualAutoDimensionsCm!.trim()
+          : _pkgDimCtrl.text.trim();
       final hasShipmentFields = (_trackCtrl.text.trim().isNotEmpty) &&
           (_courierCtrl.text.trim().isNotEmpty) &&
           (effectiveWeightText.isNotEmpty) &&
@@ -664,7 +695,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       ref.invalidate(adminOrderDetailsProvider(orderId));
       await _syncAdminOrdersListCache();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delivery status: ${_humanManualDeliveryStatus(status)}')),
+        SnackBar(
+            content:
+                Text('Delivery status: ${_humanManualDeliveryStatus(status)}')),
       );
     } catch (e) {
       if (context.mounted) {
@@ -685,7 +718,9 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     final pickupCtrl = TextEditingController();
     final stateCtrl = TextEditingController(text: details.shippingState ?? '');
     final weightCtrl = TextEditingController(
-      text: details.packageWeightKg == null ? '0.5' : details.packageWeightKg!.toString(),
+      text: details.packageWeightKg == null
+          ? '0.5'
+          : details.packageWeightKg!.toString(),
     );
     final dimCtrl = TextEditingController(
       text: (details.packageDimensionsCm ?? '').trim().isEmpty
@@ -722,7 +757,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                   hintText: 'e.g. 0.5',
                   border: OutlineInputBorder(),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -747,8 +783,12 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create shipment')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Create shipment')),
         ],
       ),
     );
@@ -764,7 +804,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     final weight = double.tryParse(weightRaw);
     if (weight == null || weight <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid package weight greater than 0.')),
+        const SnackBar(
+            content: Text('Enter a valid package weight greater than 0.')),
       );
       return;
     }
@@ -870,7 +911,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
               Text('Order ID: ${details.order.id}'),
               Text('Customer Name: ${details.order.customerName}'),
               Text('Payment Method: ${details.paymentMethod.toUpperCase()}'),
-              Text('Total Paid Amount: ${formatInrAmount(details.order.totalAmount)}'),
+              Text(
+                  'Total Paid Amount: ${formatInrAmount(details.order.totalAmount)}'),
               Text('Refund Amount: ${formatInrAmount(refundPaise / 100)}'),
               const SizedBox(height: 10),
               const Text(
@@ -906,12 +948,15 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
 
     setState(() => _refundBusy = true);
     try {
-      await ref.read(adminServiceProvider).approveRefundForOrder(orderId: details.order.id);
+      await ref
+          .read(adminServiceProvider)
+          .approveRefundForOrder(orderId: details.order.id);
       if (!context.mounted) return;
       ref.invalidate(adminOrderDetailsProvider(details.order.id));
       await _syncAdminOrdersListCache();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Refund approved and submitted to Razorpay.')),
+        const SnackBar(
+            content: Text('Refund approved and submitted to Razorpay.')),
       );
     } catch (e) {
       if (!context.mounted) return;
@@ -923,7 +968,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     }
   }
 
-  Future<void> _runApproveCancellation(BuildContext context, String orderId, String userId) async {
+  Future<void> _runApproveCancellation(
+      BuildContext context, String orderId, String userId) async {
     final noteOutcome = await showAdminOrderStatusConfirmDialog(
       context,
       action: const AdminOrderNextAction(
@@ -956,7 +1002,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       await _syncAdminOrdersListCache();
       ref.invalidate(adminDashboardProvider);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cancellation approved. Order is cancelled.')),
+        const SnackBar(
+            content: Text('Cancellation approved. Order is cancelled.')),
       );
     } catch (e) {
       if (context.mounted) {
@@ -969,7 +1016,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     }
   }
 
-  Future<void> _runRejectCancellation(BuildContext context, String orderId, String userId) async {
+  Future<void> _runRejectCancellation(
+      BuildContext context, String orderId, String userId) async {
     final noteOutcome = await showAdminOrderStatusConfirmDialog(
       context,
       action: const AdminOrderNextAction(
@@ -1042,7 +1090,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Return update failed: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Return update failed: $e')));
     } finally {
       if (mounted) setState(() => _statusBusy = false);
     }
@@ -1060,6 +1109,14 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             unitPrice: i.unitPrice,
             currency: i.currency,
             quantity: i.quantity,
+            hsnCode: i.hsnCode,
+            taxStatus: i.taxStatus,
+            taxableValue: i.taxableValue,
+            gstRate: i.gstRate,
+            cgstAmount: i.cgstAmount,
+            sgstAmount: i.sgstAmount,
+            igstAmount: i.igstAmount,
+            priceIncludesGst: i.priceIncludesGst,
           ),
         )
         .toList();
@@ -1085,22 +1142,31 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
     final structured = _hasStructuredShipping(d);
     final String? addressLine;
     if (structured) {
-      addressLine = d.shippingAddressLine != null && d.shippingAddressLine!.trim().isNotEmpty
+      addressLine = d.shippingAddressLine != null &&
+              d.shippingAddressLine!.trim().isNotEmpty
           ? d.shippingAddressLine!.trim()
           : null;
     } else {
       final line = d.shippingAddress.trim();
       addressLine = line.isEmpty ? null : line;
     }
-    final name = d.shippingFullName != null && d.shippingFullName!.trim().isNotEmpty
-        ? d.shippingFullName!.trim()
-        : (d.order.customerName.trim().isEmpty ? null : d.order.customerName.trim());
+    final name =
+        d.shippingFullName != null && d.shippingFullName!.trim().isNotEmpty
+            ? d.shippingFullName!.trim()
+            : (d.order.customerName.trim().isEmpty
+                ? null
+                : d.order.customerName.trim());
     return OrderShippingInfo(
       fullName: name,
       phone: d.shippingPhone,
       addressLine: addressLine,
       city: d.shippingCity,
+      state: d.shippingState,
       postalCode: d.shippingPostalCode,
+      invoiceName: d.invoiceName,
+      invoiceAddressLine: d.invoiceAddressLine,
+      invoiceCity: d.invoiceCity,
+      invoiceState: d.invoiceState,
     );
   }
 
@@ -1128,7 +1194,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       debugPrint('Admin shipping label: $e\n$st');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Shipping label could not be generated.')),
+          const SnackBar(
+              content: Text('Shipping label could not be generated.')),
         );
       }
     } finally {
@@ -1158,7 +1225,7 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
       if (!context.mounted) return;
       await previewInvoicePdf(
         bytes,
-        name: 'invoice_${formatOrderIdDisplay(order.id)}',
+        name: 'ANJANAM-INV-${formatOrderIdDisplay(order.id)}',
       );
     } catch (e, st) {
       debugPrint('Admin invoice: $e\n$st');
@@ -1192,7 +1259,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
         appBar: AppBar(
           title: const Text('Order Details'),
           automaticallyImplyLeading: false,
-          leading: adminDetailBackLeading(context, fallbackRoute: '/admin/orders'),
+          leading:
+              adminDetailBackLeading(context, fallbackRoute: '/admin/orders'),
         ),
         body: Padding(
           padding: const EdgeInsets.all(16),
@@ -1203,294 +1271,233 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
             emptyMessage: 'No order details available',
             child: detailsAsync.when(
               data: (details) {
-                    _focusShipmentSectionIfRequested();
-                    final order = details.order;
-                    final manualDeliverySelected =
-                        (details.deliveryMethod ?? '').toLowerCase().trim() ==
-                            'manual_delivery';
-                    final effectiveWeightText =
-                        manualDeliverySelected && _manualAutoWeightKg != null
-                            ? _formatWeightKg(_manualAutoWeightKg!)
-                            : _pkgWeightCtrl.text.trim();
-                    final effectiveDimsText =
-                        manualDeliverySelected &&
-                                _manualAutoDimensionsCm != null &&
-                                _manualAutoDimensionsCm!.trim().isNotEmpty
-                            ? _manualAutoDimensionsCm!.trim()
-                            : _pkgDimCtrl.text.trim();
-                    final shipmentEditable = _shipmentEditableForStatus(order.status) ||
+                _focusShipmentSectionIfRequested();
+                final order = details.order;
+                final manualDeliverySelected =
+                    (details.deliveryMethod ?? '').toLowerCase().trim() ==
+                        'manual_delivery';
+                final effectiveWeightText =
+                    manualDeliverySelected && _manualAutoWeightKg != null
+                        ? _formatWeightKg(_manualAutoWeightKg!)
+                        : _pkgWeightCtrl.text.trim();
+                final effectiveDimsText = manualDeliverySelected &&
+                        _manualAutoDimensionsCm != null &&
+                        _manualAutoDimensionsCm!.trim().isNotEmpty
+                    ? _manualAutoDimensionsCm!.trim()
+                    : _pkgDimCtrl.text.trim();
+                final shipmentEditable =
+                    _shipmentEditableForStatus(order.status) ||
                         _fulfillmentRecoveryMode(details);
-                    final orderReturns = returnsAsync.asData?.value
-                            .where((r) => r.orderId == order.id)
-                            .toList() ??
-                        const <AdminReturnRow>[];
-                    return SelectionArea(
-                      child: ListView(
-                        children: [
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Customer name: ${order.customerName}'),
-                                Text('Customer email: ${order.customerEmail}'),
-                                const SizedBox(height: 8),
-                                Text('Order ID: ${order.id}'),
-                                Text('Date: ${order.createdAt.toLocal()}'),
-                              ],
-                            ),
+                final orderReturns = returnsAsync.asData?.value
+                        .where((r) => r.orderId == order.id)
+                        .toList() ??
+                    const <AdminReturnRow>[];
+                return SelectionArea(
+                  child: ListView(
+                    children: [
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Customer name: ${order.customerName}'),
+                              Text('Customer email: ${order.customerEmail}'),
+                              const SizedBox(height: 8),
+                              Text('Order ID: ${order.id}'),
+                              Text('Date: ${order.createdAt.toLocal()}'),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Payment Details',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 12),
-                                _AdminPaymentDetailLine(
-                                  label: 'Payment Method',
-                                  value: _adminPaymentMethodLabel(details.paymentMethod),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Payment Status',
-                                  value: _adminPaymentStatusLabel(details.paymentStatus),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Razorpay Payment ID',
-                                  value: _dashIfEmpty(details.razorpayPaymentId),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Razorpay Order ID',
-                                  value: _dashIfEmpty(details.razorpayOrderId),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Order Amount',
-                                  value: formatInrAmount(order.totalAmount),
-                                  valueColor: AppColors.priceText,
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Transaction Date',
-                                  value: () {
-                                    final txAt = details.paidAt ?? details.paymentVerifiedAt;
-                                    if (txAt == null) return '—';
-                                    return formatOrderDetailsDateTime(txAt.toLocal());
-                                  }(),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Refund Status',
-                                  value: _refundStatusLabel(details.refundStatus),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Refund Amount',
-                                  value: details.refundAmountPaise == null
-                                      ? '—'
-                                      : formatInrAmount(details.refundAmountPaise! / 100.0),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Refund ID',
-                                  value: _dashIfEmpty(details.refundId),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Refund Requested At',
-                                  value: details.refundRequestedAt == null
-                                      ? '—'
-                                      : formatOrderDetailsDateTime(
-                                          details.refundRequestedAt!.toLocal(),
-                                        ),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Refund Processed At',
-                                  value: details.refundProcessedAt == null
-                                      ? '—'
-                                      : formatOrderDetailsDateTime(
-                                          details.refundProcessedAt!.toLocal(),
-                                        ),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Refund Initiated By',
-                                  value: _dashIfEmpty(details.refundInitiatedBy),
-                                ),
-                                const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: details.paymentMethod.toLowerCase().trim() == 'cod'
-                                      ? const SizedBox(
-                                          width: 240,
-                                          child: Text(
-                                            'No refund required (Cash on Delivery)',
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(color: Colors.black54),
-                                          ),
-                                        )
-                                      : FilledButton(
-                                          onPressed: _refundBusy ||
-                                                  details.paymentMethod.toLowerCase().trim() !=
-                                                      'razorpay' ||
-                                                  details.paymentStatus.toLowerCase().trim() !=
-                                                      'paid' ||
-                                                  details.razorpayPaymentId == null ||
-                                                  details.razorpayPaymentId!.trim().isEmpty ||
-                                                  details.refundStatus == 'processing' ||
-                                                  details.refundStatus == 'refunded'
-                                              ? null
-                                              : () => _runApproveRefund(
-                                                    context,
-                                                    details: details,
-                                                  ),
-                                          child: Text(
-                                            _refundBusy ? 'Processing Refund...' : 'Initiate Refund',
-                                          ),
-                                        ),
-                                ),
-                                _AdminPaymentDetailLine(
-                                  label: 'Created At',
-                                  value: formatOrderDetailsDateTime(order.createdAt.toLocal()),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Shipping address',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 8),
-                                if (_hasStructuredShipping(details)) ...[
-                                  if (details.shippingFullName != null &&
-                                      details.shippingFullName!.isNotEmpty)
-                                    Text(details.shippingFullName!),
-                                  if (details.shippingPhone != null &&
-                                      details.shippingPhone!.isNotEmpty)
-                                    Text('Phone: ${details.shippingPhone}'),
-                                  if (details.shippingAddressLine != null &&
-                                      details.shippingAddressLine!.isNotEmpty)
-                                    Text(details.shippingAddressLine!),
-                                  Builder(
-                                    builder: (_) {
-                                      final cityLine = [
-                                        if (details.shippingCity != null &&
-                                            details.shippingCity!.isNotEmpty)
-                                          details.shippingCity!,
-                                        if (details.shippingPostalCode != null &&
-                                            details.shippingPostalCode!.isNotEmpty)
-                                          details.shippingPostalCode!,
-                                      ].join(', ');
-                                      if (cityLine.isEmpty) return const SizedBox.shrink();
-                                      return Text(cityLine);
-                                    },
-                                  ),
-                                ] else
-                                  Text(
-                                    details.shippingAddress,
-                                    style: Theme.of(context).textTheme.bodyLarge,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (canonicalAdminOrderStatus(order.status) == 'cancel_requested') ...[
-                          const SizedBox(height: 12),
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Cancellation review',
-                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Approve to cancel the order (inventory restored; paid Razorpay orders get an automatic refund record). '
-                                    'Reject to resume fulfilment at the previous status.',
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Wrap(
-                                    spacing: 10,
-                                    runSpacing: 10,
-                                    children: [
-                                      FilledButton(
-                                        onPressed: _statusBusy
-                                            ? null
-                                            : () => _runApproveCancellation(
-                                                  context,
-                                                  order.id,
-                                                  order.userId,
-                                                ),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: Theme.of(context).colorScheme.error,
-                                          foregroundColor: Theme.of(context).colorScheme.onError,
-                                        ),
-                                        child: const Text('Approve Cancel Request'),
-                                      ),
-                                      OutlinedButton(
-                                        onPressed: _statusBusy
-                                            ? null
-                                            : () => _runRejectCancellation(
-                                                  context,
-                                                  order.id,
-                                                  order.userId,
-                                                ),
-                                        child: const Text('Reject Cancel Request'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Payment Details',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w700),
                               ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Order Timeline',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 8),
-                                ...details.timeline.map((event) {
-                                  final sub = StringBuffer(
-                                    event.timestamp.toLocal().toString().split('.').first,
-                                  );
-                                  if (event.notes != null && event.notes!.isNotEmpty) {
-                                    sub.writeln();
-                                    sub.write(event.notes);
-                                  }
-                                  return ListTile(
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(Icons.timeline, size: 18),
-                                    title: Text(event.label),
-                                    subtitle: Text(sub.toString()),
-                                  );
-                                }),
-                              ],
-                            ),
+                              const SizedBox(height: 12),
+                              _AdminPaymentDetailLine(
+                                label: 'Payment Method',
+                                value: _adminPaymentMethodLabel(
+                                    details.paymentMethod),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Payment Status',
+                                value: _adminPaymentStatusLabel(
+                                    details.paymentStatus),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Razorpay Payment ID',
+                                value: _dashIfEmpty(details.razorpayPaymentId),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Razorpay Order ID',
+                                value: _dashIfEmpty(details.razorpayOrderId),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Order Amount',
+                                value: formatInrAmount(order.totalAmount),
+                                valueColor: AppColors.priceText,
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Transaction Date',
+                                value: () {
+                                  final txAt = details.paidAt ??
+                                      details.paymentVerifiedAt;
+                                  if (txAt == null) return '—';
+                                  return formatOrderDetailsDateTime(
+                                      txAt.toLocal());
+                                }(),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Refund Status',
+                                value: _refundStatusLabel(details.refundStatus),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Refund Amount',
+                                value: details.refundAmountPaise == null
+                                    ? '—'
+                                    : formatInrAmount(
+                                        details.refundAmountPaise! / 100.0),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Refund ID',
+                                value: _dashIfEmpty(details.refundId),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Refund Requested At',
+                                value: details.refundRequestedAt == null
+                                    ? '—'
+                                    : formatOrderDetailsDateTime(
+                                        details.refundRequestedAt!.toLocal(),
+                                      ),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Refund Processed At',
+                                value: details.refundProcessedAt == null
+                                    ? '—'
+                                    : formatOrderDetailsDateTime(
+                                        details.refundProcessedAt!.toLocal(),
+                                      ),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Refund Initiated By',
+                                value: _dashIfEmpty(details.refundInitiatedBy),
+                              ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: details.paymentMethod
+                                            .toLowerCase()
+                                            .trim() ==
+                                        'cod'
+                                    ? const SizedBox(
+                                        width: 240,
+                                        child: Text(
+                                          'No refund required (Cash on Delivery)',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style:
+                                              TextStyle(color: Colors.black54),
+                                        ),
+                                      )
+                                    : FilledButton(
+                                        onPressed: _refundBusy ||
+                                                details.paymentMethod
+                                                        .toLowerCase()
+                                                        .trim() !=
+                                                    'razorpay' ||
+                                                details.paymentStatus
+                                                        .toLowerCase()
+                                                        .trim() !=
+                                                    'paid' ||
+                                                details.razorpayPaymentId ==
+                                                    null ||
+                                                details.razorpayPaymentId!
+                                                    .trim()
+                                                    .isEmpty ||
+                                                details.refundStatus ==
+                                                    'processing' ||
+                                                details.refundStatus ==
+                                                    'refunded'
+                                            ? null
+                                            : () => _runApproveRefund(
+                                                  context,
+                                                  details: details,
+                                                ),
+                                        child: Text(
+                                          _refundBusy
+                                              ? 'Processing Refund...'
+                                              : 'Initiate Refund',
+                                        ),
+                                      ),
+                              ),
+                              _AdminPaymentDetailLine(
+                                label: 'Created At',
+                                value: formatOrderDetailsDateTime(
+                                    order.createdAt.toLocal()),
+                              ),
+                            ],
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Shipping address',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              if (_hasStructuredShipping(details)) ...[
+                                if (details.shippingFullName != null &&
+                                    details.shippingFullName!.isNotEmpty)
+                                  Text(details.shippingFullName!),
+                                if (details.shippingPhone != null &&
+                                    details.shippingPhone!.isNotEmpty)
+                                  Text('Phone: ${details.shippingPhone}'),
+                                if (details.shippingAddressLine != null &&
+                                    details.shippingAddressLine!.isNotEmpty)
+                                  Text(details.shippingAddressLine!),
+                                Builder(
+                                  builder: (_) {
+                                    final cityLine = [
+                                      if (details.shippingCity != null &&
+                                          details.shippingCity!.isNotEmpty)
+                                        details.shippingCity!,
+                                      if (details.shippingPostalCode != null &&
+                                          details
+                                              .shippingPostalCode!.isNotEmpty)
+                                        details.shippingPostalCode!,
+                                    ].join(', ');
+                                    if (cityLine.isEmpty)
+                                      return const SizedBox.shrink();
+                                    return Text(cityLine);
+                                  },
+                                ),
+                              ] else
+                                Text(
+                                  details.shippingAddress,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (canonicalAdminOrderStatus(order.status) ==
+                          'cancel_requested') ...[
                         const SizedBox(height: 12),
                         Card(
                           child: Padding(
@@ -1499,256 +1506,22 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Delivery management',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                  'Cancellation review',
+                                  style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Choose manual fulfilment or Shiprocket. Courier APIs run only on the server.',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                                const SizedBox(height: 12),
-                                _AdminShipmentReadOnlyLine(
-                                  label: 'Current method',
-                                  value: () {
-                                    if (_shiprocketShipmentCancelledAwaitingChoice(details)) {
-                                      return 'Not set (Shiprocket shipment cancelled — choose again)';
-                                    }
-                                    final m = (details.deliveryMethod ?? '').toLowerCase().trim();
-                                    if (m == 'manual_delivery') return 'Manual delivery';
-                                    if (m == 'shiprocket_delivery') return 'Shiprocket';
-                                    return 'Not set';
-                                  }(),
-                                ),
-                                if (_shiprocketShipmentCancelledAwaitingChoice(details)) ...[
-                                  const SizedBox(height: 8),
-                                  Material(
-                                    color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35),
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(10),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.info_outline,
-                                            size: 20,
-                                            color: Theme.of(context).colorScheme.onErrorContainer,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Shiprocket reported this shipment as cancelled. '
-                                              'Delivery method was reset — choose Manual delivery or create a new Shiprocket shipment.',
-                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                    color: Theme.of(context).colorScheme.onErrorContainer,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                if ((details.deliveryMethod ?? '').toLowerCase() ==
-                                    'manual_delivery') ...[
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Delivery partner',
-                                    value: details.deliveryPartnerName,
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Partner phone',
-                                    value: details.deliveryPartnerPhone,
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Delivery status',
-                                    value: _humanManualDeliveryStatus(details.deliveryStatus),
-                                  ),
-                                ],
-                                if ((details.deliveryMethod ?? '').toLowerCase() ==
-                                    'shiprocket_delivery') ...[
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Shipping provider',
-                                    value: details.shippingProvider ?? 'Shiprocket',
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Shipment ID',
-                                    value: details.shipmentId,
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'AWB',
-                                    value: details.awbCode,
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Courier',
-                                    value: details.courierName,
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Shipment status',
-                                    value: _humanShiprocketStatus(
-                                      details.deliveryStatus ?? details.shipmentStatus,
-                                    ),
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Tracking URL',
-                                    value: details.trackingUrl,
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Last updated',
-                                    value: _relativeTime(details.lastTrackingUpdate),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      crossAxisAlignment: WrapCrossAlignment.center,
-                                      children: [
-                                        OutlinedButton.icon(
-                                          onPressed: _shiprocketBusy
-                                              ? null
-                                              : () async {
-                                                  setState(() => _shiprocketBusy = true);
-                                                  try {
-                                                    final out = await ref
-                                                        .read(adminServiceProvider)
-                                                        .syncShiprocketShipmentStatus(
-                                                          orderId: order.id,
-                                                        );
-                                                    if (!context.mounted) return;
-                                                    ref.invalidate(adminOrderDetailsProvider(orderId));
-                                                    await _syncAdminOrdersListCache();
-                                                    final synced = out['synced'] == true;
-                                                    final detail = out['detail']?.toString();
-                                                    if (synced) {
-                                                      final deliveryStatus =
-                                                          out['delivery_status']?.toString().trim();
-                                                      final shipmentStatus =
-                                                          out['shipment_status']?.toString().trim();
-                                                      String? targetStatusTitleCase;
-                                                      if (deliveryStatus == 'delivered') {
-                                                        targetStatusTitleCase = 'Delivered';
-                                                      } else if (deliveryStatus ==
-                                                          'out_for_delivery') {
-                                                        targetStatusTitleCase = 'Out for delivery';
-                                                      } else if (shipmentStatus == 'in_transit') {
-                                                        targetStatusTitleCase = 'Shipped';
-                                                      }
-                                                      if (targetStatusTitleCase != null) {
-                                                        await trySendOrderStatusFcmForTarget(
-                                                          ref.read(fcmNotificationSenderProvider),
-                                                          userId: order.userId,
-                                                          orderId: order.id,
-                                                          targetStatusTitleCase:
-                                                              targetStatusTitleCase,
-                                                        );
-                                                      }
-                                                    }
-                                                    final dsOut =
-                                                        out['delivery_status']?.toString().trim();
-                                                    final clearedBooking =
-                                                        out['force_cleared'] == true ||
-                                                            dsOut == 'cancelled';
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          clearedBooking
-                                                              ? 'Shiprocket booking cleared. Choose Manual delivery or create a new shipment.'
-                                                              : synced
-                                                                  ? 'Shiprocket status synced'
-                                                                  : (detail != null && detail.isNotEmpty
-                                                                      ? detail
-                                                                      : 'No new status yet'),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  } catch (e) {
-                                                    if (context.mounted) {
-                                                      ScaffoldMessenger.of(context).showSnackBar(
-                                                        SnackBar(content: Text('Sync failed: $e')),
-                                                      );
-                                                    }
-                                                  } finally {
-                                                    if (mounted) setState(() => _shiprocketBusy = false);
-                                                  }
-                                                },
-                                          icon: const Icon(Icons.sync, size: 18),
-                                          label: const Text('Sync Shiprocket status'),
-                                        ),
-                                        OutlinedButton.icon(
-                                          onPressed: _shiprocketBusy
-                                              ? null
-                                              : () async {
-                                                  final confirmed = await showDialog<bool>(
-                                                    context: context,
-                                                    builder: (ctx) => AlertDialog(
-                                                      title: const Text('Clear Shiprocket booking?'),
-                                                      content: const Text(
-                                                        'Use this only if you already cancelled the shipment '
-                                                        'in Shiprocket (or it was removed) and Anjanam still '
-                                                        'shows Shiprocket as the method.\n\n'
-                                                        'This clears shipment IDs and lets you choose Manual '
-                                                        'delivery or create a new Shiprocket shipment.',
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () => Navigator.pop(ctx, false),
-                                                          child: const Text('Back'),
-                                                        ),
-                                                        FilledButton(
-                                                          onPressed: () => Navigator.pop(ctx, true),
-                                                          child: const Text('Clear booking'),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                  if (confirmed != true || !context.mounted) return;
-                                                  setState(() => _shiprocketBusy = true);
-                                                  try {
-                                                    final out = await ref
-                                                        .read(adminServiceProvider)
-                                                        .syncShiprocketShipmentStatus(
-                                                          orderId: order.id,
-                                                          forceClearShiprocketBooking: true,
-                                                        );
-                                                    if (!context.mounted) return;
-                                                    ref.invalidate(adminOrderDetailsProvider(orderId));
-                                                    await _syncAdminOrdersListCache();
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          out['synced'] == true
-                                                              ? 'Shiprocket booking cleared.'
-                                                              : 'Request completed.',
-                                                        ),
-                                                      ),
-                                                    );
-                                                  } catch (e) {
-                                                    if (context.mounted) {
-                                                      ScaffoldMessenger.of(context).showSnackBar(
-                                                        SnackBar(content: Text('Clear failed: $e')),
-                                                      );
-                                                    }
-                                                  } finally {
-                                                    if (mounted) setState(() => _shiprocketBusy = false);
-                                                  }
-                                                },
-                                          icon: const Icon(Icons.link_off_outlined, size: 18),
-                                          label: const Text('Clear SR booking'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Current order status: ${_statusDisplayLabel(order.status)}',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  'Approve to cancel the order (inventory restored; paid Razorpay orders get an automatic refund record). '
+                                  'Reject to resume fulfilment at the previous status.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
                                       ),
                                 ),
                                 const SizedBox(height: 12),
@@ -1756,413 +1529,755 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                                   spacing: 10,
                                   runSpacing: 10,
                                   children: [
-                                    FilledButton.tonal(
-                                      onPressed: (!shipmentEditable ||
-                                              _manualDeliveryBusy ||
-                                              _shiprocketBusy ||
-                                              _blocksManualWhileShiprocketSelected(details) ||
-                                              canonicalAdminOrderStatus(order.status) ==
-                                                  'pending_payment' ||
-                                              canonicalAdminOrderStatus(order.status) ==
-                                                  'payment_failed')
-                                          ? null
-                                          : () => _openManualDeliveryDialog(
-                                                context,
-                                                order.id,
-                                                details,
-                                              ),
-                                      child: const Text('Manual delivery'),
-                                    ),
                                     FilledButton(
-                                      onPressed: (!shipmentEditable ||
-                                              _manualDeliveryBusy ||
-                                              _shiprocketBusy ||
-                                              _blocksNewShiprocketShipment(details) ||
-                                              canonicalAdminOrderStatus(order.status) ==
-                                                  'payment_failed')
+                                      onPressed: _statusBusy
                                           ? null
-                                          : () => _openShiprocketDialog(
+                                          : () => _runApproveCancellation(
                                                 context,
                                                 order.id,
-                                                details,
+                                                order.userId,
                                               ),
-                                      child: const Text('Shiprocket shipment'),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor:
+                                            Theme.of(context).colorScheme.error,
+                                        foregroundColor: Theme.of(context)
+                                            .colorScheme
+                                            .onError,
+                                      ),
+                                      child:
+                                          const Text('Approve Cancel Request'),
+                                    ),
+                                    OutlinedButton(
+                                      onPressed: _statusBusy
+                                          ? null
+                                          : () => _runRejectCancellation(
+                                                context,
+                                                order.id,
+                                                order.userId,
+                                              ),
+                                      child:
+                                          const Text('Reject Cancel Request'),
                                     ),
                                   ],
                                 ),
-                                if ((details.deliveryMethod ?? '').toLowerCase() ==
-                                        'shiprocket_delivery' &&
-                                    !_fulfillmentRecoveryMode(details) &&
-                                    (details.deliveryStatus ?? '').toLowerCase().trim() !=
-                                        'cancelled') ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Manual status buttons are hidden while Shiprocket delivery is selected.',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                ],
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Card(
-                          key: _shipmentSectionKey,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Shipment (customer-visible)',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
+                      ],
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Order Timeline',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              ...details.timeline.map((event) {
+                                final sub = StringBuffer(
+                                  event.timestamp
+                                      .toLocal()
+                                      .toString()
+                                      .split('.')
+                                      .first,
+                                );
+                                if (event.notes != null &&
+                                    event.notes!.isNotEmpty) {
+                                  sub.writeln();
+                                  sub.write(event.notes);
+                                }
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.timeline, size: 18),
+                                  title: Text(event.label),
+                                  subtitle: Text(sub.toString()),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Delivery management',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Choose manual fulfilment or Shiprocket. Courier APIs run only on the server.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                              const SizedBox(height: 12),
+                              _AdminShipmentReadOnlyLine(
+                                label: 'Current method',
+                                value: () {
+                                  if (_shiprocketShipmentCancelledAwaitingChoice(
+                                      details)) {
+                                    return 'Not set (Shiprocket shipment cancelled — choose again)';
+                                  }
+                                  final m = (details.deliveryMethod ?? '')
+                                      .toLowerCase()
+                                      .trim();
+                                  if (m == 'manual_delivery')
+                                    return 'Manual delivery';
+                                  if (m == 'shiprocket_delivery')
+                                    return 'Shiprocket';
+                                  return 'Not set';
+                                }(),
+                              ),
+                              if (_shiprocketShipmentCancelledAwaitingChoice(
+                                  details)) ...[
                                 const SizedBox(height: 8),
-                                if (!shipmentEditable) ...[
-                                  Text(
-                                    _fulfillmentRecoveryMode(details)
-                                        ? 'Order is marked cancelled but Shiprocket fulfilment was not completed. '
-                                            'Choose Manual delivery or Shiprocket below to resume, or leave as cancelled.'
-                                        : canonicalAdminOrderStatus(order.status) == 'cancelled'
-                                            ? 'Shipment details cannot be edited for a cancelled order.'
-                                            : canonicalAdminOrderStatus(order.status) == 'cancel_requested'
-                                            ? 'Shipment is read-only while a cancellation request is open.'
-                                            : 'This order is delivered. Tracking and estimated delivery are read-only.',
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Tracking number',
-                                    value: details.trackingNumber,
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Courier name',
-                                    value: details.courierName,
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Estimated delivery date',
-                                    value: details.estimatedDeliveryDate == null
-                                        ? null
-                                        : formatEstimatedDeliveryDate(details.estimatedDeliveryDate!),
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Package weight (kg)',
-                                    value: details.packageWeightKg?.toString(),
-                                  ),
-                                  _AdminShipmentReadOnlyLine(
-                                    label: 'Package dimensions (cm)',
-                                    value: details.packageDimensionsCm,
-                                  ),
-                                ] else ...[
-                                  TextField(
-                                    controller: _trackCtrl,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Tracking number',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (_) => setState(() => _shipmentDirty = true),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  TextField(
-                                    controller: _courierCtrl,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Courier name',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (_) => setState(() => _shipmentDirty = true),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  TextField(
-                                    controller: _pkgWeightCtrl,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Package weight (kg)',
-                                      border: OutlineInputBorder(),
-                                      hintText:
-                                          'Auto from product weight for manual delivery',
-                                    ),
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    readOnly: manualDeliverySelected,
-                                    enabled: !manualDeliverySelected,
-                                    onChanged: (_) => setState(() => _shipmentDirty = true),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  TextField(
-                                    controller: _pkgDimCtrl,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Package dimensions (cm)',
-                                      border: OutlineInputBorder(),
-                                      hintText:
-                                          'Auto from product dimensions for manual delivery',
-                                    ),
-                                    readOnly: manualDeliverySelected,
-                                    enabled: !manualDeliverySelected,
-                                    onChanged: (_) => setState(() => _shipmentDirty = true),
-                                  ),
-                                  if (manualDeliverySelected) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      _manualPkgDefaultsLoading
-                                          ? 'Loading package specs from product details...'
-                                          : 'Package weight and dimensions are auto-filled from product details for manual delivery.',
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color:
-                                                Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 10),
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: const Text('Estimated delivery date'),
-                                    subtitle: Text(
-                                      _estDelivery == null
-                                          ? 'Not set'
-                                          : formatEstimatedDeliveryDate(_estDelivery!),
-                                    ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
+                                Material(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .errorContainer
+                                      .withValues(alpha: 0.35),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        if (_estDelivery != null)
-                                          IconButton(
-                                            tooltip: 'Clear date',
-                                            icon: const Icon(Icons.clear),
-                                            onPressed: () => setState(() {
-                                              _estDelivery = null;
-                                              _shipmentDirty = true;
-                                            }),
+                                        Icon(
+                                          Icons.info_outline,
+                                          size: 20,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onErrorContainer,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Shiprocket reported this shipment as cancelled. '
+                                            'Delivery method was reset — choose Manual delivery or create a new Shiprocket shipment.',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onErrorContainer,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                           ),
-                                        IconButton(
-                                          tooltip: 'Pick date',
-                                          icon: const Icon(Icons.calendar_today_outlined),
-                                          onPressed: () async {
-                                            final initial = _estDelivery == null
-                                                ? DateTime.now()
-                                                : DateTime(
-                                                    _estDelivery!.year,
-                                                    _estDelivery!.month,
-                                                    _estDelivery!.day,
-                                                  );
-                                            final picked = await showDatePicker(
-                                              context: context,
-                                              firstDate: DateTime(2020),
-                                              lastDate: DateTime.now()
-                                                  .add(const Duration(days: 365 * 2)),
-                                              initialDate: initial,
-                                            );
-                                            if (picked != null) {
-                                              setState(() {
-                                                _estDelivery = picked;
-                                                _shipmentDirty = true;
-                                              });
-                                            }
-                                          },
                                         ),
                                       ],
                                     ),
                                   ),
-                                  if (_shipmentSaving)
-                                    const Padding(
-                                      padding: EdgeInsets.only(bottom: 8),
-                                      child: LinearProgressIndicator(minHeight: 3),
-                                    ),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: FilledButton(
-                                      onPressed: (_shipmentSaving ||
-                                              _syncedShipmentOrderId != order.id ||
-                                              !_shipmentFormDiffersFrom(details))
-                                          ? null
-                                          : () async {
-                                              setState(() => _shipmentSaving = true);
-                                              try {
-                                                await ref
-                                                    .read(adminServiceProvider)
-                                                    .updateOrderShipmentInfo(
-                                                      orderId: order.id,
-                                                      trackingNumber: _trackCtrl.text,
-                                                      courierName: _courierCtrl.text,
-                                                      estimatedDeliveryDate: _estDelivery,
-                                                    packageWeightKg:
-                                                        double.tryParse(effectiveWeightText),
-                                                    packageDimensionsCm: effectiveDimsText,
-                                                    );
-                                                if (!context.mounted) return;
-                                                setState(() {
-                                                  _shipmentDirty = false;
-                                                  _syncedShipmentOrderId = null;
-                                                });
-                                                ref.invalidate(adminOrderDetailsProvider(orderId));
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(
-                                                      content: Text('Shipment details saved')),
-                                                );
-                                              } catch (e) {
-                                                if (context.mounted) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(content: Text('Save failed: $e')),
-                                                  );
-                                                }
-                                              } finally {
-                                                if (mounted) {
-                                                  setState(() => _shipmentSaving = false);
-                                                }
-                                              }
-                                            },
-                                      child: const Text('Save shipment'),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ],
-                            ),
-                          ),
-                        ),
-                        if ((details.deliveryMethod ?? '').toLowerCase() == 'manual_delivery') ...[
-                          const SizedBox(height: 12),
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Manual fulfilment sequence',
-                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              if ((details.deliveryMethod ?? '')
+                                      .toLowerCase() ==
+                                  'manual_delivery') ...[
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Delivery partner',
+                                  value: details.deliveryPartnerName,
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Partner phone',
+                                  value: details.deliveryPartnerPhone,
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Delivery status',
+                                  value: _humanManualDeliveryStatus(
+                                      details.deliveryStatus),
+                                ),
+                              ],
+                              if ((details.deliveryMethod ?? '')
+                                      .toLowerCase() ==
+                                  'shiprocket_delivery') ...[
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Shipping provider',
+                                  value:
+                                      details.shippingProvider ?? 'Shiprocket',
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Shipment ID',
+                                  value: details.shipmentId,
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'AWB',
+                                  value: details.awbCode,
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Courier',
+                                  value: details.courierName,
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Shipment status',
+                                  value: _humanShiprocketStatus(
+                                    details.deliveryStatus ??
+                                        details.shipmentStatus,
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Follow in order: Packed -> Save shipment -> Mark as shipped -> Out for delivery -> Delivered',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Builder(
-                                    builder: (ctx) {
-                                      final current = _manualStageIndex(order.status);
-                                      final canPacked = _manualTransitionAllowed(order.status, 'packed');
-                                      final canShipped = _manualTransitionAllowed(order.status, 'shipped');
-                                      final canOut = _manualTransitionAllowed(order.status, 'out_for_delivery');
-                                      final canDelivered =
-                                          _manualTransitionAllowed(order.status, 'delivered');
-                                      final isPackedCurrent = current == 1;
-                                      final isShippedCurrent = current == 2;
-                                      final isOutCurrent = current == 3;
-                                      final isDeliveredCurrent = current == 4;
-                                      final shipmentSaved = _shipmentCoreReady(details) &&
-                                          !_shipmentFormDiffersFrom(details);
-
-                                      return Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: [
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: _stageButtonColor(
-                                                ctx,
-                                                stageIndex: 1,
-                                                currentIndex: current,
-                                              ),
-                                              foregroundColor: Colors.black87,
-                                            ),
-                                            onPressed: (_manualDeliveryBusy ||
-                                                    !canPacked ||
-                                                    isPackedCurrent)
-                                                ? null
-                                                : () => _setManualDeliveryStatus(
-                                                      context,
-                                                      order.id,
-                                                      'packed',
-                                                      details,
-                                                    ),
-                                            child: const Text('Packed'),
-                                          ),
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: _stageButtonColor(
-                                                ctx,
-                                                stageIndex: 2,
-                                                currentIndex: current,
-                                              ),
-                                              foregroundColor: Colors.black87,
-                                            ),
-                                            onPressed: (_manualDeliveryBusy ||
-                                                    !canShipped ||
-                                                    isShippedCurrent)
-                                                ? null
-                                                : () async {
-                                                    if (!shipmentSaved) {
-                                                      ScaffoldMessenger.of(context).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Text(
-                                                              'Save shipment details first (tracking, courier, weight, dimensions).'),
-                                                        ),
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Tracking URL',
+                                  value: details.trackingUrl,
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Last updated',
+                                  value:
+                                      _relativeTime(details.lastTrackingUpdate),
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: _shiprocketBusy
+                                            ? null
+                                            : () async {
+                                                setState(() =>
+                                                    _shiprocketBusy = true);
+                                                try {
+                                                  final out = await ref
+                                                      .read(
+                                                          adminServiceProvider)
+                                                      .syncShiprocketShipmentStatus(
+                                                        orderId: order.id,
                                                       );
-                                                      return;
+                                                  if (!context.mounted) return;
+                                                  ref.invalidate(
+                                                      adminOrderDetailsProvider(
+                                                          orderId));
+                                                  await _syncAdminOrdersListCache();
+                                                  final synced =
+                                                      out['synced'] == true;
+                                                  final detail =
+                                                      out['detail']?.toString();
+                                                  if (synced) {
+                                                    final deliveryStatus =
+                                                        out['delivery_status']
+                                                            ?.toString()
+                                                            .trim();
+                                                    final shipmentStatus =
+                                                        out['shipment_status']
+                                                            ?.toString()
+                                                            .trim();
+                                                    String?
+                                                        targetStatusTitleCase;
+                                                    if (deliveryStatus ==
+                                                        'delivered') {
+                                                      targetStatusTitleCase =
+                                                          'Delivered';
+                                                    } else if (deliveryStatus ==
+                                                        'out_for_delivery') {
+                                                      targetStatusTitleCase =
+                                                          'Out for delivery';
+                                                    } else if (shipmentStatus ==
+                                                        'in_transit') {
+                                                      targetStatusTitleCase =
+                                                          'Shipped';
                                                     }
-                                                    await _setManualDeliveryStatus(
-                                                      context,
-                                                      order.id,
-                                                      'shipped',
-                                                      details,
+                                                    if (targetStatusTitleCase !=
+                                                        null) {
+                                                      await trySendOrderStatusFcmForTarget(
+                                                        ref.read(
+                                                            fcmNotificationSenderProvider),
+                                                        userId: order.userId,
+                                                        orderId: order.id,
+                                                        targetStatusTitleCase:
+                                                            targetStatusTitleCase,
+                                                      );
+                                                    }
+                                                  }
+                                                  final dsOut =
+                                                      out['delivery_status']
+                                                          ?.toString()
+                                                          .trim();
+                                                  final clearedBooking =
+                                                      out['force_cleared'] ==
+                                                              true ||
+                                                          dsOut == 'cancelled';
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        clearedBooking
+                                                            ? 'Shiprocket booking cleared. Choose Manual delivery or create a new shipment.'
+                                                            : synced
+                                                                ? 'Shiprocket status synced'
+                                                                : (detail !=
+                                                                            null &&
+                                                                        detail
+                                                                            .isNotEmpty
+                                                                    ? detail
+                                                                    : 'No new status yet'),
+                                                      ),
+                                                    ),
+                                                  );
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                          content: Text(
+                                                              'Sync failed: $e')),
                                                     );
-                                                  },
-                                            child: const Text('Mark as shipped'),
-                                          ),
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: _stageButtonColor(
-                                                ctx,
-                                                stageIndex: 3,
-                                                currentIndex: current,
-                                              ),
-                                              foregroundColor: Colors.black87,
-                                            ),
-                                            onPressed: (_manualDeliveryBusy ||
-                                                    !canOut ||
-                                                    isOutCurrent)
-                                                ? null
-                                                : () => _setManualDeliveryStatus(
-                                                      context,
-                                                      order.id,
-                                                      'out_for_delivery',
-                                                      details,
+                                                  }
+                                                } finally {
+                                                  if (mounted)
+                                                    setState(() =>
+                                                        _shiprocketBusy =
+                                                            false);
+                                                }
+                                              },
+                                        icon: const Icon(Icons.sync, size: 18),
+                                        label: const Text(
+                                            'Sync Shiprocket status'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: _shiprocketBusy
+                                            ? null
+                                            : () async {
+                                                final confirmed =
+                                                    await showDialog<bool>(
+                                                  context: context,
+                                                  builder: (ctx) => AlertDialog(
+                                                    title: const Text(
+                                                        'Clear Shiprocket booking?'),
+                                                    content: const Text(
+                                                      'Use this only if you already cancelled the shipment '
+                                                      'in Shiprocket (or it was removed) and Anjanam still '
+                                                      'shows Shiprocket as the method.\n\n'
+                                                      'This clears shipment IDs and lets you choose Manual '
+                                                      'delivery or create a new Shiprocket shipment.',
                                                     ),
-                                            child: const Text('Out for delivery'),
-                                          ),
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: _stageButtonColor(
-                                                ctx,
-                                                stageIndex: 4,
-                                                currentIndex: current,
-                                              ),
-                                              foregroundColor: Colors.black87,
-                                            ),
-                                            onPressed: (_manualDeliveryBusy ||
-                                                    !canDelivered ||
-                                                    isDeliveredCurrent)
-                                                ? null
-                                                : () => _setManualDeliveryStatus(
-                                                      context,
-                                                      order.id,
-                                                      'delivered',
-                                                      details,
+                                                    actions: [
+                                                      TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                                ctx, false),
+                                                        child:
+                                                            const Text('Back'),
+                                                      ),
+                                                      FilledButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                                ctx, true),
+                                                        child: const Text(
+                                                            'Clear booking'),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                                if (confirmed != true ||
+                                                    !context.mounted) return;
+                                                setState(() =>
+                                                    _shiprocketBusy = true);
+                                                try {
+                                                  final out = await ref
+                                                      .read(
+                                                          adminServiceProvider)
+                                                      .syncShiprocketShipmentStatus(
+                                                        orderId: order.id,
+                                                        forceClearShiprocketBooking:
+                                                            true,
+                                                      );
+                                                  if (!context.mounted) return;
+                                                  ref.invalidate(
+                                                      adminOrderDetailsProvider(
+                                                          orderId));
+                                                  await _syncAdminOrdersListCache();
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        out['synced'] == true
+                                                            ? 'Shiprocket booking cleared.'
+                                                            : 'Request completed.',
+                                                      ),
                                                     ),
-                                            child: const Text('Delivered'),
-                                          ),
-                                        ],
-                                      );
-                                    },
+                                                  );
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                          content: Text(
+                                                              'Clear failed: $e')),
+                                                    );
+                                                  }
+                                                } finally {
+                                                  if (mounted)
+                                                    setState(() =>
+                                                        _shiprocketBusy =
+                                                            false);
+                                                }
+                                              },
+                                        icon: const Icon(
+                                            Icons.link_off_outlined,
+                                            size: 18),
+                                        label: const Text('Clear SR booking'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              Text(
+                                'Current order status: ${_statusDisplayLabel(order.status)}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: [
+                                  FilledButton.tonal(
+                                    onPressed: (!shipmentEditable ||
+                                            _manualDeliveryBusy ||
+                                            _shiprocketBusy ||
+                                            _blocksManualWhileShiprocketSelected(
+                                                details) ||
+                                            canonicalAdminOrderStatus(
+                                                    order.status) ==
+                                                'pending_payment' ||
+                                            canonicalAdminOrderStatus(
+                                                    order.status) ==
+                                                'payment_failed')
+                                        ? null
+                                        : () => _openManualDeliveryDialog(
+                                              context,
+                                              order.id,
+                                              details,
+                                            ),
+                                    child: const Text('Manual delivery'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: (!shipmentEditable ||
+                                            _manualDeliveryBusy ||
+                                            _shiprocketBusy ||
+                                            _blocksNewShiprocketShipment(
+                                                details) ||
+                                            canonicalAdminOrderStatus(
+                                                    order.status) ==
+                                                'payment_failed')
+                                        ? null
+                                        : () => _openShiprocketDialog(
+                                              context,
+                                              order.id,
+                                              details,
+                                            ),
+                                    child: const Text('Shiprocket shipment'),
                                   ),
                                 ],
                               ),
-                            ),
+                              if ((details.deliveryMethod ?? '')
+                                          .toLowerCase() ==
+                                      'shiprocket_delivery' &&
+                                  !_fulfillmentRecoveryMode(details) &&
+                                  (details.deliveryStatus ?? '')
+                                          .toLowerCase()
+                                          .trim() !=
+                                      'cancelled') ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Manual status buttons are hidden while Shiprocket delivery is selected.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        key: _shipmentSectionKey,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Shipment (customer-visible)',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              if (!shipmentEditable) ...[
+                                Text(
+                                  _fulfillmentRecoveryMode(details)
+                                      ? 'Order is marked cancelled but Shiprocket fulfilment was not completed. '
+                                          'Choose Manual delivery or Shiprocket below to resume, or leave as cancelled.'
+                                      : canonicalAdminOrderStatus(
+                                                  order.status) ==
+                                              'cancelled'
+                                          ? 'Shipment details cannot be edited for a cancelled order.'
+                                          : canonicalAdminOrderStatus(
+                                                      order.status) ==
+                                                  'cancel_requested'
+                                              ? 'Shipment is read-only while a cancellation request is open.'
+                                              : 'This order is delivered. Tracking and estimated delivery are read-only.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                                const SizedBox(height: 12),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Tracking number',
+                                  value: details.trackingNumber,
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Courier name',
+                                  value: details.courierName,
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Estimated delivery date',
+                                  value: details.estimatedDeliveryDate == null
+                                      ? null
+                                      : formatEstimatedDeliveryDate(
+                                          details.estimatedDeliveryDate!),
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Package weight (kg)',
+                                  value: details.packageWeightKg?.toString(),
+                                ),
+                                _AdminShipmentReadOnlyLine(
+                                  label: 'Package dimensions (cm)',
+                                  value: details.packageDimensionsCm,
+                                ),
+                              ] else ...[
+                                TextField(
+                                  controller: _trackCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Tracking number',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) =>
+                                      setState(() => _shipmentDirty = true),
+                                ),
+                                const SizedBox(height: 10),
+                                TextField(
+                                  controller: _courierCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Courier name',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) =>
+                                      setState(() => _shipmentDirty = true),
+                                ),
+                                const SizedBox(height: 10),
+                                TextField(
+                                  controller: _pkgWeightCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Package weight (kg)',
+                                    border: OutlineInputBorder(),
+                                    hintText:
+                                        'Auto from product weight for manual delivery',
+                                  ),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  readOnly: manualDeliverySelected,
+                                  enabled: !manualDeliverySelected,
+                                  onChanged: (_) =>
+                                      setState(() => _shipmentDirty = true),
+                                ),
+                                const SizedBox(height: 10),
+                                TextField(
+                                  controller: _pkgDimCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Package dimensions (cm)',
+                                    border: OutlineInputBorder(),
+                                    hintText:
+                                        'Auto from product dimensions for manual delivery',
+                                  ),
+                                  readOnly: manualDeliverySelected,
+                                  enabled: !manualDeliverySelected,
+                                  onChanged: (_) =>
+                                      setState(() => _shipmentDirty = true),
+                                ),
+                                if (manualDeliverySelected) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _manualPkgDefaultsLoading
+                                        ? 'Loading package specs from product details...'
+                                        : 'Package weight and dimensions are auto-filled from product details for manual delivery.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
+                                const SizedBox(height: 10),
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: const Text('Estimated delivery date'),
+                                  subtitle: Text(
+                                    _estDelivery == null
+                                        ? 'Not set'
+                                        : formatEstimatedDeliveryDate(
+                                            _estDelivery!),
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_estDelivery != null)
+                                        IconButton(
+                                          tooltip: 'Clear date',
+                                          icon: const Icon(Icons.clear),
+                                          onPressed: () => setState(() {
+                                            _estDelivery = null;
+                                            _shipmentDirty = true;
+                                          }),
+                                        ),
+                                      IconButton(
+                                        tooltip: 'Pick date',
+                                        icon: const Icon(
+                                            Icons.calendar_today_outlined),
+                                        onPressed: () async {
+                                          final initial = _estDelivery == null
+                                              ? DateTime.now()
+                                              : DateTime(
+                                                  _estDelivery!.year,
+                                                  _estDelivery!.month,
+                                                  _estDelivery!.day,
+                                                );
+                                          final picked = await showDatePicker(
+                                            context: context,
+                                            firstDate: DateTime(2020),
+                                            lastDate: DateTime.now().add(
+                                                const Duration(days: 365 * 2)),
+                                            initialDate: initial,
+                                          );
+                                          if (picked != null) {
+                                            setState(() {
+                                              _estDelivery = picked;
+                                              _shipmentDirty = true;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (_shipmentSaving)
+                                  const Padding(
+                                    padding: EdgeInsets.only(bottom: 8),
+                                    child:
+                                        LinearProgressIndicator(minHeight: 3),
+                                  ),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: FilledButton(
+                                    onPressed: (_shipmentSaving ||
+                                            _syncedShipmentOrderId !=
+                                                order.id ||
+                                            !_shipmentFormDiffersFrom(details))
+                                        ? null
+                                        : () async {
+                                            setState(
+                                                () => _shipmentSaving = true);
+                                            try {
+                                              await ref
+                                                  .read(adminServiceProvider)
+                                                  .updateOrderShipmentInfo(
+                                                    orderId: order.id,
+                                                    trackingNumber:
+                                                        _trackCtrl.text,
+                                                    courierName:
+                                                        _courierCtrl.text,
+                                                    estimatedDeliveryDate:
+                                                        _estDelivery,
+                                                    packageWeightKg:
+                                                        double.tryParse(
+                                                            effectiveWeightText),
+                                                    packageDimensionsCm:
+                                                        effectiveDimsText,
+                                                  );
+                                              if (!context.mounted) return;
+                                              setState(() {
+                                                _shipmentDirty = false;
+                                                _syncedShipmentOrderId = null;
+                                              });
+                                              ref.invalidate(
+                                                  adminOrderDetailsProvider(
+                                                      orderId));
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                    content: Text(
+                                                        'Shipment details saved')),
+                                              );
+                                            } catch (e) {
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
+                                                  SnackBar(
+                                                      content: Text(
+                                                          'Save failed: $e')),
+                                                );
+                                              }
+                                            } finally {
+                                              if (mounted) {
+                                                setState(() =>
+                                                    _shipmentSaving = false);
+                                              }
+                                            }
+                                          },
+                                    child: const Text('Save shipment'),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      if ((details.deliveryMethod ?? '').toLowerCase() ==
+                          'manual_delivery') ...[
                         const SizedBox(height: 12),
                         Card(
                           child: Padding(
@@ -2171,210 +2286,397 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Return Actions',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                  'Manual fulfilment sequence',
+                                  style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700),
                                 ),
                                 const SizedBox(height: 8),
-                                if (canonicalAdminOrderStatus(order.status) != 'delivered' &&
-                                    orderReturns.isEmpty)
-                                  Text(
-                                    'Return workflow unlocks after delivery.',
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        ),
-                                  )
-                                else if (orderReturns.isEmpty)
-                                  const Text('No return requests for this order.')
-                                else
-                                  ...orderReturns.map((r) {
-                                    final st = r.returnStatus.trim().toLowerCase();
-                                    return ListTile(
-                                      dense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                      title: Text('${r.lineTitle}  (${r.returnReason})'),
-                                      subtitle: Text('Status: ${r.returnStatus}'),
-                                      trailing: Wrap(
-                                        spacing: 6,
-                                        children: [
-                                          if (st == 'requested') ...[
-                                            OutlinedButton(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'approved',
-                                                        successMessage: 'Return approved.',
-                                                      ),
-                                              child: const Text('Approve'),
-                                            ),
-                                            OutlinedButton(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'rejected',
-                                                        successMessage: 'Return rejected.',
-                                                      ),
-                                              child: const Text('Reject'),
-                                            ),
-                                          ],
-                                          if (st == 'approved')
-                                            OutlinedButton(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'picked_up',
-                                                        successMessage: 'Pickup marked completed.',
-                                                      ),
-                                              child: const Text('Mark Pickup Done'),
-                                            ),
-                                          if (st == 'picked_up')
-                                            OutlinedButton(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'returned',
-                                                        successMessage: 'Marked as returned.',
-                                                      ),
-                                              child: const Text('Mark Returned'),
-                                            ),
-                                          if (st == 'returned')
-                                            FilledButton.tonal(
-                                              onPressed: _statusBusy
-                                                  ? null
-                                                  : () => _runReturnStatusAction(
-                                                        context,
-                                                        orderId: order.id,
-                                                        userId: r.userId,
-                                                        returnId: r.id,
-                                                        newStatus: 'refund_completed',
-                                                        successMessage: 'Refund completed.',
-                                                      ),
-                                              child: const Text('Process Refund'),
-                                            ),
-                                        ],
+                                Text(
+                                  'Follow in order: Packed -> Save shipment -> Mark as shipped -> Out for delivery -> Delivered',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
                                       ),
+                                ),
+                                const SizedBox(height: 12),
+                                Builder(
+                                  builder: (ctx) {
+                                    final current =
+                                        _manualStageIndex(order.status);
+                                    final canPacked = _manualTransitionAllowed(
+                                        order.status, 'packed');
+                                    final canShipped = _manualTransitionAllowed(
+                                        order.status, 'shipped');
+                                    final canOut = _manualTransitionAllowed(
+                                        order.status, 'out_for_delivery');
+                                    final canDelivered =
+                                        _manualTransitionAllowed(
+                                            order.status, 'delivered');
+                                    final isPackedCurrent = current == 1;
+                                    final isShippedCurrent = current == 2;
+                                    final isOutCurrent = current == 3;
+                                    final isDeliveredCurrent = current == 4;
+                                    final shipmentSaved =
+                                        _shipmentCoreReady(details) &&
+                                            !_shipmentFormDiffersFrom(details);
+
+                                    return Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _stageButtonColor(
+                                              ctx,
+                                              stageIndex: 1,
+                                              currentIndex: current,
+                                            ),
+                                            foregroundColor: Colors.black87,
+                                          ),
+                                          onPressed: (_manualDeliveryBusy ||
+                                                  !canPacked ||
+                                                  isPackedCurrent)
+                                              ? null
+                                              : () => _setManualDeliveryStatus(
+                                                    context,
+                                                    order.id,
+                                                    'packed',
+                                                    details,
+                                                  ),
+                                          child: const Text('Packed'),
+                                        ),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _stageButtonColor(
+                                              ctx,
+                                              stageIndex: 2,
+                                              currentIndex: current,
+                                            ),
+                                            foregroundColor: Colors.black87,
+                                          ),
+                                          onPressed: (_manualDeliveryBusy ||
+                                                  !canShipped ||
+                                                  isShippedCurrent)
+                                              ? null
+                                              : () async {
+                                                  if (!shipmentSaved) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text(
+                                                            'Save shipment details first (tracking, courier, weight, dimensions).'),
+                                                      ),
+                                                    );
+                                                    return;
+                                                  }
+                                                  await _setManualDeliveryStatus(
+                                                    context,
+                                                    order.id,
+                                                    'shipped',
+                                                    details,
+                                                  );
+                                                },
+                                          child: const Text('Mark as shipped'),
+                                        ),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _stageButtonColor(
+                                              ctx,
+                                              stageIndex: 3,
+                                              currentIndex: current,
+                                            ),
+                                            foregroundColor: Colors.black87,
+                                          ),
+                                          onPressed: (_manualDeliveryBusy ||
+                                                  !canOut ||
+                                                  isOutCurrent)
+                                              ? null
+                                              : () => _setManualDeliveryStatus(
+                                                    context,
+                                                    order.id,
+                                                    'out_for_delivery',
+                                                    details,
+                                                  ),
+                                          child: const Text('Out for delivery'),
+                                        ),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _stageButtonColor(
+                                              ctx,
+                                              stageIndex: 4,
+                                              currentIndex: current,
+                                            ),
+                                            foregroundColor: Colors.black87,
+                                          ),
+                                          onPressed: (_manualDeliveryBusy ||
+                                                  !canDelivered ||
+                                                  isDeliveredCurrent)
+                                              ? null
+                                              : () => _setManualDeliveryStatus(
+                                                    context,
+                                                    order.id,
+                                                    'delivered',
+                                                    details,
+                                                  ),
+                                          child: const Text('Delivered'),
+                                        ),
+                                      ],
                                     );
-                                  }),
+                                  },
+                                ),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Order Items',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 8),
-                                ...details.items.map((item) {
-                                  return ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: item.imageUrls.isNotEmpty
-                                        ? AdminCachedImage(
-                                            imageUrl: item.imageUrls.first,
-                                            width: 44,
-                                            height: 44,
-                                            borderRadius: BorderRadius.circular(8),
-                                          )
-                                        : const Icon(Icons.image_not_supported_outlined),
-                                    title: Text(item.title),
-                                    subtitle: Text('Quantity: ${item.quantity}'),
-                                    trailing: Text(
-                                      formatInrAmount(item.unitPrice * item.quantity),
-                                      style: const TextStyle(
-                                        color: AppColors.priceText,
-                                        fontWeight: FontWeight.w700,
+                      ],
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Return Actions',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              if (canonicalAdminOrderStatus(order.status) !=
+                                      'delivered' &&
+                                  orderReturns.isEmpty)
+                                Text(
+                                  'Return workflow unlocks after delivery.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
                                       ),
+                                )
+                              else if (orderReturns.isEmpty)
+                                const Text('No return requests for this order.')
+                              else
+                                ...orderReturns.map((r) {
+                                  final st =
+                                      r.returnStatus.trim().toLowerCase();
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                        '${r.lineTitle}  (${r.returnReason})'),
+                                    subtitle: Text('Status: ${r.returnStatus}'),
+                                    trailing: Wrap(
+                                      spacing: 6,
+                                      children: [
+                                        if (st == 'requested') ...[
+                                          OutlinedButton(
+                                            onPressed: _statusBusy
+                                                ? null
+                                                : () => _runReturnStatusAction(
+                                                      context,
+                                                      orderId: order.id,
+                                                      userId: r.userId,
+                                                      returnId: r.id,
+                                                      newStatus: 'approved',
+                                                      successMessage:
+                                                          'Return approved.',
+                                                    ),
+                                            child: const Text('Approve'),
+                                          ),
+                                          OutlinedButton(
+                                            onPressed: _statusBusy
+                                                ? null
+                                                : () => _runReturnStatusAction(
+                                                      context,
+                                                      orderId: order.id,
+                                                      userId: r.userId,
+                                                      returnId: r.id,
+                                                      newStatus: 'rejected',
+                                                      successMessage:
+                                                          'Return rejected.',
+                                                    ),
+                                            child: const Text('Reject'),
+                                          ),
+                                        ],
+                                        if (st == 'approved')
+                                          OutlinedButton(
+                                            onPressed: _statusBusy
+                                                ? null
+                                                : () => _runReturnStatusAction(
+                                                      context,
+                                                      orderId: order.id,
+                                                      userId: r.userId,
+                                                      returnId: r.id,
+                                                      newStatus: 'picked_up',
+                                                      successMessage:
+                                                          'Pickup marked completed.',
+                                                    ),
+                                            child:
+                                                const Text('Mark Pickup Done'),
+                                          ),
+                                        if (st == 'picked_up')
+                                          OutlinedButton(
+                                            onPressed: _statusBusy
+                                                ? null
+                                                : () => _runReturnStatusAction(
+                                                      context,
+                                                      orderId: order.id,
+                                                      userId: r.userId,
+                                                      returnId: r.id,
+                                                      newStatus: 'returned',
+                                                      successMessage:
+                                                          'Marked as returned.',
+                                                    ),
+                                            child: const Text('Mark Returned'),
+                                          ),
+                                        if (st == 'returned')
+                                          FilledButton.tonal(
+                                            onPressed: _statusBusy
+                                                ? null
+                                                : () => _runReturnStatusAction(
+                                                      context,
+                                                      orderId: order.id,
+                                                      userId: r.userId,
+                                                      returnId: r.id,
+                                                      newStatus:
+                                                          'refund_completed',
+                                                      successMessage:
+                                                          'Refund completed.',
+                                                    ),
+                                            child: const Text('Process Refund'),
+                                          ),
+                                      ],
                                     ),
                                   );
                                 }),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Order summary',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Order Items',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              ...details.items.map((item) {
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: item.imageUrls.isNotEmpty
+                                      ? AdminCachedImage(
+                                          imageUrl: item.imageUrls.first,
+                                          width: 44,
+                                          height: 44,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        )
+                                      : const Icon(
+                                          Icons.image_not_supported_outlined),
+                                  title: Text(item.title),
+                                  subtitle: Text('Quantity: ${item.quantity}'),
+                                  trailing: Text(
+                                    formatInrAmount(
+                                        item.unitPrice * item.quantity),
+                                    style: const TextStyle(
+                                      color: AppColors.priceText,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Order summary',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              _summaryRow('Items subtotal',
+                                  formatInrAmount(order.itemsSubtotal)),
+                              _summaryRow(
+                                'Delivery',
+                                order.deliveryFee <= 0
+                                    ? 'FREE'
+                                    : formatInrAmount(order.deliveryFee),
+                              ),
+                              const Divider(height: 20),
+                              _summaryRow(
+                                'Total payable',
+                                formatInrAmount(order.totalAmount),
+                                emphasize: true,
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _labelDownloadBusy
+                                      ? null
+                                      : () => _onDownloadShippingLabel(
+                                          context, details),
+                                  icon: _labelDownloadBusy
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : const Icon(
+                                          Icons.local_shipping_outlined,
+                                          size: 20),
+                                  label: Text(
+                                    _labelDownloadBusy
+                                        ? 'Generating label…'
+                                        : 'Download Label',
+                                  ),
                                 ),
+                              ),
+                              if (details.items.isNotEmpty) ...[
                                 const SizedBox(height: 8),
-                                _summaryRow('Items subtotal', formatInrAmount(order.itemsSubtotal)),
-                                _summaryRow(
-                                  'Delivery',
-                                  order.deliveryFee <= 0
-                                      ? 'FREE'
-                                      : formatInrAmount(order.deliveryFee),
-                                ),
-                                const Divider(height: 20),
-                                _summaryRow(
-                                  'Total payable',
-                                  formatInrAmount(order.totalAmount),
-                                  emphasize: true,
-                                ),
-                                const SizedBox(height: 16),
                                 SizedBox(
                                   width: double.infinity,
                                   child: OutlinedButton.icon(
-                                    onPressed: _labelDownloadBusy
-                                        ? null
-                                        : () => _onDownloadShippingLabel(context, details),
-                                    icon: _labelDownloadBusy
-                                        ? const SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          )
-                                        : const Icon(Icons.local_shipping_outlined, size: 20),
-                                    label: Text(
-                                      _labelDownloadBusy ? 'Generating label…' : 'Download Label',
-                                    ),
+                                    onPressed: () => _onDownloadAdminInvoice(
+                                        context, details),
+                                    icon: const Icon(
+                                        Icons.picture_as_pdf_outlined,
+                                        size: 20),
+                                    label: const Text('Download Invoice'),
                                   ),
                                 ),
-                                if (details.items.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: () =>
-                                          _onDownloadAdminInvoice(context, details),
-                                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
-                                      label: const Text('Download Invoice'),
-                                    ),
-                                  ),
-                                ],
                               ],
-                            ),
+                            ],
                           ),
                         ),
-                        ],
                       ),
-                    );
+                    ],
+                  ),
+                );
               },
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
@@ -2393,7 +2695,8 @@ class _AdminOrderDetailsPageState extends ConsumerState<AdminOrderDetailsPage> {
         (d.shippingPostalCode != null && d.shippingPostalCode!.isNotEmpty);
   }
 
-  static Widget _summaryRow(String label, String value, {bool emphasize = false}) {
+  static Widget _summaryRow(String label, String value,
+      {bool emphasize = false}) {
     final isFree = value.trim().toUpperCase() == 'FREE';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -2466,7 +2769,8 @@ class _AdminShipmentReadOnlyLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final display = (value == null || value!.trim().isEmpty) ? '—' : value!.trim();
+    final display =
+        (value == null || value!.trim().isEmpty) ? '—' : value!.trim();
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
@@ -2475,14 +2779,15 @@ class _AdminShipmentReadOnlyLine extends StatelessWidget {
           Text(
             label,
             style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 4),
           SelectableText(
             display,
-            style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+            style: theme.textTheme.bodyLarge
+                ?.copyWith(fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -2512,9 +2817,9 @@ class _AdminPaymentDetailLine extends StatelessWidget {
           Text(
             label,
             style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 4),
           SelectableText(

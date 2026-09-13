@@ -11,6 +11,7 @@ import '../../features/cart/state/cart_controller.dart';
 import '../../features/order_history/state/order_history_controller.dart';
 import '../../features/wishlist/state/wishlist_provider.dart';
 import '../../features/catalog/state/shop_categories_provider.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/customer_details_provider.dart';
 import '../utils/main_shell_navigation.dart';
 import 'explore_page.dart';
@@ -32,31 +33,31 @@ class _MainShellState extends ConsumerState<MainShell> {
   bool _authListenAttached = false;
 
   /// Shared destinations; native shell applies a compact [NavigationBarTheme] (~62px height).
-  static const List<NavigationDestination> _shellNavDestinations = [
+  List<NavigationDestination> _shellNavDestinations(BuildContext context) => [
     NavigationDestination(
       icon: Icon(Icons.home_outlined),
       selectedIcon: Icon(Icons.home),
-      label: 'Home',
+      label: AppLocalizations.of(context).home,
     ),
     NavigationDestination(
       icon: Icon(Icons.storefront_outlined),
       selectedIcon: Icon(Icons.storefront),
-      label: 'Shop',
+      label: AppLocalizations.of(context).shop,
     ),
     NavigationDestination(
       icon: Icon(Icons.explore_outlined),
       selectedIcon: Icon(Icons.explore),
-      label: 'Explore',
+      label: AppLocalizations.of(context).explore,
     ),
     NavigationDestination(
       icon: Icon(Icons.receipt_long_outlined),
       selectedIcon: Icon(Icons.receipt_long),
-      label: 'My Orders',
+      label: AppLocalizations.of(context).myOrders,
     ),
     NavigationDestination(
       icon: Icon(Icons.person_outline),
       selectedIcon: Icon(Icons.person),
-      label: 'Account',
+      label: AppLocalizations.of(context).account,
     ),
   ];
 
@@ -185,7 +186,7 @@ class _MainShellState extends ConsumerState<MainShell> {
             bottomNav = NavigationBar(
               selectedIndex: currentIndex,
               onDestinationSelected: _onTabTapped,
-              destinations: _shellNavDestinations,
+              destinations: _shellNavDestinations(context),
             );
           } else {
             bottomNav = Theme(
@@ -219,7 +220,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                 height: 62,
                 selectedIndex: currentIndex,
                 onDestinationSelected: _onTabTapped,
-                destinations: _shellNavDestinations,
+                destinations: _shellNavDestinations(context),
               ),
             );
           }

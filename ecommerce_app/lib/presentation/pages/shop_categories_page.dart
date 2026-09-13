@@ -9,6 +9,7 @@ import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Storefront Shop tab: category grid from Supabase [categories] (all `is_active` rows).
 class ShopCategoriesPage extends ConsumerStatefulWidget {
@@ -184,8 +185,8 @@ class _ShopCategoriesPageState extends ConsumerState<ShopCategoriesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Shop',
+        title: Text(
+          AppLocalizations.of(context).shop,
           style: TextStyle(
             fontSize: 21,
             fontWeight: FontWeight.w700,
@@ -194,7 +195,7 @@ class _ShopCategoriesPageState extends ConsumerState<ShopCategoriesPage> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Wishlist',
+            tooltip: AppLocalizations.of(context).wishlist,
             iconSize: WishlistHeartSizes.appBar,
             onPressed: () => Navigator.of(context).pushNamed('/wishlist'),
             icon: Badge(
@@ -204,7 +205,7 @@ class _ShopCategoriesPageState extends ConsumerState<ShopCategoriesPage> {
             ),
           ),
           IconButton(
-            tooltip: 'Cart',
+            tooltip: AppLocalizations.of(context).cart,
             onPressed: () => navigateToCartPage(ref, context),
             icon: Badge(
               isLabelVisible: cartItemCount > 0,

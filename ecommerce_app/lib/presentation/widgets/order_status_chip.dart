@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../features/order_history/domain/entities/order_status.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Fulfilment status pill: colors, optional compact label, single-line ellipsis for list layouts.
 class OrderStatusChip extends StatelessWidget {
@@ -19,8 +20,21 @@ class OrderStatusChip extends StatelessWidget {
   /// When true, label is shown in uppercase (e.g. order details header).
   final bool uppercase;
 
-  String get _label {
-    final base = compact ? status.compactDisplayLabel : status.displayLabel;
+  String _label(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    final base = switch (status) {
+      OrderStatus.pendingPayment => localizations.pendingPayment,
+      OrderStatus.paymentFailed => localizations.paymentFailedStatus,
+      OrderStatus.processing => localizations.processing,
+      OrderStatus.packed => localizations.packed,
+      OrderStatus.shipped => localizations.shipped,
+      OrderStatus.outForDelivery => localizations.outForDelivery,
+      OrderStatus.delivered => localizations.delivered,
+      OrderStatus.cancelRequested => compact
+          ? localizations.cancelPending
+          : localizations.cancellationPending,
+      OrderStatus.cancelled => localizations.cancelled,
+    };
     return uppercase ? base.toUpperCase() : base;
   }
 
@@ -32,10 +46,10 @@ class OrderStatusChip extends StatelessWidget {
             ? Theme.of(context).textTheme.labelSmall
             : Theme.of(context).textTheme.labelMedium)
         ?.copyWith(
-          color: fg,
-          fontWeight: compact ? FontWeight.w700 : FontWeight.w800,
-          letterSpacing: uppercase ? 0.35 : null,
-        );
+      color: fg,
+      fontWeight: compact ? FontWeight.w700 : FontWeight.w800,
+      letterSpacing: uppercase ? 0.35 : null,
+    );
 
     return SizedBox(
       width: double.infinity,
@@ -51,7 +65,7 @@ class OrderStatusChip extends StatelessWidget {
           border: Border.all(color: fg.withValues(alpha: 0.35)),
         ),
         child: Text(
-          _label,
+          _label(context),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: compact ? TextAlign.center : TextAlign.start,
@@ -62,7 +76,8 @@ class OrderStatusChip extends StatelessWidget {
     );
   }
 
-  (Color bg, Color fg) _fulfillmentColors(ColorScheme scheme, OrderStatus status) {
+  (Color bg, Color fg) _fulfillmentColors(
+      ColorScheme scheme, OrderStatus status) {
     switch (status) {
       case OrderStatus.pendingPayment:
         return (scheme.surfaceContainerHighest, scheme.onSurfaceVariant);

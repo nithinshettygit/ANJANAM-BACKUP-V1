@@ -5,6 +5,7 @@ import '../../features/home_content/domain/home_top_category_item.dart';
 import 'app_network_image.dart';
 import 'home_layout_metrics.dart';
 import 'web_horizontal_rail_list.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Flipkart-style circular category chips in a horizontal scroller.
 class HomeTopCategoriesRow extends StatelessWidget {
@@ -37,7 +38,7 @@ class HomeTopCategoriesRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  'Quick picks',
+                  AppLocalizations.of(context).quickPicks,
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: AppColors.brandSaffronDeep,
                     fontWeight: FontWeight.w700,
@@ -47,7 +48,7 @@ class HomeTopCategoriesRow extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                'Shop by category',
+                AppLocalizations.of(context).shopByCategory,
                 style: HomeLayoutMetrics.homeCategoryRowTitleStyle(context, theme.textTheme) ??
                     theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,

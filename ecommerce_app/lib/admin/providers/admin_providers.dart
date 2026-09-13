@@ -1,19 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ecommerce_app/core/supabase/supabase_client_provider.dart';
+import 'package:ecommerce_app/core/document_settings/document_settings.dart';
 import '../services/admin_service.dart';
 
 final adminServiceProvider = Provider<AdminService>(
   (ref) => AdminService(ref.watch(supabaseClientProvider)),
 );
 
-final adminDashboardProvider = FutureProvider.autoDispose<AdminDashboardSummary>(
+final adminDashboardProvider =
+    FutureProvider.autoDispose<AdminDashboardSummary>(
   (ref) => ref.read(adminServiceProvider).getDashboardStats(),
 );
 
 final adminDashboardAnalyticsProvider =
     FutureProvider.autoDispose.family<AdminDashboardAnalytics, int>(
-  (ref, days) => ref.read(adminServiceProvider).fetchDashboardAnalytics(days: days),
+  (ref, days) =>
+      ref.read(adminServiceProvider).fetchDashboardAnalytics(days: days),
 );
 
 final adminProductsProvider = FutureProvider.autoDispose<List<AdminProduct>>(
@@ -42,7 +45,8 @@ final adminOrdersProvider = FutureProvider.autoDispose<List<AdminOrderRow>>(
   },
 );
 
-final adminOrderDetailsProvider = FutureProvider.autoDispose.family<AdminOrderDetails, String>(
+final adminOrderDetailsProvider =
+    FutureProvider.autoDispose.family<AdminOrderDetails, String>(
   (ref, orderId) => ref.read(adminServiceProvider).fetchOrderDetails(orderId),
 );
 
@@ -57,7 +61,8 @@ final adminReturnsProvider =
       ),
 );
 
-final adminInventoryProvider = FutureProvider.autoDispose<List<AdminInventoryRow>>(
+final adminInventoryProvider =
+    FutureProvider.autoDispose<List<AdminInventoryRow>>(
   (ref) => ref.read(adminServiceProvider).getInventoryRows(),
 );
 
@@ -66,7 +71,13 @@ final adminStoreDeliverySettingsProvider =
   (ref) => ref.read(adminServiceProvider).fetchStoreDeliverySettings(),
 );
 
-final adminUserDetailsProvider = FutureProvider.autoDispose.family<AdminUserDetails?, String>(
+final adminDocumentSettingsProvider =
+    FutureProvider.autoDispose<DocumentSettings>(
+  (ref) => ref.read(adminServiceProvider).fetchDocumentSettings(),
+);
+
+final adminUserDetailsProvider =
+    FutureProvider.autoDispose.family<AdminUserDetails?, String>(
   (ref, userId) => ref.read(adminServiceProvider).fetchUserDetails(userId),
 );
 

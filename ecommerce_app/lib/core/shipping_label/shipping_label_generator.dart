@@ -6,7 +6,6 @@ import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 /// Standard 4×6 in thermal shipping label (portrait).
 class ShippingLabelGenerator {
@@ -61,6 +60,10 @@ class ShippingLabelGenerator {
               pw.SizedBox(height: 4),
               _codBanner(data.codAmount!),
             ],
+            if (data.carrierReference != null) ...[
+              pw.SizedBox(height: 4),
+              _carrierReference(data),
+            ],
             pw.Spacer(),
             _codesFooter(data),
           ],
@@ -82,14 +85,28 @@ class ShippingLabelGenerator {
 
   Future<pw.ThemeData?> _buildLabelPdfTheme() async {
     try {
-      final base = await PdfGoogleFonts.notoSansRegular();
-      final bold = await PdfGoogleFonts.notoSansBold();
-      final devanagari = await PdfGoogleFonts.notoSansDevanagariRegular();
-      final kannada = await PdfGoogleFonts.notoSansKannadaRegular();
+      final base = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSans-Regular.ttf'),
+      );
+      final bold = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSans-Bold.ttf'),
+      );
+      final devanagari = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSansDevanagari-Regular.ttf'),
+      );
+      final devanagariBold = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSansDevanagari-Bold.ttf'),
+      );
+      final kannada = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSansKannada-Regular.ttf'),
+      );
+      final kannadaBold = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSansKannada-Bold.ttf'),
+      );
       return pw.ThemeData.withFont(
         base: base,
         bold: bold,
-        fontFallback: [devanagari, kannada],
+        fontFallback: [devanagari, devanagariBold, kannada, kannadaBold],
       );
     } catch (_) {
       return null;
@@ -142,6 +159,11 @@ class ShippingLabelGenerator {
                   'Order: ${data.orderIdDisplay}',
                   style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
                 ),
+                if (data.carrierName != null)
+                  pw.Text(
+                    'Carrier: ${data.carrierName}',
+                    style: const pw.TextStyle(fontSize: 7),
+                  ),
                 pw.Text('Date: $orderDate', style: const pw.TextStyle(fontSize: 7)),
               ],
             ),
@@ -203,6 +225,16 @@ class ShippingLabelGenerator {
     );
   }
 
+  pw.Widget _carrierReference(ShippingLabelData data) {
+    return _section(
+      title: '${data.carrierName ?? 'CARRIER'} REFERENCE',
+      child: pw.Text(
+        data.carrierReference!,
+        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+      ),
+    );
+  }
+
   pw.Widget _codesFooter(ShippingLabelData data) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(4),
@@ -219,6 +251,12 @@ class ShippingLabelGenerator {
               height: 36,
               drawText: true,
             ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            'Anjanam Order Reference (not a carrier barcode)',
+            style: const pw.TextStyle(fontSize: 6.5),
+            textAlign: pw.TextAlign.center,
           ),
           pw.SizedBox(height: 4),
           pw.Row(

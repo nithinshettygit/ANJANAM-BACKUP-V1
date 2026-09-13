@@ -16,6 +16,7 @@ import 'package:ecommerce_app/presentation/utils/storefront_product_navigation.d
 import 'package:ecommerce_app/presentation/widgets/product_card.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:ecommerce_app/presentation/utils/storefront_title_styles.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,6 +33,15 @@ class _CatalogFilterResult {
     required this.inStockOnly,
     required this.sort,
   });
+}
+
+String _localizedSortLabel(BuildContext context, ProductSortOption option) {
+  final localizations = AppLocalizations.of(context);
+  return switch (option) {
+    ProductSortOption.newest => localizations.newestFirst,
+    ProductSortOption.priceLowToHigh => localizations.priceLowToHigh,
+    ProductSortOption.priceHighToLow => localizations.priceHighToLow,
+  };
 }
 
 class CatalogPage extends ConsumerStatefulWidget {
@@ -417,7 +427,7 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                 padding: EdgeInsets.fromLTRB(hPad, kIsWeb ? 16 : 8, hPad, 8),
                 sliver: SliverToBoxAdapter(
                   child: Text(
-                    '${_sort.storefrontLabel} · ${_items.length}${_hasMore ? '+' : ''} shown',
+                    '${_localizedSortLabel(context, _sort)} · ${_items.length}${_hasMore ? '+' : ''} shown',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -603,11 +613,11 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Sort', style: Theme.of(context).textTheme.titleSmall),
+            Text(AppLocalizations.of(context).sort, style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             ...ProductSortOption.values.map(
               (o) => RadioListTile<ProductSortOption>(
-                title: Text(o.storefrontLabel),
+                title: Text(_localizedSortLabel(context, o)),
                 value: o,
                 groupValue: _sort,
                 onChanged: (v) {
@@ -617,15 +627,15 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
               ),
             ),
             const Divider(height: 24),
-            Text('Price (INR)', style: Theme.of(context).textTheme.titleSmall),
+            Text(AppLocalizations.of(context).priceInr, style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _minController,
-                    decoration: const InputDecoration(
-                      labelText: 'Min',
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context).min,
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
@@ -636,8 +646,8 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
                 Expanded(
                   child: TextField(
                     controller: _maxController,
-                    decoration: const InputDecoration(
-                      labelText: 'Max',
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context).max,
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
@@ -648,8 +658,8 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
             ),
             const SizedBox(height: 16),
             SwitchListTile(
-              title: const Text('In stock only'),
-              subtitle: const Text('Hide products with zero inventory'),
+              title: Text(AppLocalizations.of(context).inStockOnly),
+              subtitle: Text(AppLocalizations.of(context).hideZeroInventory),
               value: _inStockOnly,
               onChanged: (v) => setState(() => _inStockOnly = v),
               contentPadding: EdgeInsets.zero,
@@ -659,12 +669,12 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
               children: [
                 TextButton(
                   onPressed: _reset,
-                  child: const Text('Reset'),
+                  child: Text(AppLocalizations.of(context).reset),
                 ),
                 const Spacer(),
                 FilledButton(
                   onPressed: _apply,
-                  child: const Text('Apply'),
+                  child: Text(AppLocalizations.of(context).apply),
                 ),
               ],
             ),

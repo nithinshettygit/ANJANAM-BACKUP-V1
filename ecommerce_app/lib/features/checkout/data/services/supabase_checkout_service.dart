@@ -15,7 +15,8 @@ import '../../domain/repositories/checkout_repository.dart';
 import '../../domain/shipping_details.dart';
 
 /// Supabase-backed checkout service.
-class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRepository {
+class SupabaseCheckoutService extends SupabaseServiceBase
+    implements CheckoutRepository {
   SupabaseCheckoutService(super.client, this._cartRepository);
 
   final CartRepository _cartRepository;
@@ -135,6 +136,9 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
     if (m.contains('invalid_product_price')) {
       return 'A product price could not be applied. Try again or contact support.';
     }
+    if (m.contains('product_tax_configuration_incomplete')) {
+      return 'A product tax configuration needs admin review before it can be purchased.';
+    }
     if (m.contains('variant_required')) {
       return 'Please choose a product option (size/weight/color) for each item.';
     }
@@ -166,7 +170,8 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
   }
 
   /// Per-product delivery modes for legacy fee preview (RPC is source of truth).
-  Future<List<({String mode, double? customFeeInr})>> _loadDeliveryModesForItems(
+  Future<List<({String mode, double? customFeeInr})>>
+      _loadDeliveryModesForItems(
     List<CartItem> items,
   ) async {
     final ids = items
@@ -222,7 +227,8 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       final m = msg.toLowerCase();
       if (m.contains('insufficient_inventory')) {
         CheckoutTelemetry.inventoryInsufficient(hint: msg);
-        throw const ValidationException('Not enough stock for one or more items.');
+        throw const ValidationException(
+            'Not enough stock for one or more items.');
       }
       if (m.contains('product_not_found')) {
         throw const ValidationException(
@@ -242,7 +248,8 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
         throw const ValidationException('Shipping address is required.');
       }
       if (m.contains('invalid_shipping_phone')) {
-        throw const ValidationException('Enter a valid 10-digit mobile number.');
+        throw const ValidationException(
+            'Enter a valid 10-digit mobile number.');
       }
       if (m.contains('invalid_shipping_postal')) {
         throw const ValidationException('Enter a valid 6-digit PIN code.');
@@ -267,6 +274,11 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       if (m.contains('invalid_product_price')) {
         throw const ValidationException(
           'A product price could not be applied. Try again or contact support.',
+        );
+      }
+      if (m.contains('product_tax_configuration_incomplete')) {
+        throw const ValidationException(
+          'A product tax configuration needs admin review before it can be purchased.',
         );
       }
       if (m.contains('variant_required')) {
@@ -297,7 +309,7 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       () => client
           .from('order_items')
           .select(
-            'id, order_id, product_id, variant_id, title, image_urls, unit_price, currency, quantity',
+            'id, order_id, product_id, variant_id, title, image_urls, unit_price, currency, quantity, hsn_code, tax_status, taxable_value, gst_rate, cgst_amount, sgst_amount, igst_amount, price_includes_gst',
           )
           .eq('order_id', orderId),
     );
@@ -315,17 +327,21 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
   }) async {
     final orderStatus = OrderStatus.pendingPayment.toDbValue();
     final insertedOrder = await guard(
-      () => client.from('orders').insert({
-        'user_id': userId,
-        'status': orderStatus,
-        'currency': orderCurrency,
-        'shipping_full_name': shipping.fullName.trim(),
-        'shipping_phone': shipping.phone.trim(),
-        'shipping_address_line': shipping.addressLine.trim(),
-        'shipping_city': shipping.city.trim(),
-        'shipping_postal_code': shipping.postalCode.trim(),
-        'delivery_fee': deliveryFee,
-      }).select('id, user_id, status, currency, created_at, delivery_fee').single(),
+      () => client
+          .from('orders')
+          .insert({
+            'user_id': userId,
+            'status': orderStatus,
+            'currency': orderCurrency,
+            'shipping_full_name': shipping.fullName.trim(),
+            'shipping_phone': shipping.phone.trim(),
+            'shipping_address_line': shipping.addressLine.trim(),
+            'shipping_city': shipping.city.trim(),
+            'shipping_postal_code': shipping.postalCode.trim(),
+            'delivery_fee': deliveryFee,
+          })
+          .select('id, user_id, status, currency, created_at, delivery_fee')
+          .single(),
     );
     final orderId = insertedOrder['id'].toString();
     for (final item in checkoutItems) {
@@ -371,7 +387,8 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       checkoutItems = cart.items.toList();
       clearEntireCart = true;
     } else {
-      var fromCart = cart.items.where((e) => e.productId == buyNowProductId).toList();
+      var fromCart =
+          cart.items.where((e) => e.productId == buyNowProductId).toList();
       final vFilter = buyNowVariantId?.trim();
       if (vFilter != null && vFilter.isNotEmpty) {
         fromCart = fromCart.where((e) => e.variantId == vFilter).toList();
@@ -381,7 +398,8 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       if (fromCart.isNotEmpty) {
         checkoutItems = fromCart;
         removeCartProductId = buyNowProductId;
-        removeCartVariantId = fromCart.length == 1 ? fromCart.first.variantId : vFilter;
+        removeCartVariantId =
+            fromCart.length == 1 ? fromCart.first.variantId : vFilter;
       } else {
         late final Map<String, dynamic> productJson;
         try {
@@ -425,14 +443,16 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
           }
           chosen ??= entity.defaultVariant;
           if (chosen == null) {
-            throw const ValidationException('No variant is available for this product.');
+            throw const ValidationException(
+                'No variant is available for this product.');
           }
           final inv = chosen.sellableStock;
           if (inv != null && inv <= 0) {
             throw const ValidationException('This product is out of stock.');
           }
           if (inv != null && qty > inv) {
-            throw const ValidationException('Requested quantity is not available.');
+            throw const ValidationException(
+                'Requested quantity is not available.');
           }
           final vi = chosen.imageUrl.trim();
           final imgs = vi.isNotEmpty
@@ -458,7 +478,8 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
             throw const ValidationException('This product is out of stock.');
           }
           if (inv != null && qty > inv) {
-            throw const ValidationException('Requested quantity is not available.');
+            throw const ValidationException(
+                'Requested quantity is not available.');
           }
           checkoutItems = [
             CartItem(
@@ -489,8 +510,7 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
     );
 
     final orderCurrency = checkoutItems.first.currency;
-    final subtotal =
-        checkoutItems.fold<double>(0, (s, e) => s + e.lineTotal);
+    final subtotal = checkoutItems.fold<double>(0, (s, e) => s + e.lineTotal);
     final pricing = await _loadPricingRules();
     final deliveryModes = await _loadDeliveryModesForItems(checkoutItems);
     final legacyDelivery = pricing.deliveryForCart(
@@ -578,10 +598,19 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
       throw const RepositoryException('Checkout response missing order id.');
     }
     final orderId = idRaw.toString();
+    if (shipping.state?.trim().isNotEmpty == true) {
+      await client.rpc(
+        'set_order_shipping_state',
+        params: <String, dynamic>{
+          'p_order_id': orderId,
+          'p_shipping_state': shipping.state!.trim(),
+        },
+      );
+    }
     final statusDb = (orderRow['checkout_status'] ??
-            orderRow['order_status'] ??
-            orderRow['status'])
-        ?.toString() ??
+                orderRow['order_status'] ??
+                orderRow['status'])
+            ?.toString() ??
         OrderStatus.pendingPayment.toDbValue();
     final createdAtStr = (orderRow['checkout_created_at'] ??
             orderRow['order_created_at'] ??
@@ -591,8 +620,8 @@ class SupabaseCheckoutService extends SupabaseServiceBase implements CheckoutRep
         ? DateTime.tryParse(createdAtStr) ?? DateTime.now()
         : DateTime.now();
 
-    final deliveryFeeRaw = orderRow['checkout_delivery_fee'] ??
-        orderRow['delivery_fee'];
+    final deliveryFeeRaw =
+        orderRow['checkout_delivery_fee'] ?? orderRow['delivery_fee'];
     final deliveryFee = (deliveryFeeRaw as num?)?.toDouble() ?? legacyDelivery;
 
     final List<OrderItem> orderItems;

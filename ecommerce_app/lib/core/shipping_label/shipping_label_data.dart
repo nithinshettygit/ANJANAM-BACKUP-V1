@@ -10,6 +10,11 @@ class ShippingLabelData {
   final List<String> fromAddressLines;
   /// When set, shown as COD collect amount on the label.
   final double? codAmount;
+  /// Carrier selected for the shipment, when a carrier has been assigned.
+  final String? carrierName;
+  /// Carrier-issued article/AWB/tracking reference, when available.
+  final String? carrierReference;
+  final String? trackingUrl;
   final String barcodeData;
   final String qrData;
 
@@ -22,6 +27,9 @@ class ShippingLabelData {
     required this.shipToLines,
     required this.fromAddressLines,
     this.codAmount,
+    this.carrierName,
+    this.carrierReference,
+    this.trackingUrl,
     required this.barcodeData,
     required this.qrData,
   });

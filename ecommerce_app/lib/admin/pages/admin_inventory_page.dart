@@ -454,6 +454,21 @@ class _AdminInventoryPageState extends ConsumerState<AdminInventoryPage> {
                     cellBuilder: (p) => Text('₹${p.price.toStringAsFixed(2)}'),
                   ),
                   AdminTableColumn<AdminInventoryRow>(
+                    label: 'HSN Code',
+                    sortValue: (p) => p.hsnCode ?? '',
+                    cellBuilder: (p) => Text(p.hsnCode?.trim().isNotEmpty == true ? p.hsnCode! : '—'),
+                  ),
+                  AdminTableColumn<AdminInventoryRow>(
+                    label: 'GST %',
+                    sortValue: (p) => p.gstRate ?? 0,
+                    cellBuilder: (p) {
+                      if (p.taxStatus == 'exempt') return const Text('Exempt');
+                      if (p.taxStatus == 'zero_rated') return const Text('0% (Zero)');
+                      if (p.gstRate != null) return Text('${p.gstRate}%');
+                      return const Text('—');
+                    },
+                  ),
+                  AdminTableColumn<AdminInventoryRow>(
                     label: 'Stock',
                     sortValue: (p) => p.stockQuantity,
                     cellBuilder: (p) => Text(p.stockQuantity.toString()),

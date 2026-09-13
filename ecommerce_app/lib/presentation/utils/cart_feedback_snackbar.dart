@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'main_shell_navigation.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 
 /// Auto-dismiss timing similar to typical e‑commerce apps (e.g. Flipkart).
 const Duration _kAddedToCartSnackDuration = Duration(seconds: 3);
@@ -23,9 +24,10 @@ void showAddedToCartSnackBar(
   BuildContext context, {
   String? productTitle,
 }) {
-  final text = productTitle != null && productTitle.isNotEmpty
-      ? '$productTitle added to cart'
-      : 'Added to cart';
+    final localizations = AppLocalizations.of(context);
+    final text = productTitle != null && productTitle.isNotEmpty
+      ? localizations.addedToCart(productTitle)
+      : localizations.addedToCartGeneric;
   final messenger = ScaffoldMessenger.of(context);
   _cartSnackBackupTimer?.cancel();
   _cartSnackBackupTimer = null;
@@ -44,7 +46,7 @@ void showAddedToCartSnackBar(
             messenger.hideCurrentSnackBar();
             navigateToCartPage(ref, context);
           },
-          child: const Text('Go to Cart'),
+          child: Text(localizations.goToCart),
         ),
       ],
     ),

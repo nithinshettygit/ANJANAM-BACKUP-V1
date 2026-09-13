@@ -9,6 +9,7 @@ import 'package:ecommerce_app/features/wishlist/state/wishlist_provider.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/widgets/order_history_order_card.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'
@@ -123,8 +124,8 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'My Orders',
+        title: Text(
+          AppLocalizations.of(context).myOrders,
           style: TextStyle(
             fontSize: 21,
             fontWeight: FontWeight.w700,
@@ -133,13 +134,13 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: AppLocalizations.of(context).refresh,
             onPressed: () =>
                 ref.read(orderHistoryControllerProvider.notifier).refresh(),
             icon: const Icon(Icons.refresh),
           ),
           IconButton(
-            tooltip: 'Wishlist',
+            tooltip: AppLocalizations.of(context).wishlist,
             iconSize: WishlistHeartSizes.appBar,
             onPressed: () => Navigator.of(context).pushNamed('/wishlist'),
             icon: Badge(
@@ -149,7 +150,7 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
             ),
           ),
           IconButton(
-            tooltip: 'Cart',
+            tooltip: AppLocalizations.of(context).cart,
             onPressed: () => navigateToCartPage(ref, context),
             icon: Badge(
               isLabelVisible: cartItemCount > 0,
@@ -166,7 +167,7 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
             child: SearchBar(
               controller: _searchCtrl,
-              hintText: 'Search by order id, status, or product…',
+              hintText: AppLocalizations.of(context).searchOrders,
               leading: const Icon(Icons.search),
               trailing: [
                 if (_searchCtrl.text.isNotEmpty)
@@ -200,10 +201,12 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
                         ref.read(orderHistoryControllerProvider.notifier).refresh(),
                     child: PageEmptyState(
                       icon: Icons.receipt_long_outlined,
-                      title: hasSearch ? 'No matching orders' : 'No orders yet',
+                        title: hasSearch
+                          ? AppLocalizations.of(context).noMatchingOrders
+                          : AppLocalizations.of(context).noOrdersYet,
                       subtitle: hasSearch
-                          ? 'Try different keywords or clear the search.'
-                          : 'When you place an order, it will show up here.',
+                          ? AppLocalizations.of(context).tryDifferentKeywords
+                          : AppLocalizations.of(context).orderAppearsAfterPlacement,
                       action: FilledButton.tonal(
                         onPressed: () {
                           if (hasSearch) {
@@ -216,7 +219,11 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
                             Navigator.of(context).pushNamed('/catalog');
                           }
                         },
-                        child: Text(hasSearch ? 'Clear search' : 'Start shopping'),
+                        child: Text(
+                          hasSearch
+                              ? AppLocalizations.of(context).clearSearch
+                              : AppLocalizations.of(context).startShopping,
+                        ),
                       ),
                     ),
                   );
@@ -257,12 +264,12 @@ class _OrderHistoryPageState extends ConsumerState<OrderHistoryPage> {
                   ),
                 );
               },
-              loading: () => const PageLoading(message: 'Loading orders...'),
+              loading: () => PageLoading(message: AppLocalizations.of(context).loadingOrders),
               error: (error, _) => PageRefreshableBody(
                 onRefresh: () =>
                     ref.read(orderHistoryControllerProvider.notifier).refresh(),
                 child: PageErrorState(
-                  title: 'Could not load orders',
+                  title: AppLocalizations.of(context).couldNotLoadOrders,
                   message:
                       'Sign in may be required, or try again.\n${error.toString()}',
                   onRetry: () => ref.invalidate(orderHistoryControllerProvider),

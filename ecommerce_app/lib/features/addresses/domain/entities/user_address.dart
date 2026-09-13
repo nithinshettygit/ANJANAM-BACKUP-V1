@@ -38,5 +38,6 @@ class UserAddress {
         ].join(', '),
         city: city,
         postalCode: postalCode,
+        state: state,
       );
 }

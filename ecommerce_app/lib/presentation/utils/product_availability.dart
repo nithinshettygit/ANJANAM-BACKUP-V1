@@ -1,5 +1,6 @@
 import 'package:ecommerce_app/core/constants/stock_constants.dart';
 import 'package:ecommerce_app/features/catalog/domain/entities/product.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 
 /// [inventoryCount] null = not tracked in UI; treat as available.
 bool productIsOutOfStock(Product product) {
@@ -13,9 +14,9 @@ bool productIsLowStock(Product product) {
 }
 
 /// Short label for chips / detail row (null = no extra banner).
-String? productStockBannerText(Product product) {
-  if (productIsOutOfStock(product)) return 'Out of stock';
-  if (productIsLowStock(product)) return 'Only a few left';
+String? productStockBannerText(Product product, AppLocalizations localizations) {
+  if (productIsOutOfStock(product)) return localizations.outOfStock;
+  if (productIsLowStock(product)) return localizations.onlyFewLeft;
   return null;
 }
 

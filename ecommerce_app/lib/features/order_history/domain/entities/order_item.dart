@@ -8,6 +8,14 @@ class OrderItem {
   final double unitPrice;
   final String currency;
   final int quantity;
+  final String? hsnCode;
+  final String? taxStatus;
+  final double? taxableValue;
+  final double? gstRate;
+  final double? cgstAmount;
+  final double? sgstAmount;
+  final double? igstAmount;
+  final bool? priceIncludesGst;
 
   const OrderItem({
     this.orderItemId,
@@ -18,8 +26,15 @@ class OrderItem {
     required this.unitPrice,
     required this.currency,
     required this.quantity,
+    this.hsnCode,
+    this.taxStatus,
+    this.taxableValue,
+    this.gstRate,
+    this.cgstAmount,
+    this.sgstAmount,
+    this.igstAmount,
+    this.priceIncludesGst,
   });
 
   double get lineTotal => unitPrice * quantity;
 }
-

@@ -30,6 +30,7 @@ import 'package:ecommerce_app/presentation/utils/user_facing_error_message.dart'
 import 'package:ecommerce_app/presentation/widgets/app_network_image.dart';
 import 'package:ecommerce_app/presentation/widgets/order_payment_status_badge.dart';
 import 'package:ecommerce_app/presentation/widgets/order_status_chip.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -76,12 +77,12 @@ class OrderDetailsPage extends ConsumerWidget {
       ),
       loading: () => Scaffold(
         appBar: AppBar(title: const Text('Order Details')),
-        body: const PageLoading(message: 'Loading order...'),
+        body: PageLoading(message: AppLocalizations.of(context).loadingOrder),
       ),
       error: (e, _) => Scaffold(
         appBar: AppBar(title: const Text('Order Details')),
         body: PageErrorState(
-          title: 'Could not load order',
+          title: AppLocalizations.of(context).couldNotLoadOrder,
           message: e.toString(),
           onRetry: () => ref.invalidate(orderDetailBundleProvider(orderId)),
         ),
@@ -117,8 +118,7 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
 
   Order get order => widget.bundle.order;
 
-  OrderItem? get _firstLine =>
-      order.items.isEmpty ? null : order.items.first;
+  OrderItem? get _firstLine => order.items.isEmpty ? null : order.items.first;
 
   /// Matches `create_payment_order`: only unpaid Razorpay rows still in
   /// pending/failed payment lifecycle. Must not offer retry after:
@@ -139,8 +139,8 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
 
   String get _retryPaymentMessage =>
       order.paymentStatus == OrderPaymentStatus.failed
-          ? 'Payment failed. You can retry payment.'
-          : 'Payment is pending. You can complete payment with Razorpay.';
+          ? AppLocalizations.of(context).retryPaymentMessage
+          : AppLocalizations.of(context).pendingPaymentMessage;
 
   bool get _retryRazorpayConfigured =>
       ref.read(appEnvProvider).razorpayKeyId.isNotEmpty;
@@ -180,15 +180,15 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
   String _humanDeliveryStatusLabel(String? raw) {
     switch ((raw ?? '').toLowerCase().trim()) {
       case 'created':
-        return 'Created';
+        return AppLocalizations.of(context).created;
       case 'pending':
         return 'Pending';
       case 'assigned':
-        return 'Assigned';
+        return AppLocalizations.of(context).assigned;
       case 'shipped':
         return 'Shipped';
       case 'in_transit':
-        return 'In transit';
+        return AppLocalizations.of(context).inTransit;
       case 'packed':
         return 'Packed';
       case 'out_for_delivery':
@@ -198,9 +198,9 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
       case 'cancelled':
         return 'Cancelled';
       case 'rto_initiated':
-        return 'RTO initiated';
+        return AppLocalizations.of(context).rtoInitiated;
       case 'rto_completed':
-        return 'RTO';
+        return AppLocalizations.of(context).rto;
       case 'failed':
         return 'Failed';
       default:
@@ -400,487 +400,534 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 children: [
-                _OrderHeaderCard(
-                  orderId: order.id,
-                  status: order.status,
-                  orderedAt: order.createdAt,
-                ),
-                const SizedBox(height: 12),
-                _CustomerPaymentInfoCard(order: order),
-                if (_showRetryPaymentSection) ...[
-                  const SizedBox(height: 12),
-                  _RetryPaymentCard(
-                    message: _retryPaymentMessage,
-                    busy: _retryPaymentBusy,
-                    razorpayReady: _retryRazorpayConfigured,
-                    onRetry: () => _onRetryPayment(context),
+                  _OrderHeaderCard(
+                    orderId: order.id,
+                    status: order.status,
+                    orderedAt: order.createdAt,
                   ),
-                ],
-                if (widget.bundle.shipping?.hasStructuredAddress == true) ...[
                   const SizedBox(height: 12),
-                  _DeliverToCard(shipping: widget.bundle.shipping!),
-                ],
-                if (order.status == OrderStatus.cancelRequested) ...[
-                  const SizedBox(height: 12),
-                  Material(
-                    color: scheme.secondaryContainer.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.hourglass_top_outlined, color: scheme.secondary),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Cancellation pending approval. We will notify you when the request is reviewed.',
-                              style: TextStyle(
-                                color: scheme.onSecondaryContainer,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                  _CustomerPaymentInfoCard(order: order),
+                  if (_showRetryPaymentSection) ...[
+                    const SizedBox(height: 12),
+                    _RetryPaymentCard(
+                      message: _retryPaymentMessage,
+                      busy: _retryPaymentBusy,
+                      razorpayReady: _retryRazorpayConfigured,
+                      onRetry: () => _onRetryPayment(context),
                     ),
-                  ),
-                ],
-                if (order.status == OrderStatus.cancelled) ...[
-                  const SizedBox(height: 12),
-                  Material(
-                    color: scheme.errorContainer.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.cancel_outlined, color: scheme.error),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Order cancelled',
-                                  style: TextStyle(
-                                    color: scheme.onErrorContainer,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                  ],
+                  if (widget.bundle.shipping?.hasStructuredAddress == true) ...[
+                    const SizedBox(height: 12),
+                    _DeliverToCard(shipping: widget.bundle.shipping!),
+                  ],
+                  if (order.status == OrderStatus.cancelRequested) ...[
+                    const SizedBox(height: 12),
+                    Material(
+                      color: scheme.secondaryContainer.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.hourglass_top_outlined,
+                                color: scheme.secondary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Cancellation pending approval. We will notify you when the request is reviewed.',
+                                style: TextStyle(
+                                  color: scheme.onSecondaryContainer,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ],
-                          ),
-                          if (order.paymentMethod == OrderPaymentMethod.razorpay) ...[
-                            if (order.paymentStatus == OrderPaymentStatus.refunded) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Payment was refunded. No further payment is needed for this order.',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: scheme.onErrorContainer.withValues(alpha: 0.9),
-                                    ),
-                              ),
-                            ] else if (order.paymentStatus == OrderPaymentStatus.paid) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Refund processing (if applicable). Online refunds are initiated by admin after '
-                                'cancellation is approved; timelines depend on your bank or card issuer.',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: scheme.onErrorContainer.withValues(alpha: 0.9),
-                                    ),
-                              ),
-                            ],
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                KeyedSubtree(
-                  key: _progressSectionKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Order progress',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                      const SizedBox(height: 12),
-                      _OrderProgressTracker(
-                        current: order.status,
-                        pipeline: widget.pipeline,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Timeline',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 10),
-                if (widget.bundle.statusHistory.isEmpty)
-                  Text(
-                    'No status updates yet.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: scheme.outline,
-                        ),
-                  )
-                else
-                  ...widget.bundle.statusHistory.map(
-                    (e) => _TimelineEntry(entry: e),
-                  ),
-                if (_showDualDeliveryCard) ...[
-                  const SizedBox(height: 16),
-                  Card(
-                    key: _shipmentSectionKey,
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.local_shipping_outlined,
-                                  size: 20, color: scheme.primary),
-                              const SizedBox(width: 8),
-                              Text(
-                                dm == 'manual_delivery' ? 'Delivery' : 'Shipment',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          if (dm == 'manual_delivery') ...[
-                            if (order.deliveryPartnerName != null)
-                              _DetailRow(
-                                label: 'Delivery partner',
-                                value: order.deliveryPartnerName!,
-                              ),
-                            if (order.deliveryPartnerPhone != null)
-                              _DetailRow(
-                                label: 'Partner phone',
-                                value: order.deliveryPartnerPhone!,
-                              ),
-                            _DetailRow(
-                              label: 'Delivery status',
-                              value: _humanDeliveryStatusLabel(order.deliveryStatus),
-                            ),
-                          ] else if (dm == 'shiprocket_delivery') ...[
-                            if (order.courierName != null)
-                              _DetailRow(label: 'Courier', value: order.courierName!),
-                            _DetailRow(
-                              label: 'Tracking number',
-                              value: (order.awbCode != null && order.awbCode!.isNotEmpty)
-                                  ? order.awbCode!
-                                  : (order.trackingNumber ?? '—'),
-                            ),
-                            _DetailRow(
-                              label: 'Delivery status',
-                              value: _humanDeliveryStatusLabel(
-                                order.deliveryStatus ?? order.shipmentStatus,
-                              ),
-                            ),
-                            _DetailRow(
-                              label: 'Last updated',
-                              value: _relativeTime(order.lastTrackingUpdate),
-                            ),
-                          ] else if (_showShipmentAwaitingAfterCancel) ...[
-                            Text(
-                              'The courier shipment for this order was cancelled. '
-                              'We will set up shipping again — this page updates automatically when tracking is available.',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                  ),
-                            ),
-                            const SizedBox(height: 10),
-                            _DetailRow(
-                              label: 'Courier status',
-                              value: _humanDeliveryStatusLabel(order.deliveryStatus),
-                            ),
-                            _DetailRow(
-                              label: 'Last updated',
-                              value: _relativeTime(order.lastTrackingUpdate),
                             ),
                           ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ] else if (_legacyShipmentVisible) ...[
-                  const SizedBox(height: 16),
-                  Card(
-                    key: _shipmentSectionKey,
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.local_shipping_outlined,
-                                  size: 20, color: scheme.primary),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Shipment',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          if (order.courierName != null)
-                            _DetailRow(
-                                label: 'Courier', value: order.courierName!),
-                          if (order.trackingNumber != null)
-                            _DetailRow(
-                              label: 'Tracking number',
-                              value: order.trackingNumber!,
-                            ),
-                          if (order.estimatedDeliveryDate != null)
-                            _DetailRow(
-                              label: 'Estimated delivery',
-                              value: formatEstimatedDeliveryDate(
-                                order.estimatedDeliveryDate!,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                Text(
-                  'Items ordered',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                ...order.items.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _OrderLineCard(item: item),
-                        _OrderLineReturnRow(
-                          order: order,
-                          item: item,
-                          returnsList: returnsList,
-                          onOpenRequest: () async {
-                            final oid = item.orderItemId;
-                            if (oid == null || oid.isEmpty) return;
-                            final done = await Navigator.of(context).pushNamed(
-                              '/orders/request-return',
-                              arguments: RequestReturnPageArgs(
-                                orderId: widget.orderId,
-                                orderItemId: oid,
-                                productTitle: item.title,
-                                productImageUrl: item.imageUrls.isNotEmpty
-                                    ? item.imageUrls.first
-                                    : null,
-                              ),
-                            );
-                            if (done == true && context.mounted) {
-                              ref.invalidate(orderReturnsProvider(widget.orderId));
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                returnsAsync.when(
-                  data: (list) {
-                    if (list.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 16),
-                        Text(
-                          'Return & refund status',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        const SizedBox(height: 10),
-                        ...list.map(
-                          (r) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _ReturnTrackingCard(record: r),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-                if (order.items.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Prices shown are what you paid when you ordered; the listing price may have changed since.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                  ),
-                ],
-                if (showReorderReview || showTrack || showShiprocketTrack || canCancel) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (showReorderReview && first != null && first.productId.isNotEmpty)
-                        FilledButton.tonalIcon(
-                          onPressed: () => openBuyNowCheckout(
-                            context,
-                            ref,
-                            productId: first.productId,
-                            quantity: first.quantity < 1 ? 1 : first.quantity,
-                          ),
-                          icon: const Icon(Icons.shopping_bag_outlined, size: 20),
-                          label: const Text('Buy again'),
-                        ),
-                      if (showReorderReview && first != null && first.productId.isNotEmpty)
-                        OutlinedButton.icon(
-                          onPressed: () => Navigator.of(context).pushNamed(
-                            '/reviews/write',
-                            arguments: {
-                              'productId': first.productId,
-                              'productTitle': first.title,
-                            },
-                          ),
-                          icon: const Icon(Icons.rate_review_outlined, size: 20),
-                          label: const Text('Write review'),
-                        ),
-                      if (showShiprocketTrack)
-                        FilledButton.icon(
-                          onPressed: () async {
-                            final u = Uri.tryParse(order.trackingUrl!.trim());
-                            if (u != null && await canLaunchUrl(u)) {
-                              await launchUrl(u, mode: LaunchMode.externalApplication);
-                            }
-                          },
-                          icon: const Icon(Icons.open_in_new, size: 20),
-                          label: const Text('Track shipment'),
-                        ),
-                      if (showTrack)
-                        FilledButton.tonalIcon(
-                          onPressed: () {
-                            final target = hasShipmentSection
-                                ? _shipmentSectionKey.currentContext
-                                : _progressSectionKey.currentContext;
-                            if (target != null) {
-                              Scrollable.ensureVisible(
-                                target,
-                                duration: const Duration(milliseconds: 380),
-                                curve: Curves.easeOutCubic,
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.track_changes_outlined, size: 20),
-                          label: const Text('Track order'),
-                        ),
-                      if (canCancel)
-                        OutlinedButton.icon(
-                          onPressed: _cancelling
-                              ? null
-                              : () => _onCancelTap(
-                                    context,
-                                    requestReview: canRequestCancel,
+                  ],
+                  if (order.status == OrderStatus.cancelled) ...[
+                    const SizedBox(height: 12),
+                    Material(
+                      color: scheme.errorContainer.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.cancel_outlined,
+                                    color: scheme.error),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Order cancelled',
+                                    style: TextStyle(
+                                      color: scheme.onErrorContainer,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                          icon: _cancelling
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.cancel_outlined),
-                          label: Text(
-                            _cancelling
-                                ? (canRequestCancel ? 'Submitting…' : 'Cancelling…')
-                                : (canRequestCancel
-                                    ? 'Request cancellation'
-                                    : 'Cancel order'),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: scheme.error,
-                            side: BorderSide(color: scheme.error.withValues(alpha: 0.5)),
-                          ),
+                                ),
+                              ],
+                            ),
+                            if (order.paymentMethod ==
+                                OrderPaymentMethod.razorpay) ...[
+                              if (order.paymentStatus ==
+                                  OrderPaymentStatus.refunded) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Payment was refunded. No further payment is needed for this order.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: scheme.onErrorContainer
+                                            .withValues(alpha: 0.9),
+                                      ),
+                                ),
+                              ] else if (order.paymentStatus ==
+                                  OrderPaymentStatus.paid) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Refund processing (if applicable). Online refunds are initiated by admin after '
+                                  'cancellation is approved; timelines depend on your bank or card issuer.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: scheme.onErrorContainer
+                                            .withValues(alpha: 0.9),
+                                      ),
+                                ),
+                              ],
+                            ],
+                          ],
                         ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 20),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  KeyedSubtree(
+                    key: _progressSectionKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          'Price details',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
+                          'Order progress',
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                         ),
                         const SizedBox(height: 12),
-                        _PriceRow(
-                          label: 'Items total',
-                          value: formatRupee(order.subtotal),
-                          valueColor: AppColors.priceText,
-                        ),
-                        _PriceRow(
-                          label: 'Delivery fee',
-                          value: (order.deliveryFee ?? 0) <= 0
-                              ? 'FREE'
-                              : formatRupee(order.deliveryFee!),
-                          valueColor: (order.deliveryFee ?? 0) <= 0
-                              ? null
-                              : AppColors.priceText,
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 10),
-                          child: Divider(height: 1),
-                        ),
-                        _PriceRow(
-                          label: 'Total paid',
-                          value: formatRupee(order.grandTotal),
-                          emphasize: true,
-                          valueColor: AppColors.priceText,
+                        _OrderProgressTracker(
+                          current: order.status,
+                          pipeline: widget.pipeline,
                         ),
                       ],
                     ),
                   ),
-                ),
-                if (order.items.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _onDownloadInvoice(context),
-                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
-                      label: const Text('Download Invoice'),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Timeline',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (widget.bundle.statusHistory.isEmpty)
+                    Text(
+                      'No status updates yet.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: scheme.outline,
+                          ),
+                    )
+                  else
+                    ...widget.bundle.statusHistory.map(
+                      (e) => _TimelineEntry(entry: e),
+                    ),
+                  if (_showDualDeliveryCard) ...[
+                    const SizedBox(height: 16),
+                    Card(
+                      key: _shipmentSectionKey,
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.local_shipping_outlined,
+                                    size: 20, color: scheme.primary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  dm == 'manual_delivery'
+                                      ? 'Delivery'
+                                      : 'Shipment',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (dm == 'manual_delivery') ...[
+                              if (order.deliveryPartnerName != null)
+                                _DetailRow(
+                                  label: 'Delivery partner',
+                                  value: order.deliveryPartnerName!,
+                                ),
+                              if (order.deliveryPartnerPhone != null)
+                                _DetailRow(
+                                  label: 'Partner phone',
+                                  value: order.deliveryPartnerPhone!,
+                                ),
+                              _DetailRow(
+                                label: 'Delivery status',
+                                value: _humanDeliveryStatusLabel(
+                                    order.deliveryStatus),
+                              ),
+                            ] else if (dm == 'shiprocket_delivery') ...[
+                              if (order.courierName != null)
+                                _DetailRow(
+                                    label: 'Courier',
+                                    value: order.courierName!),
+                              _DetailRow(
+                                label: 'Tracking number',
+                                value: (order.awbCode != null &&
+                                        order.awbCode!.isNotEmpty)
+                                    ? order.awbCode!
+                                    : (order.trackingNumber ?? '—'),
+                              ),
+                              _DetailRow(
+                                label: 'Delivery status',
+                                value: _humanDeliveryStatusLabel(
+                                  order.deliveryStatus ?? order.shipmentStatus,
+                                ),
+                              ),
+                              _DetailRow(
+                                label: 'Last updated',
+                                value: _relativeTime(order.lastTrackingUpdate),
+                              ),
+                            ] else if (_showShipmentAwaitingAfterCancel) ...[
+                              Text(
+                                'The courier shipment for this order was cancelled. '
+                                'We will set up shipping again — this page updates automatically when tracking is available.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                              ),
+                              const SizedBox(height: 10),
+                              _DetailRow(
+                                label: 'Courier status',
+                                value: _humanDeliveryStatusLabel(
+                                    order.deliveryStatus),
+                              ),
+                              _DetailRow(
+                                label: 'Last updated',
+                                value: _relativeTime(order.lastTrackingUpdate),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ] else if (_legacyShipmentVisible) ...[
+                    const SizedBox(height: 16),
+                    Card(
+                      key: _shipmentSectionKey,
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.local_shipping_outlined,
+                                    size: 20, color: scheme.primary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Shipment',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (order.courierName != null)
+                              _DetailRow(
+                                  label: 'Courier', value: order.courierName!),
+                            if (order.trackingNumber != null)
+                              _DetailRow(
+                                label: 'Tracking number',
+                                value: order.trackingNumber!,
+                              ),
+                            if (order.estimatedDeliveryDate != null)
+                              _DetailRow(
+                                label: 'Estimated delivery',
+                                value: formatEstimatedDeliveryDate(
+                                  order.estimatedDeliveryDate!,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Text(
+                    'Items ordered',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...order.items.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _OrderLineCard(item: item),
+                          _OrderLineReturnRow(
+                            order: order,
+                            item: item,
+                            returnsList: returnsList,
+                            onOpenRequest: () async {
+                              final oid = item.orderItemId;
+                              if (oid == null || oid.isEmpty) return;
+                              final done =
+                                  await Navigator.of(context).pushNamed(
+                                '/orders/request-return',
+                                arguments: RequestReturnPageArgs(
+                                  orderId: widget.orderId,
+                                  orderItemId: oid,
+                                  productTitle: item.title,
+                                  productImageUrl: item.imageUrls.isNotEmpty
+                                      ? item.imageUrls.first
+                                      : null,
+                                ),
+                              );
+                              if (done == true && context.mounted) {
+                                ref.invalidate(
+                                    orderReturnsProvider(widget.orderId));
+                              }
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ],
-                const SizedBox(height: 24),
+                  returnsAsync.when(
+                    data: (list) {
+                      if (list.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 16),
+                          Text(
+                            'Return & refund status',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 10),
+                          ...list.map(
+                            (r) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ReturnTrackingCard(record: r),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
+                  if (order.items.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Prices shown are what you paid when you ordered; the listing price may have changed since.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                  if (showReorderReview ||
+                      showTrack ||
+                      showShiprocketTrack ||
+                      canCancel) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (showReorderReview &&
+                            first != null &&
+                            first.productId.isNotEmpty)
+                          FilledButton.tonalIcon(
+                            onPressed: () => openBuyNowCheckout(
+                              context,
+                              ref,
+                              productId: first.productId,
+                              quantity: first.quantity < 1 ? 1 : first.quantity,
+                            ),
+                            icon: const Icon(Icons.shopping_bag_outlined,
+                                size: 20),
+                            label: const Text('Buy again'),
+                          ),
+                        if (showReorderReview &&
+                            first != null &&
+                            first.productId.isNotEmpty)
+                          OutlinedButton.icon(
+                            onPressed: () => Navigator.of(context).pushNamed(
+                              '/reviews/write',
+                              arguments: {
+                                'productId': first.productId,
+                                'productTitle': first.title,
+                              },
+                            ),
+                            icon: const Icon(Icons.rate_review_outlined,
+                                size: 20),
+                            label: const Text('Write review'),
+                          ),
+                        if (showShiprocketTrack)
+                          FilledButton.icon(
+                            onPressed: () async {
+                              final u = Uri.tryParse(order.trackingUrl!.trim());
+                              if (u != null && await canLaunchUrl(u)) {
+                                await launchUrl(u,
+                                    mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            icon: const Icon(Icons.open_in_new, size: 20),
+                            label: const Text('Track shipment'),
+                          ),
+                        if (showTrack)
+                          FilledButton.tonalIcon(
+                            onPressed: () {
+                              final target = hasShipmentSection
+                                  ? _shipmentSectionKey.currentContext
+                                  : _progressSectionKey.currentContext;
+                              if (target != null) {
+                                Scrollable.ensureVisible(
+                                  target,
+                                  duration: const Duration(milliseconds: 380),
+                                  curve: Curves.easeOutCubic,
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.track_changes_outlined,
+                                size: 20),
+                            label: const Text('Track order'),
+                          ),
+                        if (canCancel)
+                          OutlinedButton.icon(
+                            onPressed: _cancelling
+                                ? null
+                                : () => _onCancelTap(
+                                      context,
+                                      requestReview: canRequestCancel,
+                                    ),
+                            icon: _cancelling
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.cancel_outlined),
+                            label: Text(
+                              _cancelling
+                                  ? (canRequestCancel
+                                      ? 'Submitting…'
+                                      : 'Cancelling…')
+                                  : (canRequestCancel
+                                      ? 'Request cancellation'
+                                      : 'Cancel order'),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: scheme.error,
+                              side: BorderSide(
+                                  color: scheme.error.withValues(alpha: 0.5)),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Price details',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 12),
+                          _PriceRow(
+                            label: 'Items total',
+                            value: formatRupee(order.subtotal),
+                            valueColor: AppColors.priceText,
+                          ),
+                          _PriceRow(
+                            label: 'Delivery fee',
+                            value: (order.deliveryFee ?? 0) <= 0
+                                ? 'FREE'
+                                : formatRupee(order.deliveryFee!),
+                            valueColor: (order.deliveryFee ?? 0) <= 0
+                                ? null
+                                : AppColors.priceText,
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Divider(height: 1),
+                          ),
+                          _PriceRow(
+                            label: 'Total paid',
+                            value: formatRupee(order.grandTotal),
+                            emphasize: true,
+                            valueColor: AppColors.priceText,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (order.items.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _onDownloadInvoice(context),
+                        icon:
+                            const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                        label: const Text('Download Invoice'),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -936,7 +983,8 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
       if (!mounted) return 'pending';
       try {
         if (kIsWeb) {
-          orderPaymentWebConsoleLog('Retry polling payment status for: $orderId');
+          orderPaymentWebConsoleLog(
+              'Retry polling payment status for: $orderId');
         }
         final status = await paymentSvc.getPaymentStatus(orderId: orderId);
         if (kIsWeb) {
@@ -1051,9 +1099,10 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
       }
 
       try {
-        rzpCheckoutOrderId =
-            await paymentSvc.tryCreateRazorpayServerOrder(orderId: widget.orderId);
-        if (kIsWeb && (rzpCheckoutOrderId == null || rzpCheckoutOrderId.trim().isEmpty)) {
+        rzpCheckoutOrderId = await paymentSvc.tryCreateRazorpayServerOrder(
+            orderId: widget.orderId);
+        if (kIsWeb &&
+            (rzpCheckoutOrderId == null || rzpCheckoutOrderId.trim().isEmpty)) {
           throw const RepositoryException(
             'Could not start secure payment session. Please try again.',
           );
@@ -1079,43 +1128,43 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
       }
 
       unawaited(() async {
-          try {
-            final status = await _pollRetryPaymentStatus(orderId: widget.orderId);
-            if (paymentResolved) return;
-            if (status == 'paid') {
-              await markPaidUi();
-              return;
-            }
-            if (status == 'failed') {
-              await markFailedUi('Payment failed. Please try again.');
-              return;
-            }
-            if (status == 'timeout') {
-              if (!context.mounted || paymentResolved) return;
-              paymentResolved = true;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  behavior: SnackBarBehavior.fixed,
-                  content: Text('Payment pending, we will update shortly'),
-                ),
-              );
-              if (!completer.isCompleted) completer.complete();
-            }
-          } on AuthException {
+        try {
+          final status = await _pollRetryPaymentStatus(orderId: widget.orderId);
+          if (paymentResolved) return;
+          if (status == 'paid') {
+            await markPaidUi();
+            return;
+          }
+          if (status == 'failed') {
+            await markFailedUi('Payment failed. Please try again.');
+            return;
+          }
+          if (status == 'timeout') {
             if (!context.mounted || paymentResolved) return;
             paymentResolved = true;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 behavior: SnackBarBehavior.fixed,
-                content: Text('Session expired, please login again'),
+                content: Text('Payment pending, we will update shortly'),
               ),
             );
-            Navigator.of(context).pushNamed('/login');
             if (!completer.isCompleted) completer.complete();
-          } catch (_) {
-            // Poll loop already tolerates transient failures.
           }
-        }());
+        } on AuthException {
+          if (!context.mounted || paymentResolved) return;
+          paymentResolved = true;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              behavior: SnackBarBehavior.fixed,
+              content: Text('Session expired, please login again'),
+            ),
+          );
+          Navigator.of(context).pushNamed('/login');
+          if (!completer.isCompleted) completer.complete();
+        } catch (_) {
+          // Poll loop already tolerates transient failures.
+        }
+      }());
 
       svc.openCheckout(
         amountPaise: (order.grandTotal * 100).round(),
@@ -1123,7 +1172,8 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
         customerEmail: userEmail,
         customerContact: phone,
         razorpayOrderId: rzpCheckoutOrderId,
-        onPaymentSuccess: (paymentId, razorpayOrderId, razorpaySignature) async {
+        onPaymentSuccess:
+            (paymentId, razorpayOrderId, razorpaySignature) async {
           if (paymentResolved) return;
           try {
             await paymentSvc.verifyRazorpayPaymentAndMarkPaid(
@@ -1201,12 +1251,12 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
       final bytes = await gen.generateInvoicePdf(
         order,
         order.items,
-        shipping: widget.bundle.shipping,
+            shipping: widget.bundle.shipping,
       );
       if (!context.mounted) return;
       await previewInvoicePdf(
         bytes,
-        name: 'invoice_${formatOrderIdDisplay(order.id)}',
+        name: 'ANJANAM-INV-${formatOrderIdDisplay(order.id)}',
       );
     } catch (e, st) {
       debugPrint('Invoice: $e\n$st');
@@ -1218,7 +1268,8 @@ class _OrderDetailsBodyState extends ConsumerState<_OrderDetailsBody> {
     }
   }
 
-  Future<void> _onCancelTap(BuildContext context, {required bool requestReview}) async {
+  Future<void> _onCancelTap(BuildContext context,
+      {required bool requestReview}) async {
     final reason = await showDialog<String?>(
       context: context,
       builder: (ctx) {
@@ -1368,7 +1419,8 @@ class _DeliverToCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.location_on_outlined, size: 22, color: scheme.primary),
+                Icon(Icons.location_on_outlined,
+                    size: 22, color: scheme.primary),
                 const SizedBox(width: 8),
                 Text(
                   'Deliver to',
@@ -1389,7 +1441,8 @@ class _DeliverToCard extends StatelessWidget {
               ),
               const SizedBox(height: 10),
             ],
-            if (shipping.phone != null && shipping.phone!.trim().isNotEmpty) ...[
+            if (shipping.phone != null &&
+                shipping.phone!.trim().isNotEmpty) ...[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1549,7 +1602,8 @@ class _OrderProgressTrackerState extends State<_OrderProgressTracker>
           const SizedBox(height: 10),
           Row(
             children: [
-              Icon(Icons.hourglass_top_outlined, size: 20, color: scheme.secondary),
+              Icon(Icons.hourglass_top_outlined,
+                  size: 20, color: scheme.secondary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1696,8 +1750,8 @@ class _ProgressStepDot extends StatelessWidget {
     final muted = scheme.surfaceContainerHighest;
     final trackBorder = scheme.outlineVariant;
 
-    final bool showCheck = kind == _ProgressStepKind.completed ||
-        kind == _ProgressStepKind.active;
+    final bool showCheck =
+        kind == _ProgressStepKind.completed || kind == _ProgressStepKind.active;
     final bool isActive = kind == _ProgressStepKind.active;
 
     final Color fill;
@@ -1882,7 +1936,8 @@ class _CustomerPaymentInfoCard extends StatelessWidget {
                   Expanded(
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: OrderPaymentStatusBadge(status: order.paymentStatus),
+                      child:
+                          OrderPaymentStatusBadge(status: order.paymentStatus),
                     ),
                   ),
                 ],
@@ -2154,7 +2209,8 @@ class _OrderLineReturnRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = ReturnsService.activeReturnForItem(returnsList, item.orderItemId ?? '');
+    final active =
+        ReturnsService.activeReturnForItem(returnsList, item.orderItemId ?? '');
     if (active != null) return const SizedBox.shrink();
     final block = ReturnsService.customerReturnBlockMessage(
       order: order,
@@ -2273,7 +2329,10 @@ class _ReturnTrackingCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'New item delivery',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 6),
               ...forwardSteps.map((s) => _stepRow(context, s)),
@@ -2281,7 +2340,8 @@ class _ReturnTrackingCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    final u = Uri.tryParse(replacementCase.forwardTrackingUrl!.trim());
+                    final u = Uri.tryParse(
+                        replacementCase.forwardTrackingUrl!.trim());
                     if (u != null && await canLaunchUrl(u)) {
                       await launchUrl(u, mode: LaunchMode.externalApplication);
                     }
@@ -2293,7 +2353,10 @@ class _ReturnTrackingCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 'Old item pickup',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 6),
               ...reverseSteps.map((s) => _stepRow(context, s)),
@@ -2301,7 +2364,8 @@ class _ReturnTrackingCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    final u = Uri.tryParse(replacementCase.reverseTrackingUrl!.trim());
+                    final u = Uri.tryParse(
+                        replacementCase.reverseTrackingUrl!.trim());
                     if (u != null && await canLaunchUrl(u)) {
                       await launchUrl(u, mode: LaunchMode.externalApplication);
                     }
@@ -2336,7 +2400,7 @@ class _ReturnTrackingCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-              'Replacement declined',
+                'Replacement declined',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: scheme.onErrorContainer,
@@ -2363,15 +2427,18 @@ class _ReturnTrackingCard extends StatelessWidget {
       const _ReturnStep('Return requested', true),
       _ReturnStep(
         'Return approved',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.approved),
+        _refundRank(record.status) >=
+            _refundRank(ReturnWorkflowStatus.approved),
       ),
       _ReturnStep(
         'Item picked up',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.pickedUp),
+        _refundRank(record.status) >=
+            _refundRank(ReturnWorkflowStatus.pickedUp),
       ),
       _ReturnStep(
         'Item returned',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.returned),
+        _refundRank(record.status) >=
+            _refundRank(ReturnWorkflowStatus.returned),
       ),
       _ReturnStep(
         'Refund in progress',
@@ -2379,7 +2446,8 @@ class _ReturnTrackingCard extends StatelessWidget {
       ),
       _ReturnStep(
         'Refund completed',
-        _refundRank(record.status) >= _refundRank(ReturnWorkflowStatus.refundCompleted),
+        _refundRank(record.status) >=
+            _refundRank(ReturnWorkflowStatus.refundCompleted),
       ),
     ];
 
@@ -2403,14 +2471,16 @@ class _ReturnTrackingCard extends StatelessWidget {
                     color: scheme.onSurfaceVariant,
                   ),
             ),
-            if (record.pickupNotes != null && record.pickupNotes!.trim().isNotEmpty) ...[
+            if (record.pickupNotes != null &&
+                record.pickupNotes!.trim().isNotEmpty) ...[
               const SizedBox(height: 10),
               Text(
                 'Pickup: ${record.pickupNotes!.trim()}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
-            if (refund != null && refund.status != RefundWorkflowStatus.refundCompleted) ...[
+            if (refund != null &&
+                refund.status != RefundWorkflowStatus.refundCompleted) ...[
               const SizedBox(height: 8),
               Text(
                 'Refund: ${refund.status.displayLabel} · ${formatRupee(refund.refundAmount)} via ${refund.method.displayLabel}',
@@ -2428,7 +2498,9 @@ class _ReturnTrackingCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      s.done ? Icons.check_circle : Icons.radio_button_unchecked,
+                      s.done
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
                       size: 20,
                       color: s.done ? scheme.primary : scheme.outline,
                     ),
@@ -2437,8 +2509,11 @@ class _ReturnTrackingCard extends StatelessWidget {
                       child: Text(
                         s.label,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: s.done ? scheme.onSurface : scheme.onSurfaceVariant,
-                              fontWeight: s.done ? FontWeight.w600 : FontWeight.w400,
+                              color: s.done
+                                  ? scheme.onSurface
+                                  : scheme.onSurfaceVariant,
+                              fontWeight:
+                                  s.done ? FontWeight.w600 : FontWeight.w400,
                             ),
                       ),
                     ),

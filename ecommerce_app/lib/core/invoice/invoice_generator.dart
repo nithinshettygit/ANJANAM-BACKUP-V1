@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:ecommerce_app/core/formatting/inr_format.dart' show formatInrAmountPdfSafe;
+import 'package:ecommerce_app/core/formatting/inr_format.dart'
+    show formatInrAmountPdfSafe;
+import 'package:ecommerce_app/core/document_settings/document_settings.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_item.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order_shipping_info.dart';
@@ -8,7 +10,7 @@ import 'package:ecommerce_app/presentation/utils/order_details_format.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 export 'invoice_preview.dart';
 
@@ -18,23 +20,19 @@ class InvoiceGenerator {
   InvoiceGenerator();
 
   static const String _brandName = 'Anjanam';
-  static const String _brandTagline = 'Internal delivery invoice';
-  static const String _brandPhone = '+91 81291 07108';
-  static const String _brandEmail = 'support.anjanam@gmail.com';
+  static const String _brandTagline = 'Commercial invoice';
   static const int _maxInvoiceItemRows = 8;
-
-  static const String _warehouseLine1 = 'Anjanam Warehouse';
-  static const String _warehouseLine2 = 'Perne Village, Perne Post';
-  static const String _warehouseLine3 = 'Bantwal Taluk, D.K.';
-  static const String _warehouseLine4 = 'Karnataka, India 574325';
 
   /// Generates PDF bytes. Pass [shipping] when available so the bill-to block is complete.
   Future<Uint8List> generateInvoicePdf(
     Order order,
     List<OrderItem> items, {
     OrderShippingInfo? shipping,
+    DocumentSettings? settingsOverride,
   }) async {
     final doc = pw.Document();
+    final settings = settingsOverride ??
+        await DocumentSettingsService(Supabase.instance.client).fetch();
     final theme = await _buildInvoicePdfTheme();
     final logo = await _loadInvoiceLogo();
 
@@ -57,7 +55,7 @@ class InvoiceGenerator {
         build: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            _header(logo: logo),
+            _header(logo: logo, settings: settings),
             pw.SizedBox(height: 8),
             _invoiceMeta(
               invoiceNo: invoiceNo,
@@ -66,7 +64,7 @@ class InvoiceGenerator {
               orderDate: orderDate,
             ),
             pw.SizedBox(height: 8),
-            _addressBlocks(shippingInfo),
+            _addressBlocks(shippingInfo, settings),
             pw.SizedBox(height: 8),
             _sectionTitle('Products'),
             _itemsTable(items),
@@ -75,8 +73,9 @@ class InvoiceGenerator {
             _summaryRows(order),
             pw.SizedBox(height: 6),
             pw.Text(
-              'Prices are inclusive of all taxes.',
-              style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700),
+              'Tax is calculated from the product configuration captured at order time.',
+              style:
+                  const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700),
             ),
             pw.SizedBox(height: 8),
             _sectionTitle('Payment Information'),
@@ -103,18 +102,33 @@ class InvoiceGenerator {
     }
   }
 
-  /// Load Unicode-capable fonts so invoice text renders for Kannada/Hindi/etc.
-  /// Falls back to default PDF fonts if font download/loading fails.
+  /// Load bundled Unicode-capable fonts so invoice text renders offline.
   Future<pw.ThemeData?> _buildInvoicePdfTheme() async {
     try {
-      final base = await PdfGoogleFonts.notoSansRegular();
-      final bold = await PdfGoogleFonts.notoSansBold();
-      final italic = await PdfGoogleFonts.notoSansItalic();
-      final boldItalic = await PdfGoogleFonts.notoSansBoldItalic();
-      final devanagari = await PdfGoogleFonts.notoSansDevanagariRegular();
-      final devanagariBold = await PdfGoogleFonts.notoSansDevanagariBold();
-      final kannada = await PdfGoogleFonts.notoSansKannadaRegular();
-      final kannadaBold = await PdfGoogleFonts.notoSansKannadaBold();
+      final base = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSans-Regular.ttf'),
+      );
+      final bold = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSans-Bold.ttf'),
+      );
+      final italic = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSans-Italic.ttf'),
+      );
+      final boldItalic = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSans-BoldItalic.ttf'),
+      );
+      final kannada = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSansKannada-Regular.ttf'),
+      );
+      final kannadaBold = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSansKannada-Bold.ttf'),
+      );
+      final devanagari = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSansDevanagari-Regular.ttf'),
+      );
+      final devanagariBold = pw.Font.ttf(
+        await rootBundle.load('assets/fonts/NotoSansDevanagari-Bold.ttf'),
+      );
 
       return pw.ThemeData.withFont(
         base: base,
@@ -133,7 +147,8 @@ class InvoiceGenerator {
     }
   }
 
-  pw.Widget _header({pw.MemoryImage? logo}) {
+  pw.Widget _header(
+      {pw.MemoryImage? logo, required DocumentSettings settings}) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(10),
       decoration: pw.BoxDecoration(
@@ -162,7 +177,8 @@ class InvoiceGenerator {
               ),
               child: pw.Text(
                 'A',
-                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
               ),
             ),
           pw.SizedBox(width: 10),
@@ -171,14 +187,22 @@ class InvoiceGenerator {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  _brandName,
-                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+                  settings.sellerLegalName,
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(height: 2),
                 pw.Text(_brandTagline, style: const pw.TextStyle(fontSize: 9)),
                 pw.SizedBox(height: 6),
-                pw.Text('Phone: $_brandPhone', style: const pw.TextStyle(fontSize: 9)),
-                pw.Text('Email: $_brandEmail', style: const pw.TextStyle(fontSize: 9)),
+                pw.Text('Phone: ${settings.sellerPhone}',
+                    style: const pw.TextStyle(fontSize: 9)),
+                pw.Text('Email: ${settings.sellerEmail}',
+                    style: const pw.TextStyle(fontSize: 9)),
+                for (final line in _addressLines(settings.sellerAddress))
+                  pw.Text(line, style: const pw.TextStyle(fontSize: 8)),
+                if (settings.sellerGstin != null)
+                  pw.Text('GSTIN: ${settings.sellerGstin}',
+                      style: const pw.TextStyle(fontSize: 8)),
               ],
             ),
           ),
@@ -241,12 +265,14 @@ class InvoiceGenerator {
       decoration: const pw.BoxDecoration(color: PdfColors.grey300),
       child: pw.Text(
         text.toUpperCase(),
-        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, letterSpacing: 0.5),
+        style: pw.TextStyle(
+            fontSize: 9, fontWeight: pw.FontWeight.bold, letterSpacing: 0.5),
       ),
     );
   }
 
-  pw.Widget _addressBlocks(_ShippingAddress shipping) {
+  pw.Widget _addressBlocks(
+      _ShippingAddress shipping, DocumentSettings settings) {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -265,6 +291,7 @@ class InvoiceGenerator {
             title: 'Deliver To',
             lines: [
               ['Address', shipping.address],
+              ['City', shipping.city],
               ['Pincode', shipping.pincode],
               ['State', shipping.state],
             ],
@@ -274,11 +301,8 @@ class InvoiceGenerator {
         pw.Expanded(
           child: _addressCard(
             title: 'Warehouse / Return Address',
-            lines: const [
-              ['', _warehouseLine1],
-              ['', _warehouseLine2],
-              ['', _warehouseLine3],
-              ['', _warehouseLine4],
+            lines: [
+              for (final line in settings.labelFromAddressLines) ['', line],
             ],
           ),
         ),
@@ -298,7 +322,9 @@ class InvoiceGenerator {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(title, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+          pw.Text(title,
+              style:
+                  pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 4),
           for (final line in lines)
             pw.Padding(
@@ -321,29 +347,42 @@ class InvoiceGenerator {
             i.title,
             '${i.quantity}',
             _money(i.unitPrice),
+            i.hsnCode ?? '-',
+            i.gstRate == null ? '-' : '${i.gstRate}%',
+            _money(i.taxableValue ?? i.lineTotal),
             _money(i.lineTotal),
           ],
         )
         .toList();
     if (overflowCount > 0) {
-      final hiddenQty = items.skip(_maxInvoiceItemRows).fold<int>(0, (sum, i) => sum + i.quantity);
-      final hiddenTotal =
-          items.skip(_maxInvoiceItemRows).fold<double>(0, (sum, i) => sum + i.lineTotal);
+      final hiddenQty = items
+          .skip(_maxInvoiceItemRows)
+          .fold<int>(0, (sum, i) => sum + i.quantity);
+      final hiddenTotal = items
+          .skip(_maxInvoiceItemRows)
+          .fold<double>(0, (sum, i) => sum + i.lineTotal);
       data.add([
         '+ $overflowCount more item(s)',
         '$hiddenQty',
         '-',
+        '-',
+        '-',
+        _money(hiddenTotal),
         _money(hiddenTotal),
       ]);
     }
 
+    final headers = <String>[
+      'Item Name',
+      'Quantity',
+      'Unit Price',
+      'HSN',
+      'GST',
+      'Taxable Value',
+      'Total',
+    ];
     return pw.TableHelper.fromTextArray(
-      headers: const [
-        'Item Name',
-        'Quantity',
-        'Unit Price',
-        'Total',
-      ],
+      headers: headers,
       data: data,
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
@@ -366,6 +405,15 @@ class InvoiceGenerator {
     const discount = 0.0;
     final shipping = order.deliveryFee ?? 0.0;
     final total = order.grandTotal;
+    final taxableSubtotal = order.items.fold<double>(
+        0, (sum, item) => sum + (item.taxableValue ?? item.lineTotal));
+    final cgst = order.items
+        .fold<double>(0, (sum, item) => sum + (item.cgstAmount ?? 0));
+    final sgst = order.items
+        .fold<double>(0, (sum, item) => sum + (item.sgstAmount ?? 0));
+    final igst = order.items
+        .fold<double>(0, (sum, item) => sum + (item.igstAmount ?? 0));
+    final totalTax = cgst + sgst + igst;
     return pw.Row(
       children: [
         pw.Spacer(),
@@ -377,9 +425,18 @@ class InvoiceGenerator {
           ),
           child: pw.Column(
             children: [
-              _summaryLine('Subtotal', _money(subtotal)),
+              _summaryLine(
+                'Item Total',
+                _money(subtotal),
+              ),
               _summaryLine('Discount', _money(discount)),
-              _summaryLine('Shipping Charges', shipping <= 0 ? 'FREE' : _money(shipping)),
+              _summaryLine('Shipping Charges',
+                  shipping <= 0 ? 'FREE' : _money(shipping)),
+              _summaryLine('Taxable Value', _money(taxableSubtotal)),
+              if (cgst > 0) _summaryLine('CGST', _money(cgst)),
+              if (sgst > 0) _summaryLine('SGST', _money(sgst)),
+              if (igst > 0) _summaryLine('IGST', _money(igst)),
+              if (totalTax > 0) _summaryLine('Total Tax', _money(totalTax)),
               pw.Divider(thickness: 0.5, color: PdfColors.black),
               _summaryLine('Final Total', _money(total), bold: true),
             ],
@@ -400,7 +457,8 @@ class InvoiceGenerator {
         children: [
           _kvLine('Payment Method', payment.method),
           _kvLine('Payment Status', payment.status),
-          if (payment.reference != null) _kvLine('Reference', payment.reference!),
+          if (payment.reference != null)
+            _kvLine('Reference', payment.reference!),
         ],
       ),
     );
@@ -428,7 +486,8 @@ class InvoiceGenerator {
               children: [
                 pw.Text(
                   'Scan to open order',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                  style:
+                      pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
                 ),
                 pw.SizedBox(height: 4),
                 pw.Text(orderUrl, style: const pw.TextStyle(fontSize: 7.8)),
@@ -445,7 +504,8 @@ class InvoiceGenerator {
       margin: const pw.EdgeInsets.only(top: 4),
       padding: const pw.EdgeInsets.only(top: 6),
       decoration: const pw.BoxDecoration(
-        border: pw.Border(top: pw.BorderSide(color: PdfColors.black, width: 0.7)),
+        border:
+            pw.Border(top: pw.BorderSide(color: PdfColors.black, width: 0.7)),
       ),
       child: pw.Column(
         children: [
@@ -456,7 +516,7 @@ class InvoiceGenerator {
           ),
           pw.SizedBox(height: 2),
           pw.Text(
-            'For internal use only.',
+            'Generated from the order record.',
             style: const pw.TextStyle(fontSize: 8),
             textAlign: pw.TextAlign.center,
           ),
@@ -471,7 +531,8 @@ class InvoiceGenerator {
     );
   }
 
-  static pw.TextStyle _labelStyle() => const pw.TextStyle(fontSize: 8.8, color: PdfColors.grey800);
+  static pw.TextStyle _labelStyle() =>
+      const pw.TextStyle(fontSize: 8.8, color: PdfColors.grey800);
 
   static pw.TextStyle _valueStyle() => const pw.TextStyle(fontSize: 8.8);
 
@@ -496,7 +557,8 @@ class InvoiceGenerator {
     );
   }
 
-  static pw.Widget _summaryLine(String label, String value, {bool bold = false}) {
+  static pw.Widget _summaryLine(String label, String value,
+      {bool bold = false}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 2),
       child: pw.Row(
@@ -527,40 +589,22 @@ class InvoiceGenerator {
   }
 
   _ShippingAddress _shippingAddress(OrderShippingInfo? s) {
-    final state = _guessStateFromAddress(_trimOrDash(s?.addressLine), _trimOrDash(s?.city));
+    final state = _trimOrDash(s?.state);
     return _ShippingAddress(
-      name: _trimOrDash(s?.fullName),
+      name: _trimOrDash(s?.displayName),
       phone: _trimOrDash(s?.phone),
-      address: _trimOrDash(s?.addressLine),
+      address: _trimOrDash(s?.displayAddressLine),
+      city: _trimOrDash(s?.displayCity),
       pincode: _trimOrDash(s?.postalCode),
-      state: state,
+      state: _trimOrDash(s?.displayState ?? state),
     );
-  }
-
-  static String _guessStateFromAddress(String addressLine, String city) {
-    if (addressLine == '-' && city == '-') return '-';
-    final cleaned = addressLine.replaceAll('\n', ',');
-    final parts = cleaned
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-    if (parts.isNotEmpty) {
-      final last = parts.last;
-      final hasDigits = RegExp(r'\d').hasMatch(last);
-      if (!hasDigits && last.length >= 3) return last;
-      if (parts.length >= 2) {
-        final prev = parts[parts.length - 2];
-        if (!RegExp(r'\d').hasMatch(prev) && prev.length >= 3) return prev;
-      }
-    }
-    return city == '-' ? '-' : city;
   }
 
   _PaymentInfo _paymentInfo(Order order) {
     final isCod = order.paymentMethod == OrderPaymentMethod.cod;
     final method = isCod ? 'COD' : 'Online';
-    final status = order.paymentStatus == OrderPaymentStatus.paid ? 'Paid' : 'Pending';
+    final status =
+        order.paymentStatus == OrderPaymentStatus.paid ? 'Paid' : 'Pending';
     final ref = order.razorpayPaymentId?.trim();
     return _PaymentInfo(
       method: method,
@@ -570,12 +614,22 @@ class InvoiceGenerator {
   }
 
   static String _money(double amount) => formatInrAmountPdfSafe(amount);
+
+  static List<String> _addressLines(String value) {
+    return value
+        .replaceAll(r'\n', '\n')
+        .split(RegExp(r'[\r\n]+'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+  }
 }
 
 class _ShippingAddress {
   final String name;
   final String phone;
   final String address;
+  final String city;
   final String pincode;
   final String state;
 
@@ -583,6 +637,7 @@ class _ShippingAddress {
     required this.name,
     required this.phone,
     required this.address,
+    required this.city,
     required this.pincode,
     required this.state,
   });

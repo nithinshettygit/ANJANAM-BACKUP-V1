@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/wishlist_heart_sizes.dart';
@@ -110,7 +111,7 @@ class HomeFestivalPromoCard extends StatelessWidget {
                           vertical: 4,
                         ),
                         child: Text(
-                          'Festival pick',
+                          AppLocalizations.of(context).festivalPick,
                           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                 color: AppColors.brandSaffron,
                                 fontWeight: FontWeight.w800,

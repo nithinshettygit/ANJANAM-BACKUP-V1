@@ -23,6 +23,7 @@ import 'package:ecommerce_app/features/catalog/domain/entities/product_delivery_
 import 'package:ecommerce_app/features/checkout/state/order_payment_provider.dart';
 import 'package:ecommerce_app/features/order_history/domain/entities/order.dart';
 import 'package:ecommerce_app/features/order_history/state/order_history_controller.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 import 'package:ecommerce_app/features/product_details/state/product_details_providers.dart';
 import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
@@ -63,9 +64,8 @@ class CheckoutPage extends ConsumerStatefulWidget {
 }
 
 class _CheckoutPageState extends ConsumerState<CheckoutPage> {
-  static const String _onlinePaymentSafetyMessage =
-      'Important: Do not close, refresh, or go back until your order confirmation appears. '
-      'Leaving this screen early can cause payment verification issues.';
+  String get _onlinePaymentSafetyMessage =>
+      AppLocalizations.of(context).importantPaymentNotice;
 
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
@@ -73,12 +73,14 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   final _addressCtrl = TextEditingController();
   final _address2Ctrl = TextEditingController();
   final _cityCtrl = TextEditingController();
+  final _stateCtrl = TextEditingController();
   final _postalCtrl = TextEditingController();
 
   String? _selectedAddressId;
   bool _saveNewAddress = true;
   bool _checkoutUiSeeded = false;
   bool _showNewAddressForm = false;
+
   /// Prevents double submit (duplicate orders) for the whole checkout + payment flow.
   bool _checkoutFlowLock = false;
   _CheckoutPaymentMethod _paymentMethod = _CheckoutPaymentMethod.razorpay;
@@ -95,6 +97,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _addressCtrl.addListener(_onAddressFormChanged);
     _address2Ctrl.addListener(_onAddressFormChanged);
     _cityCtrl.addListener(_onAddressFormChanged);
+    _stateCtrl.addListener(_onAddressFormChanged);
     _postalCtrl.addListener(_onAddressFormChanged);
   }
 
@@ -110,6 +113,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _addressCtrl.removeListener(_onAddressFormChanged);
     _address2Ctrl.removeListener(_onAddressFormChanged);
     _cityCtrl.removeListener(_onAddressFormChanged);
+    _stateCtrl.removeListener(_onAddressFormChanged);
     _postalCtrl.removeListener(_onAddressFormChanged);
     _razorpayService?.dispose();
     _nameCtrl.dispose();
@@ -117,6 +121,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _addressCtrl.dispose();
     _address2Ctrl.dispose();
     _cityCtrl.dispose();
+    _stateCtrl.dispose();
     _postalCtrl.dispose();
     super.dispose();
   }
@@ -127,6 +132,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _addressCtrl.text = a.addressLine;
     _address2Ctrl.text = a.addressLine2 ?? '';
     _cityCtrl.text = a.city;
+    _stateCtrl.text = a.state ?? '';
     _postalCtrl.text = a.postalCode;
   }
 
@@ -136,6 +142,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     _addressCtrl.clear();
     _address2Ctrl.clear();
     _cityCtrl.clear();
+    _stateCtrl.clear();
     _postalCtrl.clear();
   }
 
@@ -159,6 +166,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         ].join(', '),
         city: _cityCtrl.text,
         postalCode: _postalCtrl.text,
+        state: _stateCtrl.text,
       );
       if (s.validationError() != null) return null;
       return s;
@@ -210,7 +218,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     }
     ref.invalidate(productListProvider(ProductListQuery(limit: 30, offset: 0)));
     ref.invalidate(productListProvider(ProductListQuery(limit: 50, offset: 0)));
-    ref.invalidate(productListProvider(ProductListQuery(limit: 200, offset: 0)));
+    ref.invalidate(
+        productListProvider(ProductListQuery(limit: 200, offset: 0)));
   }
 
   void _navigateOrderSuccess(Order order, {String? razorpayPaymentId}) {
@@ -251,21 +260,21 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
   String _placeOrderButtonLabel() {
     if (!_checkoutFlowLock) {
-      return 'Place order';
+      return AppLocalizations.of(context).placeOrder;
     }
     switch (_checkoutPhase) {
       case _CheckoutPhase.idle:
-        return 'Waiting for payment…';
+        return AppLocalizations.of(context).waitingForPayment;
       case _CheckoutPhase.processingOrder:
-        return 'Processing order…';
+        return AppLocalizations.of(context).processingOrder;
       case _CheckoutPhase.openingPayment:
-        return 'Opening payment…';
+        return AppLocalizations.of(context).openingPayment;
       case _CheckoutPhase.confirmingPayment:
-        return 'Confirming payment…';
+        return AppLocalizations.of(context).confirmingPayment;
       case _CheckoutPhase.showingPaymentSuccess:
-        return 'Payment success';
+        return AppLocalizations.of(context).paymentSuccess;
       case _CheckoutPhase.showingPaymentFailed:
-        return 'Payment failed';
+        return AppLocalizations.of(context).paymentFailed;
     }
   }
 
@@ -306,12 +315,14 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   }) async {
     if (_checkoutFlowLock) return;
 
-    final modesKey = checkoutPaymentModesFamilyKey(items.map((e) => e.productId));
+    final modesKey =
+        checkoutPaymentModesFamilyKey(items.map((e) => e.productId));
     Map<String, ProductPaymentMode> modes;
     try {
-      modes = await ref.read(checkoutPaymentModesProvider(modesKey).future).timeout(
-            const Duration(seconds: 15),
-          );
+      modes =
+          await ref.read(checkoutPaymentModesProvider(modesKey).future).timeout(
+                const Duration(seconds: 15),
+              );
     } on TimeoutException {
       modes = {};
     }
@@ -339,10 +350,21 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     final ship = _shippingFromSelection(saved);
     if (ship == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Please complete the required delivery address fields (marked *).',
+            AppLocalizations.of(context).requiredDeliveryFields,
           ),
+          behavior: SnackBarBehavior.fixed,
+        ),
+      );
+      return;
+    }
+
+    final valErr = ship.validationError();
+    if (valErr != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(valErr),
           behavior: SnackBarBehavior.fixed,
         ),
       );
@@ -351,8 +373,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
     if (useForm && _formKey.currentState?.validate() != true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fix the highlighted address fields.'),
+        SnackBar(
+          content:
+              Text(AppLocalizations.of(context).fixHighlightedAddressFields),
           behavior: SnackBarBehavior.fixed,
         ),
       );
@@ -400,7 +423,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.fixed,
-            content: Text('Checkout failed: $e'),
+            content:
+                Text(AppLocalizations.of(context).checkoutFailed(e.toString())),
           ),
         );
       } else {
@@ -430,7 +454,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               behavior: SnackBarBehavior.fixed,
-              content: Text('Order was created but COD could not be saved: $e'),
+              content: Text(AppLocalizations.of(context)
+                  .orderCreatedCodNotSaved(e.toString())),
             ),
           );
         } else {
@@ -494,16 +519,18 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       }
     }
     if (kDebugMode) {
-      debugPrint('Checkout payment: Supabase session present=${session != null}');
+      debugPrint(
+          'Checkout payment: Supabase session present=${session != null}');
     }
     if (session == null) {
       if (mounted) {
         setState(() => _checkoutPhase = _CheckoutPhase.idle);
         _releaseCheckoutLock();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             behavior: SnackBarBehavior.fixed,
-            content: Text('Session expired, please login again'),
+            content:
+                Text(AppLocalizations.of(context).sessionExpiredLoginAgain),
           ),
         );
         Navigator.of(context).pushNamed('/login');
@@ -520,7 +547,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
     setState(() => _checkoutPhase = _CheckoutPhase.openingPayment);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         behavior: SnackBarBehavior.fixed,
         content: Text(_onlinePaymentSafetyMessage),
         duration: Duration(seconds: 5),
@@ -535,8 +562,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
     String? rzpCheckoutOrderId;
     try {
-      rzpCheckoutOrderId = await paymentSvc.tryCreateRazorpayServerOrder(orderId: order.id);
-      if (kIsWeb && (rzpCheckoutOrderId == null || rzpCheckoutOrderId.trim().isEmpty)) {
+      rzpCheckoutOrderId =
+          await paymentSvc.tryCreateRazorpayServerOrder(orderId: order.id);
+      if (kIsWeb &&
+          (rzpCheckoutOrderId == null || rzpCheckoutOrderId.trim().isEmpty)) {
         throw const RepositoryException(
           'Could not start secure payment session. Please try again.',
         );
@@ -563,9 +592,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             lower.contains('session expired') ||
             lower.contains('unauthorized')) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               behavior: SnackBarBehavior.fixed,
-              content: Text('Session expired, please login again'),
+              content:
+                  Text(AppLocalizations.of(context).sessionExpiredLoginAgain),
             ),
           );
           Navigator.of(context).pushNamed('/login');
@@ -575,7 +605,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.fixed,
-            content: Text('Could not open payment: $e'),
+            content: Text(
+                AppLocalizations.of(context).couldNotOpenPayment(e.toString())),
           ),
         );
       } else {
@@ -618,9 +649,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       setState(() => _checkoutPhase = _CheckoutPhase.idle);
       _releaseCheckoutLock();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           behavior: SnackBarBehavior.fixed,
-          content: Text('Payment failed. Please try again.'),
+          content: Text(AppLocalizations.of(context).paymentFailedTryAgain),
         ),
       );
       Navigator.of(context).pushReplacementNamed('/orders');
@@ -747,9 +778,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             setState(() => _checkoutPhase = _CheckoutPhase.idle);
             _releaseCheckoutLock();
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 behavior: SnackBarBehavior.fixed,
-                content: Text('Payment pending, we will update shortly'),
+                content: Text(
+                    AppLocalizations.of(context).paymentPendingUpdateShortly),
               ),
             );
             Navigator.of(context).pushReplacementNamed('/orders');
@@ -761,9 +793,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           setState(() => _checkoutPhase = _CheckoutPhase.idle);
           _releaseCheckoutLock();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               behavior: SnackBarBehavior.fixed,
-              content: Text('Session expired, please login again'),
+              content:
+                  Text(AppLocalizations.of(context).sessionExpiredLoginAgain),
             ),
           );
           Navigator.of(context).pushNamed('/login');
@@ -794,17 +827,19 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       case _CheckoutPhase.idle:
         title = '';
       case _CheckoutPhase.processingOrder:
-        title = 'Processing order…';
+        title = AppLocalizations.of(context).processingOrder;
       case _CheckoutPhase.openingPayment:
-        title = 'Opening payment…';
+        title = AppLocalizations.of(context).openingPayment;
         subtitle = _onlinePaymentSafetyMessage;
       case _CheckoutPhase.confirmingPayment:
-        title = 'Confirming payment…';
+        title = AppLocalizations.of(context).confirmingPayment;
         subtitle = _onlinePaymentSafetyMessage;
       case _CheckoutPhase.showingPaymentSuccess:
-        title = _successOverlayIsCod ? 'Order placed!' : 'Payment successful!';
+        title = _successOverlayIsCod
+            ? AppLocalizations.of(context).orderPlaced
+            : AppLocalizations.of(context).paymentSuccessful;
       case _CheckoutPhase.showingPaymentFailed:
-        title = 'Payment failed';
+        title = AppLocalizations.of(context).paymentFailed;
     }
 
     return Positioned.fill(
@@ -817,7 +852,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               child: Card(
                 margin: const EdgeInsets.all(24),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -847,18 +883,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       Text(
                         title,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
                       if (subtitle != null) ...[
                         const SizedBox(height: 10),
                         Text(
                           subtitle,
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                         ),
                       ],
                       if (p == _CheckoutPhase.showingPaymentFailed &&
@@ -868,9 +906,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                         Text(
                           _paymentFailureOverlayDetail!,
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ],
@@ -884,7 +923,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     );
   }
 
-  Widget _wrapWithCheckoutOverlay({required PreferredSizeWidget? appBar, required Widget body}) {
+  Widget _wrapWithCheckoutOverlay(
+      {required PreferredSizeWidget? appBar, required Widget body}) {
     return Stack(
       children: [
         Scaffold(appBar: appBar, body: body),
@@ -933,11 +973,15 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove address?'),
+        title: Text(AppLocalizations.of(context).removeAddressQuestion),
         content: Text('Remove delivery address for ${a.fullName}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Remove')),
         ],
       ),
     );
@@ -968,14 +1012,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Delivery address',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              AppLocalizations.of(context).deliveryAddress,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 12),
             if (saved.isNotEmpty) ...[
               Text(
-                'Saved addresses',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                AppLocalizations.of(context).savedAddresses,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
               ...saved.map((a) {
@@ -1002,15 +1052,22 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                           width: selected ? 2 : 1,
                         ),
                         color: selected
-                            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25)
+                            ? Theme.of(context)
+                                .colorScheme
+                                .primaryContainer
+                                .withValues(alpha: 0.25)
                             : null,
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(
-                            selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                            color: selected ? Theme.of(context).colorScheme.primary : null,
+                            selected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                            color: selected
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -1022,17 +1079,23 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                                     Expanded(
                                       child: Text(
                                         a.fullName,
-                                        style: const TextStyle(fontWeight: FontWeight.w800),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800),
                                       ),
                                     ),
                                     if (a.isDefault)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: Theme.of(context).colorScheme.secondaryContainer,
-                                          borderRadius: BorderRadius.circular(6),
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .secondaryContainer,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
                                         ),
-                                        child: const Text('DEFAULT', style: TextStyle(fontSize: 10)),
+                                        child: const Text('DEFAULT',
+                                            style: TextStyle(fontSize: 10)),
                                       ),
                                   ],
                                 ),
@@ -1053,9 +1116,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                               if (v == 'def') _markDefault(a);
                             },
                             itemBuilder: (ctx) => [
-                              const PopupMenuItem(value: 'def', child: Text('Set as default')),
-                              const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                              const PopupMenuItem(value: 'del', child: Text('Delete')),
+                              PopupMenuItem(
+                                value: 'def',
+                                child: Text(
+                                    AppLocalizations.of(context).setAsDefault),
+                              ),
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: Text(AppLocalizations.of(context).edit),
+                              ),
+                              PopupMenuItem(
+                                value: 'del',
+                                child:
+                                    Text(AppLocalizations.of(context).delete),
+                              ),
                             ],
                           ),
                         ],
@@ -1069,10 +1143,14 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             if (saved.isEmpty)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.35),
                 ),
                 child: Row(
                   children: [
@@ -1085,7 +1163,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       child: Text(
                         'Delivery Address form is below',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                       ),
                     ),
@@ -1102,7 +1182,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   });
                 },
                 icon: const Icon(Icons.add),
-                label: const Text('Add new address'),
+                label: Text(AppLocalizations.of(context).addNewAddress),
               ),
             if (_showNewAddressForm || saved.isEmpty) ...[
               const SizedBox(height: 16),
@@ -1113,22 +1193,27 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   children: [
                     TextFormField(
                       controller: _nameCtrl,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: const InputDecoration(
                         labelText: 'Full name *',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 3,
                       ),
                       textCapitalization: TextCapitalization.words,
-                      validator: (v) {
-                        if (v == null || v.trim().length < 2) return 'Required';
-                        return null;
-                      },
+                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                        v,
+                        minLength: 2,
+                        requiredMessage: 'Required',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _phoneCtrl,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: const InputDecoration(
                         labelText: 'Phone number (10 digits) *',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 3,
                       ),
                       keyboardType: TextInputType.phone,
                       maxLength: 10,
@@ -1143,38 +1228,66 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _addressCtrl,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: const InputDecoration(
                         labelText: 'Address Line 1 (House / Street / Area) *',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 3,
                       ),
                       maxLines: 2,
-                      validator: (v) {
-                        if (v == null || v.trim().length < 3) return 'Required';
-                        return null;
-                      },
+                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                        v,
+                        minLength: 3,
+                        requiredMessage: 'Required',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _address2Ctrl,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: const InputDecoration(
                         labelText:
                             'Address Line 2 (Landmark / Store / Building) — optional',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 3,
                       ),
                       maxLines: 2,
+                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                        v,
+                        required: false,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _cityCtrl,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: const InputDecoration(
                         labelText: 'City *',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 3,
                       ),
                       textCapitalization: TextCapitalization.words,
-                      validator: (v) {
-                        if (v == null || v.trim().length < 2) return 'Required';
-                        return null;
-                      },
+                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                        v,
+                        minLength: 2,
+                        requiredMessage: 'Required',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _stateCtrl,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      decoration: const InputDecoration(
+                        labelText: 'State *',
+                        border: OutlineInputBorder(),
+                        errorMaxLines: 3,
+                      ),
+                      textCapitalization: TextCapitalization.words,
+                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                        v,
+                        minLength: 2,
+                        requiredMessage: 'Required',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -1182,6 +1295,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       decoration: const InputDecoration(
                         labelText: 'PIN code (6 digits) *',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 3,
                       ),
                       keyboardType: TextInputType.number,
                       maxLength: 6,
@@ -1197,9 +1311,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       const SizedBox(height: 8),
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Save this address for future orders'),
+                        title: Text(AppLocalizations.of(context)
+                            .saveAddressForFutureOrders),
                         value: _saveNewAddress,
-                        onChanged: (v) => setState(() => _saveNewAddress = v ?? true),
+                        onChanged: (v) =>
+                            setState(() => _saveNewAddress = v ?? true),
                       ),
                     ],
                   ],
@@ -1234,8 +1350,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     );
     const discount = 0.0;
     final total = subtotal + delivery;
-    final canPlace = _canPlaceOrder(items: items, saved: saved, pricingReady: true) &&
-        !_checkoutFlowLock;
+    final canPlace =
+        _canPlaceOrder(items: items, saved: saved, pricingReady: true) &&
+            !_checkoutFlowLock;
     final paymentLocked = _checkoutFlowLock;
 
     return Card(
@@ -1246,8 +1363,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Order summary',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              AppLocalizations.of(context).orderSummary,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (buyNowHint != null) ...[
               const SizedBox(height: 6),
@@ -1264,7 +1384,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const Divider(height: 24),
-            Text('Items (${items.length})', style: Theme.of(context).textTheme.titleSmall),
+            Text('Items (${items.length})',
+                style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             ...items.map(
               (e) => Padding(
@@ -1311,10 +1432,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   ),
             ),
             _priceRow(
-              'Delivery',
-              delivery <= 0
-                  ? 'FREE'
-                  : formatRupee(delivery),
+              AppLocalizations.of(context).delivery,
+              delivery <= 0 ? 'FREE' : formatRupee(delivery),
               valueStyle: delivery <= 0
                   ? TextStyle(
                       color: Theme.of(context).colorScheme.primary,
@@ -1348,7 +1467,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             const SizedBox(height: 16),
             if (!codAllowed) ...[
               Text(
-                'Payment',
+                AppLocalizations.of(context).payment,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -1360,7 +1479,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   Icons.credit_card_outlined,
                   color: Theme.of(context).colorScheme.primary,
                 ),
-                title: const Text('Online payment (Razorpay)'),
+                title: Text(AppLocalizations.of(context).onlinePayment),
                 subtitle: Text(
                   items.length == 1
                       ? ProductPaymentModeMessages.onlineOnlyCheckout
@@ -1370,7 +1489,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               ),
             ] else ...[
               Text(
-                'Payment method',
+                AppLocalizations.of(context).paymentMethod,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -1378,7 +1497,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               const SizedBox(height: 4),
               RadioListTile<_CheckoutPaymentMethod>(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Razorpay'),
+                title: Text(AppLocalizations.of(context).razorpay),
                 subtitle: const Text(
                   'Card, UPI, net banking, wallets\n'
                   'Do not close/refresh until order confirmation is shown.',
@@ -1394,8 +1513,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               ),
               RadioListTile<_CheckoutPaymentMethod>(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Cash on Delivery'),
-                subtitle: const Text('Pay when your order arrives'),
+                title: Text(AppLocalizations.of(context).cashOnDelivery),
+                subtitle:
+                    Text(AppLocalizations.of(context).payWhenOrderArrives),
                 value: _CheckoutPaymentMethod.cod,
                 groupValue: _paymentMethod,
                 onChanged: paymentLocked
@@ -1422,7 +1542,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     );
   }
 
-  Widget _priceRow(String label, String value, {TextStyle? valueStyle, bool emphasize = false}) {
+  Widget _priceRow(String label, String value,
+      {TextStyle? valueStyle, bool emphasize = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1431,14 +1552,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           Text(
             label,
             style: emphasize
-                ? Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)
+                ? Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800)
                 : null,
           ),
           Text(
             value,
             style: valueStyle ??
                 (emphasize
-                    ? Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)
+                    ? Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w900)
                     : null),
           ),
         ],
@@ -1453,10 +1580,13 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   }) {
     final addressesAsync = ref.watch(userAddressesProvider);
     final pricingAsync = ref.watch(checkoutPricingRulesProvider);
-    final modesKey = checkoutPaymentModesFamilyKey(items.map((e) => e.productId));
+    final modesKey =
+        checkoutPaymentModesFamilyKey(items.map((e) => e.productId));
     final modesAsync = ref.watch(checkoutPaymentModesProvider(modesKey));
-    final deliveryKey = checkoutDeliveryChargesFamilyKey(items.map((e) => e.productId));
-    final deliveryAsync = ref.watch(checkoutDeliveryChargesProvider(deliveryKey));
+    final deliveryKey =
+        checkoutDeliveryChargesFamilyKey(items.map((e) => e.productId));
+    final deliveryAsync =
+        ref.watch(checkoutDeliveryChargesProvider(deliveryKey));
 
     return addressesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -1582,19 +1712,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     if (buyNowId == null) {
       final cartAsync = ref.watch(cartControllerProvider);
       return _wrapWithCheckoutOverlay(
-        appBar: AppBar(title: const Text('Checkout')),
+        appBar: AppBar(title: Text(AppLocalizations.of(context).checkout)),
         body: cartAsync.when(
           data: (cart) {
             if (cart.items.isEmpty) {
-              return const PageEmptyState(
+              return PageEmptyState(
                 icon: Icons.shopping_bag_outlined,
-                title: 'No items to checkout',
-                subtitle: 'Add items to your cart before placing an order.',
+                title: AppLocalizations.of(context).noItemsToCheckout,
+                subtitle: AppLocalizations.of(context).addItemsBeforeOrder,
               );
             }
             return _checkoutBody(items: cart.items, accountEmail: accountEmail);
           },
-          loading: () => const PageLoading(message: 'Preparing checkout…'),
+          loading: () => PageLoading(
+              message: AppLocalizations.of(context).preparingCheckout),
           error: (e, _) => PageErrorState(
             message: 'Failed to load cart: $e',
             onRetry: () => ref.invalidate(cartControllerProvider),
@@ -1605,10 +1736,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
     final cartAsync = ref.watch(cartControllerProvider);
     return _wrapWithCheckoutOverlay(
-      appBar: AppBar(title: const Text('Buy now')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).buyNow)),
       body: cartAsync.when(
         data: (cart) {
-          var fromCart = cart.items.where((e) => e.productId == buyNowId).toList();
+          var fromCart =
+              cart.items.where((e) => e.productId == buyNowId).toList();
           final vFilter = buyNowVariantId?.trim();
           if (vFilter != null && vFilter.isNotEmpty) {
             fromCart = fromCart.where((e) => e.variantId == vFilter).toList();
@@ -1644,7 +1776,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       availableStock: sv.sellableStock,
                       inventoryCount: sv.stockQuantity,
                       imageUrls: sv.imageUrl.trim().isNotEmpty
-                          ? [sv.imageUrl, ...p.imageUrls.where((u) => u != sv.imageUrl)]
+                          ? [
+                              sv.imageUrl,
+                              ...p.imageUrls.where((u) => u != sv.imageUrl)
+                            ]
                           : p.imageUrls,
                     );
               final maxQ = maxSelectableQuantity(display);
@@ -1664,7 +1799,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               return _checkoutBody(
                 items: [synthetic],
                 accountEmail: accountEmail,
-                buyNowHint: 'Direct checkout — cart unchanged unless you add items there.',
+                buyNowHint:
+                    'Direct checkout — cart unchanged unless you add items there.',
               );
             },
             loading: () => const PageLoading(message: 'Loading product…'),
@@ -1674,7 +1810,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             ),
           );
         },
-        loading: () => const PageLoading(message: 'Preparing checkout…'),
+        loading: () => PageLoading(
+            message: AppLocalizations.of(context).preparingCheckout),
         error: (e, _) => PageErrorState(
           message: 'Failed to load checkout: $e',
           onRetry: () => ref.invalidate(cartControllerProvider),
@@ -1759,83 +1896,114 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.title),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _name,
-                decoration: const InputDecoration(
-                  labelText: 'Full name *',
-                  border: OutlineInputBorder(),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _name,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  decoration: const InputDecoration(
+                    labelText: 'Full name *',
+                    border: OutlineInputBorder(),
+                    errorMaxLines: 3,
+                  ),
+                  validator: (v) => ShippingDetails.validateEnglishAddressText(
+                    v,
+                    minLength: 2,
+                    requiredMessage: 'Required',
+                  ),
                 ),
-                validator: (v) => (v == null || v.trim().length < 2) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _phone,
-                decoration: const InputDecoration(
-                  labelText: 'Phone *',
-                  border: OutlineInputBorder(),
-                  counterText: '',
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _phone,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone *',
+                    border: OutlineInputBorder(),
+                    counterText: '',
+                    errorMaxLines: 3,
+                  ),
+                  keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  validator: (v) => !ShippingDetails.isValidIndianPhone(v ?? '')
+                      ? '10 digits'
+                      : null,
                 ),
-                keyboardType: TextInputType.phone,
-                maxLength: 10,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                validator: (v) =>
-                    !ShippingDetails.isValidIndianPhone(v ?? '') ? '10 digits' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _addr,
-                decoration: const InputDecoration(
-                  labelText: 'Address Line 1 *',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _addr,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  decoration: const InputDecoration(
+                    labelText: 'Address Line 1 *',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                    errorMaxLines: 3,
+                  ),
+                  maxLines: 2,
+                  validator: (v) => ShippingDetails.validateEnglishAddressText(
+                    v,
+                    minLength: 3,
+                    requiredMessage: 'Required',
+                  ),
                 ),
-                maxLines: 2,
-                validator: (v) => (v == null || v.trim().length < 3) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _addr2,
-                decoration: const InputDecoration(
-                  labelText:
-                      'Address Line 2 (Landmark / Store / Building) — optional',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _addr2,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  decoration: const InputDecoration(
+                    labelText:
+                        'Address Line 2 (Landmark / Store / Building) — optional',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                    errorMaxLines: 3,
+                  ),
+                  maxLines: 2,
+                  validator: (v) => ShippingDetails.validateEnglishAddressText(
+                    v,
+                    required: false,
+                  ),
                 ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _city,
-                decoration: const InputDecoration(
-                  labelText: 'City *',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _city,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  decoration: const InputDecoration(
+                    labelText: 'City *',
+                    border: OutlineInputBorder(),
+                    errorMaxLines: 3,
+                  ),
+                  validator: (v) => ShippingDetails.validateEnglishAddressText(
+                    v,
+                    minLength: 2,
+                    requiredMessage: 'Required',
+                  ),
                 ),
-                validator: (v) => (v == null || v.trim().length < 2) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _postal,
-                decoration: const InputDecoration(
-                  labelText: 'PIN *',
-                  border: OutlineInputBorder(),
-                  counterText: '',
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _postal,
+                  decoration: const InputDecoration(
+                    labelText: 'PIN *',
+                    border: OutlineInputBorder(),
+                    counterText: '',
+                    errorMaxLines: 3,
+                  ),
+                  maxLength: 6,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  validator: (v) => !ShippingDetails.isValidIndianPostal(v ?? '')
+                      ? '6 digits'
+                      : null,
                 ),
-                maxLength: 6,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                validator: (v) =>
-                    !ShippingDetails.isValidIndianPostal(v ?? '') ? '6 digits' : null,
-              ),
               if (widget.showDefaultToggle) ...[
                 const SizedBox(height: 8),
                 CheckboxListTile(
-                  title: const Text('Default address'),
+                  title: Text(AppLocalizations.of(context).defaultAddress),
                   value: _isDefault,
                   onChanged: (v) => setState(() => _isDefault = v ?? false),
                 ),
@@ -1844,8 +2012,11 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
+    ),
+    actions: [
+        TextButton(
+            onPressed: _saving ? null : () => Navigator.pop(context, false),
+            child: const Text('Cancel')),
         FilledButton(
           onPressed: _saving
               ? null
@@ -1865,7 +2036,8 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
                     if (context.mounted) Navigator.pop(context, true);
                   } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(SnackBar(content: Text('$e')));
                     }
                   } finally {
                     if (mounted) setState(() => _saving = false);

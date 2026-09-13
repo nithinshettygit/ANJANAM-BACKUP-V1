@@ -28,6 +28,7 @@ import 'package:ecommerce_app/presentation/widgets/web_horizontal_rail_list.dart
 import 'package:ecommerce_app/features/product_questions/widgets/product_questions_section.dart';
 import 'package:ecommerce_app/presentation/widgets/product_reviews_section.dart';
 import 'package:ecommerce_app/presentation/widgets/state_widgets.dart';
+import 'package:ecommerce_app/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -238,7 +239,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
             }) ??
             false;
         final outOfStock = productIsOutOfStock(displayProduct);
-        final stockBanner = productStockBannerText(displayProduct);
+        final localizations = AppLocalizations.of(context);
+        final stockBanner = productStockBannerText(displayProduct, localizations);
         final shareImageUrl = _resolveShareImageUrl(product, sv, displayProduct);
         if (kIsWeb) {
           WebSeo.updateSharePage(
@@ -417,7 +419,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                         return ChoiceChip(
                                           label: Text(
                                             oosV
-                                                ? '${v.variantName} · Out of stock'
+                                                ? '${v.variantName} · ${localizations.outOfStock}'
                                                 : v.variantName,
                                             style: TextStyle(
                                               fontWeight: sel ? FontWeight.w800 : FontWeight.w500,
@@ -800,7 +802,11 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         inCart ? Icons.shopping_cart_outlined : Icons.add_shopping_cart,
                       ),
                       label: Text(
-                        inCart ? 'Go to Cart' : outOfStock ? 'Out of stock' : 'Add to Cart',
+                        inCart
+                          ? AppLocalizations.of(context).goToCart
+                          : outOfStock
+                            ? AppLocalizations.of(context).outOfStock
+                            : AppLocalizations.of(context).addToCart,
                       ),
                     ),
                   ),
@@ -817,7 +823,11 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                 quantity: displayQty,
                               ),
                       icon: const Icon(Icons.flash_on),
-                      label: Text(outOfStock ? 'Unavailable' : 'Buy Now'),
+                      label: Text(
+                        outOfStock
+                            ? AppLocalizations.of(context).unavailable
+                            : AppLocalizations.of(context).buyNow,
+                      ),
                     ),
                   ),
                 ],

@@ -8,7 +8,8 @@ import 'package:share_plus/share_plus.dart';
 
 /// Mobile / desktop: print preview when the printing plugin is wired; otherwise
 /// share the PDF (covers `MissingPluginException` on `printPdf` seen on some builds).
-Future<void> openInvoicePreview(Uint8List pdfBytes, {required String name}) async {
+Future<void> openInvoicePreview(Uint8List pdfBytes,
+    {required String name}) async {
   try {
     await Printing.layoutPdf(
       onLayout: (_) async => pdfBytes,
@@ -36,6 +37,13 @@ Future<void> openInvoicePreview(Uint8List pdfBytes, {required String name}) asyn
   }
 
   await _sharePdfWithSharePlus(pdfBytes, name);
+}
+
+Future<void> downloadPdf(Uint8List pdfBytes, {required String name}) async {
+  await Printing.sharePdf(
+    bytes: pdfBytes,
+    filename: '$name.pdf',
+  );
 }
 
 Future<void> _sharePdfWithSharePlus(Uint8List pdfBytes, String name) async {
