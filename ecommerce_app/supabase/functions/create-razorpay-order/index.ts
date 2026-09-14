@@ -58,7 +58,12 @@ Deno.serve(async (req) => {
       global: { headers: { "Content-Type": "application/json" } },
     });
 
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return json(400, { error: "invalid_json" });
+    }
     const authResult = await resolveRequesterIdentity(req, {
       supabaseUrl: SUPABASE_URL,
       supabaseAnonKey: SUPABASE_ANON_KEY,
@@ -66,7 +71,11 @@ Deno.serve(async (req) => {
     if (!authResult.ok) return json(authResult.code, { error: authResult.error });
     const requesterId = authResult.userId;
     devLog(`auth_ok user_id=${requesterId}`);
-    const orderId = reqString(body["order_id"], "order_id");
+    const orderIdValue = body["order_id"];
+    if (typeof orderIdValue !== "string" || !orderIdValue.trim()) {
+      return json(400, { error: "missing_order_id" });
+    }
+    const orderId = orderIdValue.trim();
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")

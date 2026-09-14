@@ -199,18 +199,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    await admin.from("profiles").upsert(
-      {
+    const storedName = String(profile?.full_name ?? "").trim();
+    const profilePayload: Record<string, unknown> = {
+      email,
+      avatar_url: photoUrl,
+      firebase_uid: firebaseUid,
+      login_type: "google",
+    };
+
+    // Google authentication must not replace a name edited in the app.
+    // Only backfill full_name when the existing profile has no name.
+    if (!storedName) {
+      profilePayload.full_name = displayName;
+    }
+
+    if (profile) {
+      const profileUpdate = await admin
+        .from("profiles")
+        .update(profilePayload)
+        .eq("id", authUserId);
+      if (profileUpdate.error) throw profileUpdate.error;
+    } else {
+      const profileInsert = await admin.from("profiles").insert({
         id: authUserId,
-        full_name: String(profile?.full_name ?? displayName).trim() || "User",
-        email,
-        avatar_url: photoUrl,
-        firebase_uid: firebaseUid,
-        login_type: "google",
+        ...profilePayload,
+        full_name: displayName,
         role: "customer",
-      },
-      { onConflict: "id" },
-    );
+      });
+      if (profileInsert.error) throw profileInsert.error;
+    }
 
     const statusRecheck = await admin
       .from("profiles")

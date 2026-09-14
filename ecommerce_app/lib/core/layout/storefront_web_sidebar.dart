@@ -41,7 +41,7 @@ class StorefrontWebSidebar extends StatefulWidget {
     _NavEntry(
       Icons.receipt_long_outlined,
       Icons.receipt_long,
-      'My Orders',
+      'Orders',
     ),
     _NavEntry(
       Icons.person_outline,

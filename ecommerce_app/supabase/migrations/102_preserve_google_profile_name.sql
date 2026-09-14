@@ -1,0 +1,7 @@
+-- Recovery marker for migration 102.
+--
+-- Migration 102 was already applied to the production database, but its local
+-- file was missing. The schema change is present remotely; this no-op file
+-- restores local migration-history parity after repairing version 102 as
+-- reverted. Do not add schema changes here unless the original migration is
+-- recovered from source control or a database backup.

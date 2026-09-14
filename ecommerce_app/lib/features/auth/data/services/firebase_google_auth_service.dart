@@ -145,12 +145,24 @@ class FirebaseGoogleAuthService {
       photoUrl: firebaseUser.photoURL?.trim(),
     );
 
+    String? savedProfileName;
+    try {
+      final profile = await _supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', authUser.id)
+          .maybeSingle();
+      final value = profile?['full_name']?.toString().trim();
+      if (value != null && value.isNotEmpty) savedProfileName = value;
+    } catch (_) {}
+
     return AppUser(
       id: authUser.id,
       email: authUser.email ?? email,
-      fullName: firebaseUser.displayName?.trim().isNotEmpty == true
-          ? firebaseUser.displayName?.trim()
-          : authUser.userMetadata?['full_name']?.toString(),
+      fullName: savedProfileName ??
+          (firebaseUser.displayName?.trim().isNotEmpty == true
+              ? firebaseUser.displayName?.trim()
+              : authUser.userMetadata?['full_name']?.toString()),
       avatarUrl: firebaseUser.photoURL?.trim(),
     );
   }

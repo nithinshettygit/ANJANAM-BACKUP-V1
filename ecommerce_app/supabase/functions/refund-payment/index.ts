@@ -73,8 +73,6 @@ Deno.serve(async (req) => {
       return json(500, { error: "missing_razorpay_secrets" });
     }
 
-    const body = await parseBody(req);
-    const orderId = reqString(body["order_id"], "order_id");
     const authData = await resolveRequesterIdentity(req, {
       supabaseUrl: SUPABASE_URL,
       supabaseAnonKey: SUPABASE_ANON_KEY,
@@ -82,6 +80,13 @@ Deno.serve(async (req) => {
     if (!authData.ok) return json(authData.code, { error: authData.error });
     const requesterId = authData.userId;
     devLog(`auth_ok user_id=${requesterId}`);
+
+    const body = await parseBody(req);
+    const orderIdValue = body["order_id"];
+    if (typeof orderIdValue !== "string" || !orderIdValue.trim()) {
+      return json(400, { error: "missing_order_id" });
+    }
+    const orderId = orderIdValue.trim();
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: { headers: { "Content-Type": "application/json" } },

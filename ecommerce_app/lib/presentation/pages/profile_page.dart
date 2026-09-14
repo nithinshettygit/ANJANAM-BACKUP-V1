@@ -11,6 +11,7 @@ import '../../features/auth/data/auth_error_mapper.dart';
 import '../../features/auth/state/auth_actions_controller.dart';
 import '../../features/auth/state/auth_session_provider.dart';
 import '../../features/checkout/domain/shipping_details.dart';
+import '../providers/customer_details_provider.dart';
 import '../utils/main_shell_navigation.dart';
 import '../utils/auth_issue_presenter.dart';
 import '../utils/open_storefront_legal_page.dart';
@@ -46,7 +47,20 @@ final _profileSnapshotProvider = FutureProvider.autoDispose<_ProfileSnapshot>((r
       address: (row?['address'] ?? '').toString(),
     );
   } catch (_) {
-    return _ProfileSnapshot(fullName: user.fullName ?? '', phone: '', address: '');
+    try {
+      final row = await client
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle();
+      return _ProfileSnapshot(
+        fullName: (row?['full_name'] ?? '').toString(),
+        phone: '',
+        address: '',
+      );
+    } catch (_) {
+      return _ProfileSnapshot(fullName: '', phone: '', address: '');
+    }
   }
 });
 
@@ -191,6 +205,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           setState(() => _localProfileSnapshotOverride = updatedSnapshot);
                         }
                         ref.invalidate(_profileSnapshotProvider);
+                        ref.invalidate(customerDetailsProvider);
                       },
                     ),
                     const SizedBox(height: 14),
@@ -260,6 +275,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 setState(() => _localProfileSnapshotOverride = updatedSnapshot);
                               }
                               ref.invalidate(_profileSnapshotProvider);
+                              ref.invalidate(customerDetailsProvider);
                             },
                           ),
                           _MenuRow(
@@ -581,41 +597,39 @@ class _EditProfilePageState extends ConsumerState<_EditProfilePage> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
     final client = ref.read(supabaseClientProvider);
+    final name = _nameCtrl.text.trim();
     try {
+      Map<String, dynamic>? refreshed;
       try {
-        await client
+        refreshed = await client
             .from('profiles')
             .update({
-              'full_name': _nameCtrl.text.trim(),
+              'full_name': name,
               'phone': _phoneCtrl.text.trim(),
               'address': _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
             })
-            .eq('id', widget.userId);
+            .eq('id', widget.userId)
+            .select('full_name, phone, address')
+            .maybeSingle();
       } catch (_) {
-        await client
+        refreshed = await client
             .from('profiles')
-            .update({'full_name': _nameCtrl.text.trim()})
-            .eq('id', widget.userId);
+            .update({'full_name': name})
+            .eq('id', widget.userId)
+            .select('full_name, phone, address')
+            .maybeSingle();
+      }
+      if (refreshed == null) {
+        throw Exception('Your profile could not be found. Please sign in again.');
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile updated successfully')),
       );
-      Map<String, dynamic>? refreshed;
-      try {
-        refreshed = await client
-            .from('profiles')
-            .select('full_name, phone, address')
-            .eq('id', widget.userId)
-            .maybeSingle();
-      } catch (_) {
-        refreshed = null;
-      }
-      if (!mounted) return;
       final updatedSnapshot = _ProfileSnapshot(
-        fullName: (refreshed?['full_name'] ?? _nameCtrl.text.trim()).toString(),
-        phone: (refreshed?['phone'] ?? _phoneCtrl.text.trim()).toString(),
-        address: (refreshed?['address'] ?? _addressCtrl.text.trim()).toString(),
+        fullName: (refreshed['full_name'] ?? name).toString(),
+        phone: (refreshed['phone'] ?? _phoneCtrl.text.trim()).toString(),
+        address: (refreshed['address'] ?? _addressCtrl.text.trim()).toString(),
       );
       Navigator.of(context).pop(updatedSnapshot);
     } catch (error) {
