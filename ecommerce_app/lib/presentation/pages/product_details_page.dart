@@ -256,6 +256,28 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
             path: '/product/${product.id}',
             imageUrl: shareImageUrl,
             ogType: 'product',
+            structuredData: <String, dynamic>{
+              '@context': 'https://schema.org',
+              '@type': 'Product',
+              'name': product.title,
+              'description': product.description,
+              'sku': product.id,
+              'image': product.imageUrls,
+              'brand': <String, dynamic>{
+                '@type': 'Brand',
+                'name': 'ANJANAM',
+              },
+              'offers': <String, dynamic>{
+                '@type': 'Offer',
+                'url': '${WebSeo.siteOrigin}/product/${product.id}',
+                'priceCurrency': product.currency,
+                'price': displayProduct.price,
+                'availability': outOfStock
+                    ? 'https://schema.org/OutOfStock'
+                    : 'https://schema.org/InStock',
+                'itemCondition': 'https://schema.org/NewCondition',
+              },
+            },
           );
         }
         final pricing = ProductPriceDisplay.forProduct(

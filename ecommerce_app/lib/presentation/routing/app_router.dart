@@ -41,6 +41,8 @@ import '../pages/request_return_page.dart';
 import 'auth_guard.dart';
 import '../pages/order_invoice_deeplink_page.dart';
 import '../../features/order_history/domain/entities/order.dart';
+import '../../core/web/web_seo.dart';
+import 'route_query.dart';
 
 /// Strips `?query` and a trailing `/` from route names (Flutter web passes `/auth/callback?code=...`).
 String? _routePathOnly(String? name) {
@@ -280,9 +282,13 @@ class AppRouter {
         return _authCustomerRoute(const CustomerDetailsPage());
       case '/search':
         final searchArgs = settings.arguments;
+        final initialQuery = searchArgs is String
+            ? searchArgs
+          : routeQueryParameter(settings.name, 'q') ??
+            routeQueryParameter(Uri.base.toString(), 'q');
         return _customerRoute(
           ProductSearchPage(
-            initialQuery: searchArgs is String ? searchArgs : null,
+            initialQuery: initialQuery,
           ),
         );
       case '/catalog':
@@ -586,7 +592,7 @@ Route<dynamic> _authCustomerRoute(
 }) {
   return MaterialPageRoute(
     builder: (_) => AuthGuard(
-      child: _AdminAwareCustomerRoute(child: child),
+      child: _AdminAwareCustomerRoute(child: child, indexable: false),
       loginArguments: loginArguments,
     ),
   );
@@ -594,8 +600,9 @@ Route<dynamic> _authCustomerRoute(
 
 class _AdminAwareCustomerRoute extends StatefulWidget {
   final Widget child;
+  final bool indexable;
 
-  const _AdminAwareCustomerRoute({required this.child});
+  const _AdminAwareCustomerRoute({required this.child, this.indexable = true});
 
   @override
   State<_AdminAwareCustomerRoute> createState() =>
@@ -609,6 +616,8 @@ class _AdminAwareCustomerRouteState extends State<_AdminAwareCustomerRoute> {
   @override
   void initState() {
     super.initState();
+    WebSeo.resetToDefault();
+    if (!widget.indexable) WebSeo.setRobots('noindex,nofollow');
     _checkRole();
   }
 

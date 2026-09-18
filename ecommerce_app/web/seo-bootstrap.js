@@ -33,6 +33,18 @@
     el.setAttribute('href', url);
   }
 
+  function setStructuredData(data) {
+    var id = 'anjanam-route-structured-data';
+    var existing = document.getElementById(id);
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    if (!data) return;
+    var script = document.createElement('script');
+    script.id = id;
+    script.type = 'application/ld+json';
+    script.text = JSON.stringify(data);
+    document.head.appendChild(script);
+  }
+
   function truncate(text, max) {
     if (!text) return '';
     var t = String(text).replace(/\s+/g, ' ').trim();
@@ -66,7 +78,10 @@
     setMeta('twitter:title', meta.title);
     setMeta('twitter:description', meta.description);
     setMeta('twitter:image', meta.image);
+    setMeta('twitter:image:alt', meta.title);
+    setMeta('og:image:alt', meta.title, true);
     setCanonical(meta.url);
+    setStructuredData(meta.structuredData || null);
   }
 
   function parseShareRoute() {
@@ -103,6 +118,23 @@
             image: firstImage(row.image_urls) || DEFAULT.image,
             url: SITE + '/product/' + encodeURIComponent(row.id),
             type: 'product',
+            structuredData: {
+              '@context': 'https://schema.org',
+              '@type': 'Product',
+              name: row.title || 'Product',
+              description: row.description || ('Shop ' + (row.title || 'this product') + ' on ANJANAM.'),
+              sku: String(row.id),
+              image: Array.isArray(row.image_urls) ? row.image_urls : [],
+              brand: { '@type': 'Brand', name: 'ANJANAM' },
+              offers: {
+                '@type': 'Offer',
+                url: SITE + '/product/' + encodeURIComponent(row.id),
+                priceCurrency: row.currency || 'INR',
+                price: row.price,
+                availability: 'https://schema.org/InStock',
+                itemCondition: 'https://schema.org/NewCondition',
+              },
+            },
           };
         },
       };

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:html' as html;
 
 const _defaultTitle = 'ANJANAM — Shop Online in India';
@@ -37,6 +38,17 @@ void _setCanonical(String url) {
   el.setAttribute('href', url);
 }
 
+void _setStructuredData(Map<String, dynamic>? data) {
+  const id = 'anjanam-route-structured-data';
+  html.document.getElementById(id)?.remove();
+  if (data == null || data.isEmpty) return;
+  final script = html.ScriptElement()
+    ..id = id
+    ..type = 'application/ld+json'
+    ..text = jsonEncode(data);
+  html.document.head!.append(script);
+}
+
 String _truncate(String text, int max) {
   final t = text.replaceAll(RegExp(r'\s+'), ' ').trim();
   if (t.length <= max) return t;
@@ -49,6 +61,7 @@ void updateSharePage({
   required String path,
   required String imageUrl,
   required String ogType,
+  Map<String, dynamic>? structuredData,
 }) {
   final canonical = path.startsWith('http')
       ? path
@@ -74,6 +87,7 @@ void updateSharePage({
   _setMeta('twitter:description', safeDescription);
   _setMeta('twitter:image', image);
   _setCanonical(canonical);
+  _setStructuredData(structuredData);
 }
 
 void resetToDefault() {
@@ -86,4 +100,9 @@ void resetToDefault() {
   _setMeta('og:url', _siteOrigin, property: true);
   _setMeta('og:type', 'website', property: true);
   _setCanonical(_siteOrigin);
+  _setStructuredData(null);
+}
+
+void setRobots(String directive) {
+  _setMeta('robots', directive);
 }

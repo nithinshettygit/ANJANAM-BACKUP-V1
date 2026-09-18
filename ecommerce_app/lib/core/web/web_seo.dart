@@ -15,6 +15,7 @@ class WebSeo {
     required String path,
     String? imageUrl,
     String ogType = 'website',
+    Map<String, dynamic>? structuredData,
   }) {
     impl.updateSharePage(
       title: title,
@@ -22,8 +23,11 @@ class WebSeo {
       path: path,
       imageUrl: imageUrl ?? defaultImage,
       ogType: ogType,
+      structuredData: structuredData,
     );
   }
 
   static void resetToDefault() => impl.resetToDefault();
+
+  static void setRobots(String directive) => impl.setRobots(directive);
 }
