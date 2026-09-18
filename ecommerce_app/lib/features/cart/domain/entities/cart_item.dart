@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 class CartItem {
   final String productId;
+
   /// When non-null, line maps to [product_variants] / checkout [variant_id].
   final String? variantId;
   final String? variantName;
@@ -10,6 +11,9 @@ class CartItem {
   final double unitPrice;
   final String currency;
   final int quantity;
+
+  /// Live sellable stock when inventory is tracked; null means unknown/unlimited.
+  final int? availableStock;
 
   const CartItem({
     required this.productId,
@@ -20,9 +24,15 @@ class CartItem {
     required this.unitPrice,
     required this.currency,
     required this.quantity,
+    this.availableStock,
   });
 
   double get lineTotal => unitPrice * quantity;
+
+  bool get isOutOfStock => availableStock != null && availableStock! <= 0;
+
+  bool get isAvailableForCheckout =>
+      availableStock == null || availableStock! >= quantity;
 
   @override
   bool operator ==(Object other) {
@@ -35,7 +45,8 @@ class CartItem {
             listEquals(imageUrls, other.imageUrls) &&
             unitPrice == other.unitPrice &&
             currency == other.currency &&
-            quantity == other.quantity;
+            quantity == other.quantity &&
+            availableStock == other.availableStock;
   }
 
   @override
@@ -48,6 +59,6 @@ class CartItem {
         unitPrice,
         currency,
         quantity,
+        availableStock,
       );
 }
-

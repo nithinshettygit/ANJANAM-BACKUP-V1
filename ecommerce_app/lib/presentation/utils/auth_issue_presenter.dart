@@ -9,7 +9,10 @@ enum AuthIssueFlow { login, signup, signOut, passwordReset }
 
 /// Guest tried to use the server cart (e.g. add to cart). Matches messaging from
 /// [SupabaseCartService] when there is no session.
-Future<void> presentSignInToManageCartDialog(BuildContext context) async {
+Future<void> presentSignInToManageCartDialog(
+  BuildContext context, {
+  Map<String, dynamic>? returnArguments,
+}) async {
   final theme = Theme.of(context);
   final scheme = theme.colorScheme;
   await showDialog<void>(
@@ -35,7 +38,10 @@ Future<void> presentSignInToManageCartDialog(BuildContext context) async {
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              Navigator.of(context).pushNamed('/login');
+              Navigator.of(context).pushNamed(
+                '/login',
+                arguments: returnArguments,
+              );
             },
             child: Text(AppLocalizations.of(context).signIn),
           ),
@@ -51,6 +57,7 @@ Future<void> presentAuthIssue(
   required AuthException error,
   required AuthIssueFlow flow,
   required VoidCallback onRetry,
+
   /// When email send is capped, prefer this over leaving the page (e.g. [LoginPage] / [SignupPage]).
   VoidCallback? onContinueWithGoogle,
 }) async {
@@ -257,9 +264,9 @@ _Secondary? _secondaryFor(
         return _Secondary(
           label: 'Back to options',
           onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                '/login',
-                (route) => false,
-              ),
+            '/login',
+            (route) => false,
+          ),
         );
       }
       return null;
@@ -291,7 +298,8 @@ _Secondary? _secondaryFor(
     case AuthIssueFlow.passwordReset:
       return _Secondary(
         label: 'Back to sign in',
-        onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
+        onPressed: () => Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false),
       );
   }
 }

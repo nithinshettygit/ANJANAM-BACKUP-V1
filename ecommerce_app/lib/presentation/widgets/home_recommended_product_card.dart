@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/errors/app_exception.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/wishlist_heart_sizes.dart';
 import '../../features/cart/state/cart_controller.dart';
 import '../../features/catalog/domain/entities/product.dart';
-import '../utils/auth_issue_presenter.dart';
 import '../utils/cart_feedback_snackbar.dart';
 import '../utils/main_shell_navigation.dart';
 import '../utils/price_formatter.dart';
@@ -40,8 +38,10 @@ class HomeRecommendedProductCard extends ConsumerWidget {
   final VoidCallback? onOpenDetails;
   final bool isWishlisted;
   final VoidCallback? onToggleWishlist;
+
   /// When null, uses [WishlistHeartSizes.imageOverlayChip].
   final double? wishlistHeartSize;
+
   /// Saffron circle size; when null, **36**.
   final double? wishlistChipExtent;
 
@@ -54,11 +54,13 @@ class HomeRecommendedProductCard extends ConsumerWidget {
     final inCart = ref.watch(
       cartControllerProvider.select(
         (asyncCart) =>
-            asyncCart.valueOrNull?.items.any((e) => e.productId == product.id) ??
+            asyncCart.valueOrNull?.items
+                .any((e) => e.productId == product.id) ??
             false,
       ),
     );
-    final imageUrl = product.imageUrls.isNotEmpty ? product.imageUrls.first : null;
+    final imageUrl =
+        product.imageUrls.isNotEmpty ? product.imageUrls.first : null;
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final memW = imageMemCacheExtent(width, dpr);
     final imgH = HomeLayoutMetrics.recommendedImageHeight(width);
@@ -78,15 +80,13 @@ class HomeRecommendedProductCard extends ConsumerWidget {
     Future<void> onAddToCart() async {
       if (outOfStock) return;
       try {
-        await ref.read(cartControllerProvider.notifier).addItem(
-              productId: product.id,
-              quantity: 1,
-            );
-        if (!context.mounted) return;
-        showAddedToCartSnackBar(ref, context, productTitle: product.title);
-      } on AuthException catch (_) {
-        if (!context.mounted) return;
-        await presentSignInToManageCartDialog(context);
+        await addItemOrRequestLogin(
+          context,
+          ref,
+          productId: product.id,
+          quantity: 1,
+          productTitle: product.title,
+        );
       } catch (e) {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -163,7 +163,8 @@ class HomeRecommendedProductCard extends ConsumerWidget {
                                   vertical: 3,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.errorRed.withValues(alpha: 0.92),
+                                  color: AppColors.errorRed
+                                      .withValues(alpha: 0.92),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Text(
@@ -205,7 +206,9 @@ class HomeRecommendedProductCard extends ConsumerWidget {
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   StarRatingDisplay(
-                                    rating: product.averageRating!.round().clamp(1, 5),
+                                    rating: product.averageRating!
+                                        .round()
+                                        .clamp(1, 5),
                                     size: 15,
                                     gap: 1,
                                   ),
@@ -214,10 +217,12 @@ class HomeRecommendedProductCard extends ConsumerWidget {
                                     child: Text(
                                       product.totalReviews > 0
                                           ? '${product.averageRating!.toStringAsFixed(1)} (${product.totalReviews})'
-                                          : product.averageRating!.toStringAsFixed(1),
+                                          : product.averageRating!
+                                              .toStringAsFixed(1),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.labelMedium?.copyWith(
+                                      style:
+                                          theme.textTheme.labelMedium?.copyWith(
                                         color: AppColors.textSecondary,
                                         fontSize: 11.5,
                                         fontWeight: FontWeight.w600,
@@ -252,14 +257,16 @@ class HomeRecommendedProductCard extends ConsumerWidget {
                                     ),
                                   ),
                                 ),
-                                if (pricing.showPromo && pricing.mrp != null) ...[
+                                if (pricing.showPromo &&
+                                    pricing.mrp != null) ...[
                                   const SizedBox(width: 6),
                                   Flexible(
                                     child: Text(
                                       formatRupeeCompact(pricing.mrp!),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.labelSmall?.copyWith(
+                                      style:
+                                          theme.textTheme.labelSmall?.copyWith(
                                         decoration: TextDecoration.lineThrough,
                                         color: AppColors.textSecondary,
                                         fontSize: 11.5,
@@ -288,9 +295,11 @@ class HomeRecommendedProductCard extends ConsumerWidget {
                                       ? AppColors.forestGreen
                                       : AppColors.brandSaffron,
                                   foregroundColor: Colors.white,
-                                  disabledBackgroundColor:
-                                      AppColors.textSecondary.withValues(alpha: 0.35),
-                                  disabledForegroundColor: Colors.white.withValues(
+                                  disabledBackgroundColor: AppColors
+                                      .textSecondary
+                                      .withValues(alpha: 0.35),
+                                  disabledForegroundColor:
+                                      Colors.white.withValues(
                                     alpha: 0.75,
                                   ),
                                   shape: RoundedRectangleBorder(
@@ -303,7 +312,8 @@ class HomeRecommendedProductCard extends ConsumerWidget {
                                     color: Colors.white,
                                   ),
                                   minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: Text(
                                   inCart

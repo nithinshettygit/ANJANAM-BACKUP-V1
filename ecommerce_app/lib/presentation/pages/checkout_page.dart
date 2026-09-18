@@ -1200,7 +1200,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                         errorMaxLines: 3,
                       ),
                       textCapitalization: TextCapitalization.words,
-                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                      validator: (v) =>
+                          ShippingDetails.validateEnglishAddressText(
                         v,
                         minLength: 2,
                         requiredMessage: 'Required',
@@ -1235,7 +1236,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                         errorMaxLines: 3,
                       ),
                       maxLines: 2,
-                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                      validator: (v) =>
+                          ShippingDetails.validateEnglishAddressText(
                         v,
                         minLength: 3,
                         requiredMessage: 'Required',
@@ -1252,7 +1254,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                         errorMaxLines: 3,
                       ),
                       maxLines: 2,
-                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                      validator: (v) =>
+                          ShippingDetails.validateEnglishAddressText(
                         v,
                         required: false,
                       ),
@@ -1267,7 +1270,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                         errorMaxLines: 3,
                       ),
                       textCapitalization: TextCapitalization.words,
-                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                      validator: (v) =>
+                          ShippingDetails.validateEnglishAddressText(
                         v,
                         minLength: 2,
                         requiredMessage: 'Required',
@@ -1283,7 +1287,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                         errorMaxLines: 3,
                       ),
                       textCapitalization: TextCapitalization.words,
-                      validator: (v) => ShippingDetails.validateEnglishAddressText(
+                      validator: (v) =>
+                          ShippingDetails.validateEnglishAddressText(
                         v,
                         minLength: 2,
                         requiredMessage: 'Required',
@@ -1722,7 +1727,24 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 subtitle: AppLocalizations.of(context).addItemsBeforeOrder,
               );
             }
-            return _checkoutBody(items: cart.items, accountEmail: accountEmail);
+            final checkoutItems = cart.items
+                .where((item) => item.isAvailableForCheckout)
+                .toList();
+            if (checkoutItems.isEmpty) {
+              return const PageEmptyState(
+                icon: Icons.remove_shopping_cart_outlined,
+                title: 'No available items to checkout',
+                subtitle:
+                    'Remove out-of-stock items from your cart to continue.',
+              );
+            }
+            return _checkoutBody(
+              items: checkoutItems,
+              accountEmail: accountEmail,
+              buyNowHint: cart.items.length == checkoutItems.length
+                  ? null
+                  : 'Unavailable items were left out of this checkout.',
+            );
           },
           loading: () => PageLoading(
               message: AppLocalizations.of(context).preparingCheckout),
@@ -1748,10 +1770,17 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             fromCart = [fromCart.first];
           }
           if (fromCart.isNotEmpty) {
+            if (!fromCart.first.isAvailableForCheckout) {
+              return const PageErrorState(
+                title: 'Item unavailable',
+                message:
+                    'This item is out of stock or the requested quantity is no longer available.',
+              );
+            }
             return _checkoutBody(
               items: fromCart,
               accountEmail: accountEmail,
-              buyNowHint: 'From your cart (${fromCart.length} line(s))',
+              buyNowHint: 'From your cart (${fromCart.length} item(s))',
             );
           }
 
@@ -1782,6 +1811,21 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                             ]
                           : p.imageUrls,
                     );
+              final availableStock = display.sellableStock;
+              if (availableStock != null && availableStock < 1) {
+                return const PageErrorState(
+                  title: 'Item unavailable',
+                  message: 'This product is currently out of stock.',
+                );
+              }
+              if (availableStock != null &&
+                  widget.buyNowQuantity > availableStock) {
+                return PageErrorState(
+                  title: 'Not enough stock',
+                  message:
+                      'Only $availableStock available for this product. Reduce the quantity and try again.',
+                );
+              }
               final maxQ = maxSelectableQuantity(display);
               final q = widget.buyNowQuantity.clamp(1, maxQ);
               final synthetic = CartItem(
@@ -1996,24 +2040,25 @@ class _AddressEditorDialogState extends State<_AddressEditorDialog> {
                   ),
                   maxLength: 6,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  validator: (v) => !ShippingDetails.isValidIndianPostal(v ?? '')
-                      ? '6 digits'
-                      : null,
+                  validator: (v) =>
+                      !ShippingDetails.isValidIndianPostal(v ?? '')
+                          ? '6 digits'
+                          : null,
                 ),
-              if (widget.showDefaultToggle) ...[
-                const SizedBox(height: 8),
-                CheckboxListTile(
-                  title: Text(AppLocalizations.of(context).defaultAddress),
-                  value: _isDefault,
-                  onChanged: (v) => setState(() => _isDefault = v ?? false),
-                ),
+                if (widget.showDefaultToggle) ...[
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    title: Text(AppLocalizations.of(context).defaultAddress),
+                    value: _isDefault,
+                    onChanged: (v) => setState(() => _isDefault = v ?? false),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
-    ),
-    actions: [
+      actions: [
         TextButton(
             onPressed: _saving ? null : () => Navigator.pop(context, false),
             child: const Text('Cancel')),

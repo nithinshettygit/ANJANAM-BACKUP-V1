@@ -240,14 +240,33 @@ class AppRouter {
         final args = settings.arguments;
         final fromLogout = args is Map && args['fromLogout'] == true;
         return MaterialPageRoute(
-          builder: (_) => AuthChoicePage(fromLogout: fromLogout),
+          builder: (_) => AuthChoicePage(
+            fromLogout: fromLogout,
+            returnRoute: args is Map ? args['returnRoute']?.toString() : null,
+            returnArguments: args is Map && args['returnArguments'] is Map
+                ? Map<String, dynamic>.from(args['returnArguments'] as Map)
+                : null,
+            authReturnArguments: _authReturnArguments(args),
+          ),
         );
       case '/login/email':
-        return MaterialPageRoute(builder: (_) => const LoginPage());
+        return MaterialPageRoute(
+          builder: (_) => LoginPage(
+            authReturnArguments: _authReturnArguments(settings.arguments),
+          ),
+        );
       case '/login/phone':
-        return MaterialPageRoute(builder: (_) => const PhoneLoginPage());
+        return MaterialPageRoute(
+          builder: (_) => PhoneLoginPage(
+            authReturnArguments: _authReturnArguments(settings.arguments),
+          ),
+        );
       case '/signup':
-        return MaterialPageRoute(builder: (_) => const SignupPage());
+        return MaterialPageRoute(
+          builder: (_) => SignupPage(
+            authReturnArguments: _authReturnArguments(settings.arguments),
+          ),
+        );
       // Email confirmation (PKCE). Supabase establishes session from `code` in the URL (web + App Links).
       case AuthRedirectConfig.webAuthCallbackPath:
       case AuthRedirectConfig.webCallbackPathLegacy:
@@ -316,6 +335,16 @@ class AppRouter {
             buyNowVariantId: buyNowVariantId,
             buyNowQuantity: buyNowQuantity,
           ),
+          loginArguments: <String, dynamic>{
+            'returnRoute': '/checkout',
+            'returnArguments': checkoutArgs is Map
+                ? Map<String, dynamic>.from(checkoutArgs)
+                : <String, dynamic>{
+                    if (buyNowProductId != null) 'productId': buyNowProductId,
+                    if (buyNowVariantId != null) 'variantId': buyNowVariantId,
+                    'quantity': buyNowQuantity,
+                  },
+          },
         );
       case '/orders':
         return _authCustomerRoute(const OrderHistoryPage());
@@ -533,10 +562,32 @@ Route<dynamic> _customerRoute(Widget child) {
   );
 }
 
-Route<dynamic> _authCustomerRoute(Widget child) {
+Map<String, dynamic>? _authReturnArguments(Object? arguments) {
+  if (arguments is! Map) return null;
+  if (arguments['returnRoute'] == null && arguments['action'] == null) {
+    return null;
+  }
+  return <String, dynamic>{
+    if (arguments['returnRoute'] != null)
+      'returnRoute': arguments['returnRoute'].toString(),
+    if (arguments['returnArguments'] is Map)
+      'returnArguments':
+          Map<String, dynamic>.from(arguments['returnArguments'] as Map),
+    if (arguments['action'] != null) 'action': arguments['action'].toString(),
+    if (arguments['actionArguments'] is Map)
+      'actionArguments':
+          Map<String, dynamic>.from(arguments['actionArguments'] as Map),
+  };
+}
+
+Route<dynamic> _authCustomerRoute(
+  Widget child, {
+  Map<String, dynamic>? loginArguments,
+}) {
   return MaterialPageRoute(
     builder: (_) => AuthGuard(
       child: _AdminAwareCustomerRoute(child: child),
+      loginArguments: loginArguments,
     ),
   );
 }

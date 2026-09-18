@@ -10,7 +10,8 @@ import '../../domain/repositories/cart_repository.dart';
 import '../models/cart_item_model.dart';
 
 /// Supabase-backed cart service (REST via Supabase PostgREST).
-class SupabaseCartService extends SupabaseServiceBase implements CartRepository {
+class SupabaseCartService extends SupabaseServiceBase
+    implements CartRepository {
   SupabaseCartService(super.client);
 
   static bool _looksLikeHttp(String? value) {
@@ -26,7 +27,8 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
     return s == 'true' || s == '1' || s == 'yes';
   }
 
-  static List<Map<String, dynamic>> _variantRows(Map<String, dynamic> productJson) {
+  static List<Map<String, dynamic>> _variantRows(
+      Map<String, dynamic> productJson) {
     final embedded = productJson['product_variants'];
     if (embedded is! List) return const [];
     final out = <Map<String, dynamic>>[];
@@ -71,7 +73,8 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
         }
       }
       if (chosen == null) {
-        throw const ValidationException('Selected option is not available for this product.');
+        throw const ValidationException(
+            'Selected option is not available for this product.');
       }
     } else {
       for (final v in variants) {
@@ -84,7 +87,8 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
     }
 
     final price = (chosen['price'] as num?)?.toDouble() ?? 0.0;
-    final avail = ProductModel.inventoryCountFromJson(chosen['available_stock']);
+    final avail =
+        ProductModel.inventoryCountFromJson(chosen['available_stock']);
     final inv = ProductModel.inventoryCountFromJson(chosen['stock_quantity']);
     final stock = avail ?? inv;
     return (
@@ -100,7 +104,11 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
     required String productId,
     String? variantId,
   }) {
-    var q = client.from('cart_items').select('quantity').eq('cart_id', cartId).eq('product_id', productId);
+    var q = client
+        .from('cart_items')
+        .select('quantity')
+        .eq('cart_id', cartId)
+        .eq('product_id', productId);
     final v = variantId?.trim();
     if (v != null && v.isNotEmpty) {
       q = q.eq('variant_id', v);
@@ -115,7 +123,11 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
     required String productId,
     String? variantId,
   }) {
-    var q = client.from('cart_items').delete().eq('cart_id', cartId).eq('product_id', productId);
+    var q = client
+        .from('cart_items')
+        .delete()
+        .eq('cart_id', cartId)
+        .eq('product_id', productId);
     final v = variantId?.trim();
     if (v != null && v.isNotEmpty) {
       q = q.eq('variant_id', v);
@@ -133,7 +145,9 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
   }) {
     var q = client
         .from('cart_items')
-        .update({'quantity': quantity}).eq('cart_id', cartId).eq('product_id', productId);
+        .update({'quantity': quantity})
+        .eq('cart_id', cartId)
+        .eq('product_id', productId);
     final v = variantId?.trim();
     if (v != null && v.isNotEmpty) {
       q = q.eq('variant_id', v);
@@ -165,7 +179,8 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
       final itemsData = await guard(
         () => client
             .from('cart_items')
-            .select('cart_id, product_id, variant_id, quantity, unit_price, currency, created_at')
+            .select(
+                'cart_id, product_id, variant_id, quantity, unit_price, currency, created_at')
             .eq('cart_id', cartId)
             .order('created_at', ascending: false),
       );
@@ -187,7 +202,13 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
     final productById = <String, Map<String, dynamic>>{};
     if (productIds.isNotEmpty) {
       final productsData = await guard(
-        () => client.from('products').select('id, title, image_urls').inFilter('id', productIds),
+        () => client
+            .from('products')
+            .select(
+              'id, title, image_urls, inventory_count, available_stock, '
+              'product_variants(id, stock_quantity, available_stock)',
+            )
+            .inFilter('id', productIds),
       );
       for (final row in (productsData as List).cast<Map<String, dynamic>>()) {
         final id = (row['id'] ?? '').toString();
@@ -219,7 +240,9 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
           if (rawCover == null || rawCover.trim().isEmpty) continue;
           final imageUrl = _looksLikeHttp(rawCover)
               ? rawCover
-              : await client.storage.from('articles').createSignedUrl(rawCover, 60 * 60);
+              : await client.storage
+                  .from('articles')
+                  .createSignedUrl(rawCover, 60 * 60);
           final existing = productById[productId];
           if (existing == null) continue;
           existing['image_urls'] = [imageUrl];
@@ -250,19 +273,48 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
       }
       var title = product?.title ?? 'Product';
       if (variantName != null) {
-        final variantLabel = variantType != null ? '$variantType: $variantName' : variantName;
+        final variantLabel =
+            variantType != null ? '$variantType: $variantName' : variantName;
         title = '$title · $variantLabel';
       }
+      final availableStock = _stockForCartLine(
+        row,
+        variantId: itemModel.variantId,
+      );
       items.add(
         itemModel.toEntity(
           title: title,
           imageUrls: imageUrls,
           variantName: variantName,
+          availableStock: availableStock,
         ),
       );
     }
 
     return Cart(id: cartId, items: items, currency: currency);
+  }
+
+  static int? _stockForCartLine(
+    Map<String, dynamic>? productJson, {
+    required String? variantId,
+  }) {
+    if (productJson == null) return 0;
+    final variants = _variantRows(productJson);
+    final requestedVariant = variantId?.trim();
+    if (requestedVariant != null && requestedVariant.isNotEmpty) {
+      for (final variant in variants) {
+        if ((variant['id'] ?? '').toString() == requestedVariant) {
+          return ProductModel.inventoryCountFromJson(
+                variant['available_stock'],
+              ) ??
+              ProductModel.inventoryCountFromJson(variant['stock_quantity']);
+        }
+      }
+      return 0;
+    }
+    return ProductModel.inventoryCountFromJson(
+            productJson['available_stock']) ??
+        ProductModel.inventoryCountFromJson(productJson['inventory_count']);
   }
 
   @override
@@ -295,7 +347,8 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
       final data = await guard(
         () => client
             .from('products')
-            .select('id, title, price, currency, image_urls, inventory_count, available_stock')
+            .select(
+                'id, title, price, currency, image_urls, inventory_count, available_stock')
             .eq('id', productId)
             .eq('is_active', true)
             .single(),
@@ -303,7 +356,8 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
       productJson = Map<String, dynamic>.from(data as Map);
     }
 
-    final resolved = _pricingFromProductJson(productJson, requestedVariantId: variantId);
+    final resolved =
+        _pricingFromProductJson(productJson, requestedVariantId: variantId);
     final stock = resolved.stock;
     if (stock != null && stock <= 0) {
       throw const ValidationException('This product is out of stock.');
@@ -324,14 +378,16 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
         () => client.from('cart_items').insert({
           'cart_id': cartId,
           'product_id': productId,
-          if (resolved.resolvedVariantId != null) 'variant_id': resolved.resolvedVariantId,
+          if (resolved.resolvedVariantId != null)
+            'variant_id': resolved.resolvedVariantId,
           'quantity': quantity,
           'unit_price': resolved.unitPrice,
           'currency': resolved.currency,
         }),
       );
     } else {
-      final existingQty = (existingList.first['quantity'] as num?)?.toInt() ?? 0;
+      final existingQty =
+          (existingList.first['quantity'] as num?)?.toInt() ?? 0;
       final newQty = existingQty + quantity;
       if (stock != null && newQty > stock) {
         throw const ValidationException('Requested quantity is not available.');
@@ -390,10 +446,12 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
 
     if (_variantRows(productJson).isNotEmpty &&
         (variantId == null || variantId.trim().isEmpty)) {
-      throw const ValidationException('Missing product variant for this cart line.');
+      throw const ValidationException(
+          'Missing product variant for this cart line.');
     }
 
-    final resolved = _pricingFromProductJson(productJson, requestedVariantId: variantId);
+    final resolved =
+        _pricingFromProductJson(productJson, requestedVariantId: variantId);
     final stock = resolved.stock;
     if (stock != null && quantity > stock) {
       throw const ValidationException('Requested quantity is not available.');
@@ -427,15 +485,18 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
             .single(),
       );
       final pj = Map<String, dynamic>.from(data as Map);
-      if (_variantRows(pj).isNotEmpty && (variantId == null || variantId.trim().isEmpty)) {
-        throw const ValidationException('Missing product variant for this cart line.');
+      if (_variantRows(pj).isNotEmpty &&
+          (variantId == null || variantId.trim().isEmpty)) {
+        throw const ValidationException(
+            'Missing product variant for this cart line.');
       }
     } catch (e) {
       if (e is ValidationException) rethrow;
     }
 
     await guard(
-      () => _cartLineDeleteQuery(cartId: cartId, productId: productId, variantId: variantId),
+      () => _cartLineDeleteQuery(
+          cartId: cartId, productId: productId, variantId: variantId),
     );
     return getCart();
   }
@@ -472,7 +533,11 @@ class SupabaseCartService extends SupabaseServiceBase implements CartRepository 
     }
 
     final created = await guard(
-      () => client.from('carts').insert({'user_id': userId}).select('id').single(),
+      () => client
+          .from('carts')
+          .insert({'user_id': userId})
+          .select('id')
+          .single(),
     );
 
     return created['id'].toString();

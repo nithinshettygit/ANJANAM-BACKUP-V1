@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/notifications/notification_navigation.dart';
 import '../../features/auth/state/auth_session_provider.dart';
+import '../../features/cart/state/cart_controller.dart';
 
 /// Indices match [MainShell] bottom [NavigationBar] destinations.
 enum StorefrontTab {
@@ -18,13 +21,14 @@ enum StorefrontTab {
 }
 
 final mainShellTabIndexProvider =
-    NotifierProvider<MainShellTabIndexNotifier, int>(MainShellTabIndexNotifier.new);
+    NotifierProvider<MainShellTabIndexNotifier, int>(
+        MainShellTabIndexNotifier.new);
 
 /// Incremented to notify a tab to scroll its primary list to top.
 final storefrontScrollToTopSignalProvider =
     NotifierProvider<StorefrontScrollToTopSignalNotifier, Map<int, int>>(
-      StorefrontScrollToTopSignalNotifier.new,
-    );
+  StorefrontScrollToTopSignalNotifier.new,
+);
 
 class StorefrontScrollToTopSignalNotifier extends Notifier<Map<int, int>> {
   @override
@@ -53,7 +57,9 @@ void requestStorefrontScrollToTop(WidgetRef ref, StorefrontTab tab) {
 /// Clears the stack to [MainShell] (home tab) and pushes the full product catalog.
 /// Ensures system back / iOS edge swipe and the catalog app bar can return to home.
 void navigateToCatalogAfterOrder(WidgetRef ref, BuildContext context) {
-  ref.read(mainShellTabIndexProvider.notifier).goToTab(StorefrontTab.home.shellIndex);
+  ref
+      .read(mainShellTabIndexProvider.notifier)
+      .goToTab(StorefrontTab.home.shellIndex);
   Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   SchedulerBinding.instance.addPostFrameCallback((_) {
     notificationNavigatorKey.currentState?.pushNamed('/catalog');
@@ -97,11 +103,58 @@ Future<void> navigateToCartPage(WidgetRef ref, BuildContext context) async {
 
 /// After login or signup, show [MainShell] with bottom navigation.
 /// Navigating only to `/profile` replaced the stack and hid Home/Categories/etc.
-void goToStorefrontAfterCustomerAuth(
+Future<void> goToStorefrontAfterCustomerAuth(
   WidgetRef ref,
   BuildContext context, {
   StorefrontTab tab = StorefrontTab.account,
-}) {
+  Map<String, dynamic>? authReturnArguments,
+}) async {
+  if (authReturnArguments?['action'] == 'addToCart') {
+    unawaited(_resumeAddToCart(ref, context, authReturnArguments));
+    return;
+  }
+  final returnRoute = authReturnArguments?['returnRoute']?.toString();
+  if (returnRoute != null && returnRoute.isNotEmpty) {
+    final returnArgs = authReturnArguments?['returnArguments'];
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      returnRoute,
+      (route) => false,
+      arguments:
+          returnArgs is Map ? Map<String, dynamic>.from(returnArgs) : null,
+    );
+    return;
+  }
   ref.read(mainShellTabIndexProvider.notifier).goToTab(tab.shellIndex);
+  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+}
+
+Future<void> _resumeAddToCart(
+  WidgetRef ref,
+  BuildContext context,
+  Map<String, dynamic>? authReturnArguments,
+) async {
+  final args = authReturnArguments?['actionArguments'];
+  if (args is! Map) return;
+  final productId = args['productId']?.toString().trim() ?? '';
+  if (productId.isEmpty) return;
+  final rawQuantity = args['quantity'];
+  final quantity =
+      rawQuantity is num && rawQuantity.toInt() > 0 ? rawQuantity.toInt() : 1;
+  try {
+    await ref.read(cartControllerProvider.notifier).addItem(
+          productId: productId,
+          variantId: args['variantId']?.toString(),
+          quantity: quantity,
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${args['productTitle'] ?? 'Item'} added to cart'),
+      ),
+    );
+  } catch (_) {
+    // Keep the authenticated user on the storefront if the resumed add fails.
+  }
+  if (!context.mounted) return;
   Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
 }

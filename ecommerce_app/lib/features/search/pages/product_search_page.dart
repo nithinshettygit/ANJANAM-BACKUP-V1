@@ -207,201 +207,211 @@ class _ProductSearchPageState extends ConsumerState<ProductSearchPage> {
       ),
       body: _SearchBodyWrapper(
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_showSuggestions)
-            Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: searchBarMaxW),
-                child: SearchSuggestionsList(
-                  query: typedForSuggestions,
-                  suggestions: suggestionState.suggestions,
-                  loading: suggestionState.loading || waitingDebounced,
-                  errorMessage: suggestionState.errorMessage,
-                  onSuggestionTapDown: _onSuggestionTapDown,
-                  onSuggestionTap: _onSuggestionTap,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_showSuggestions)
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: searchBarMaxW),
+                  child: SearchSuggestionsList(
+                    query: typedForSuggestions,
+                    suggestions: suggestionState.suggestions,
+                    loading: suggestionState.loading || waitingDebounced,
+                    errorMessage: suggestionState.errorMessage,
+                    onSuggestionTapDown: _onSuggestionTapDown,
+                    onSuggestionTap: _onSuggestionTap,
+                  ),
                 ),
               ),
-            ),
-          Expanded(
-            child: productsAsync.when(
-              data: (products) {
-                if (_submittedQuery.isEmpty) {
-                  return ListView(
-                    padding: const EdgeInsets.all(24),
-                    children: [
-                      Icon(
-                        Icons.search,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Find products',
-                        style: Theme.of(context).textTheme.titleLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Type to see suggestions, then press search on the keyboard '
-                        'for full results. Not case-sensitive.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  );
-                }
-
-                if (products.isEmpty) {
-                  return PageRefreshableBody(
-                    onRefresh: () => _refresh(ref),
-                    child: PageEmptyState(
-                      icon: Icons.search_off_outlined,
-                      title: 'No products found',
-                      subtitle:
-                          'Nothing matches "$_submittedQuery". Try different keywords.',
-                      action: OutlinedButton(
-                        onPressed: _clearAll,
-                        child: const Text('Clear search'),
-                      ),
-                    ),
-                  );
-                }
-
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final width = constraints.maxWidth;
-                    final crossAxisCount = catalogGridCrossAxisCount(width);
-                    final spacing = catalogGridSpacing(width);
-                    final horizontalPadding = catalogHorizontalPadding(context);
-                    final aspectRatio = catalogGridChildAspectRatio(width);
-                    final cardWidth =
-                        (width - horizontalPadding * 2 - (crossAxisCount - 1) * spacing) /
-                            crossAxisCount;
-
-                    List<CartItem> cartLinesFor(String productId) {
-                      return cart?.items.where((e) => e.productId == productId).toList() ?? const [];
-                    }
-
-                    int? lineQty(String productId) {
-                      final lines = cartLinesFor(productId);
-                      if (lines.length == 1) return lines.first.quantity;
-                      return null;
-                    }
-
-                    String? soleCartVariantId(String productId) {
-                      final lines = cartLinesFor(productId);
-                      return lines.length == 1 ? lines.first.variantId : null;
-                    }
-
-                    return RefreshIndicator(
-                      onRefresh: () => _refresh(ref),
-                      child: GridView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: EdgeInsets.all(horizontalPadding),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          childAspectRatio: aspectRatio,
-                          crossAxisSpacing: spacing,
-                          mainAxisSpacing: spacing,
+            Expanded(
+              child: productsAsync.when(
+                data: (products) {
+                  if (_submittedQuery.isEmpty) {
+                    return ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        Icon(
+                          Icons.search,
+                          size: 56,
+                          color: Theme.of(context).colorScheme.outline,
                         ),
-                        itemCount: products.length,
-                        itemBuilder: (context, index) {
-                          final product = products[index];
-                          final inCart =
-                              cart?.items.any((e) => e.productId == product.id) ?? false;
-                          return ProductCard(
-                            product: product,
-                            width: cardWidth,
-                            onTap: () => navigateToStorefrontProductDetails(
-                              context,
-                              ref,
-                              product.id,
-                            ),
-                            isWishlisted: wishlist.contains(product.id),
-                            onToggleWishlist: () {
-                              ref
-                                  .read(wishlistControllerProvider.notifier)
-                                  .toggle(product.id);
-                            },
-                            isInCart: inCart,
-                            cartLineQuantity: lineQty(product.id),
-                            onUpdateCartQuantity: (q) async {
-                              await ref
-                                  .read(cartControllerProvider.notifier)
-                                  .updateQuantity(
-                                    productId: product.id,
-                                    variantId: soleCartVariantId(product.id),
-                                    quantity: q,
-                                  );
-                            },
-                            onRemoveFromCart: () async {
-                              await ref
-                                  .read(cartControllerProvider.notifier)
-                                  .removeItem(
-                                    productId: product.id,
-                                    variantId: soleCartVariantId(product.id),
-                                  );
-                            },
-                            onGoToCart: () => navigateToCartPage(ref, context),
-                            onAddToCart: (qty) async {
-                              await ref.read(cartControllerProvider.notifier).addItem(
-                                    productId: product.id,
-                                    quantity: qty,
-                                  );
-                              if (!context.mounted) return;
-                              showAddedToCartSnackBar(
-                                ref,
+                        const SizedBox(height: 16),
+                        Text(
+                          'Find products',
+                          style: Theme.of(context).textTheme.titleLarge,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Type to see suggestions, then press search on the keyboard '
+                          'for full results. Not case-sensitive.',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    );
+                  }
+
+                  if (products.isEmpty) {
+                    return PageRefreshableBody(
+                      onRefresh: () => _refresh(ref),
+                      child: PageEmptyState(
+                        icon: Icons.search_off_outlined,
+                        title: 'No products found',
+                        subtitle:
+                            'Nothing matches "$_submittedQuery". Try different keywords.',
+                        action: OutlinedButton(
+                          onPressed: _clearAll,
+                          child: const Text('Clear search'),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      final crossAxisCount = catalogGridCrossAxisCount(width);
+                      final spacing = catalogGridSpacing(width);
+                      final horizontalPadding =
+                          catalogHorizontalPadding(context);
+                      final aspectRatio = catalogGridChildAspectRatio(width);
+                      final cardWidth = (width -
+                              horizontalPadding * 2 -
+                              (crossAxisCount - 1) * spacing) /
+                          crossAxisCount;
+
+                      List<CartItem> cartLinesFor(String productId) {
+                        return cart?.items
+                                .where((e) => e.productId == productId)
+                                .toList() ??
+                            const [];
+                      }
+
+                      int? lineQty(String productId) {
+                        final lines = cartLinesFor(productId);
+                        if (lines.length == 1) return lines.first.quantity;
+                        return null;
+                      }
+
+                      String? soleCartVariantId(String productId) {
+                        final lines = cartLinesFor(productId);
+                        return lines.length == 1 ? lines.first.variantId : null;
+                      }
+
+                      return RefreshIndicator(
+                        onRefresh: () => _refresh(ref),
+                        child: GridView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.all(horizontalPadding),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            childAspectRatio: aspectRatio,
+                            crossAxisSpacing: spacing,
+                            mainAxisSpacing: spacing,
+                          ),
+                          itemCount: products.length,
+                          itemBuilder: (context, index) {
+                            final product = products[index];
+                            final inCart = cart?.items
+                                    .any((e) => e.productId == product.id) ??
+                                false;
+                            return ProductCard(
+                              product: product,
+                              width: cardWidth,
+                              onTap: () => navigateToStorefrontProductDetails(
                                 context,
-                                productTitle: product.title,
-                              );
-                            },
-                            onBuyNow: (qty) => openBuyNowCheckout(
+                                ref,
+                                product.id,
+                              ),
+                              isWishlisted: wishlist.contains(product.id),
+                              onToggleWishlist: () {
+                                ref
+                                    .read(wishlistControllerProvider.notifier)
+                                    .toggle(product.id);
+                              },
+                              isInCart: inCart,
+                              cartLineQuantity: lineQty(product.id),
+                              onUpdateCartQuantity: (q) async {
+                                await ref
+                                    .read(cartControllerProvider.notifier)
+                                    .updateQuantity(
+                                      productId: product.id,
+                                      variantId: soleCartVariantId(product.id),
+                                      quantity: q,
+                                    );
+                              },
+                              onRemoveFromCart: () async {
+                                await ref
+                                    .read(cartControllerProvider.notifier)
+                                    .removeItem(
+                                      productId: product.id,
+                                      variantId: soleCartVariantId(product.id),
+                                    );
+                              },
+                              onGoToCart: () =>
+                                  navigateToCartPage(ref, context),
+                              onAddToCart: (qty) async {
+                                await addItemOrRequestLogin(
                                   context,
                                   ref,
                                   productId: product.id,
                                   quantity: qty,
-                                ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                );
-              },
-              loading: () {
-                if (_submittedQuery.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final width = constraints.maxWidth;
-                    return PageLoadingGrid(
-                      crossAxisCount: catalogGridCrossAxisCount(width),
-                      childAspectRatio: catalogGridChildAspectRatio(width),
-                    );
-                  },
-                );
-              },
-              error: (error, _) => PageRefreshableBody(
-                onRefresh: () => _refresh(ref),
-                child: PageErrorState(
-                  title: 'Search failed',
-                  message:
-                      'Check your connection and try again.\n${error.toString()}',
-                  onRetry: () {
-                    ref.invalidate(productListProvider(_listQuery));
-                    ref.read(storefrontCatalogRevisionProvider.notifier).bump();
-                  },
+                                  productTitle: product.title,
+                                );
+                              },
+                              onBuyNow: (qty) => openBuyNowCheckout(
+                                context,
+                                ref,
+                                productId: product.id,
+                                quantity: qty,
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
+                loading: () {
+                  if (_submittedQuery.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      return PageLoadingGrid(
+                        crossAxisCount: catalogGridCrossAxisCount(width),
+                        childAspectRatio: catalogGridChildAspectRatio(width),
+                      );
+                    },
+                  );
+                },
+                error: (error, _) => PageRefreshableBody(
+                  onRefresh: () => _refresh(ref),
+                  child: PageErrorState(
+                    title: 'Search failed',
+                    message:
+                        'Check your connection and try again.\n${error.toString()}',
+                    onRetry: () {
+                      ref.invalidate(productListProvider(_listQuery));
+                      ref
+                          .read(storefrontCatalogRevisionProvider.notifier)
+                          .bump();
+                    },
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }

@@ -64,10 +64,10 @@ class CartPage extends ConsumerWidget {
               subtitle: 'Browse the shop and add your first item.',
               action: FilledButton.tonal(
                 onPressed: () => openStorefrontTab(
-                      ref,
-                      context,
-                      StorefrontTab.categories,
-                    ),
+                  ref,
+                  context,
+                  StorefrontTab.categories,
+                ),
                 child: Text(AppLocalizations.of(context).browseProducts),
               ),
             );
@@ -78,7 +78,9 @@ class CartPage extends ConsumerWidget {
             itemCount: cart.items.length,
             separatorBuilder: (_, __) => Divider(
               height: 1,
-              color: kIsWeb ? Theme.of(context).dividerColor.withValues(alpha: 0.35) : null,
+              color: kIsWeb
+                  ? Theme.of(context).dividerColor.withValues(alpha: 0.35)
+                  : null,
             ),
             itemBuilder: (context, index) {
               final item = cart.items[index];
@@ -139,7 +141,8 @@ class CartPage extends ConsumerWidget {
                 )
               : core;
         },
-        loading: () => PageLoading(message: AppLocalizations.of(context).loadingCart),
+        loading: () =>
+            PageLoading(message: AppLocalizations.of(context).loadingCart),
         error: (error, _) => PageErrorState(
           title: AppLocalizations.of(context).couldNotLoadCart,
           message: 'Check your connection and try again.\n${error.toString()}',
@@ -160,7 +163,8 @@ class _CartItemTile extends ConsumerWidget {
     final imageUrl = item.imageUrls.isNotEmpty ? item.imageUrls.first : null;
     final detailAsync = ref.watch(productDetailsProvider(item.productId));
     final rating = detailAsync.asData?.value.product.averageRating;
-    final reviewCount = detailAsync.asData?.value.product.totalWrittenReviews ?? 0;
+    final reviewCount =
+        detailAsync.asData?.value.product.totalWrittenReviews ?? 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -191,143 +195,193 @@ class _CartItemTile extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _CartItemImage(imageUrl: imageUrl),
-                  const SizedBox(height: 10),
-                  ProductQuantityStepper(
-                    quantity: item.quantity,
-                    minQuantity: 1,
-                    maxQuantity: 999,
-                    compact: true,
-                    allowZeroOnDecrement: true,
-                    onChanged: (q) {
-                      if (q <= 0) {
-                        _confirmRemoveCartLine(context, ref, item);
-                      } else {
-                        ref.read(cartControllerProvider.notifier).updateQuantity(
-                              productId: item.productId,
-                              variantId: item.variantId,
-                              quantity: q,
-                            );
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    if (rating != null && rating > 0) ...[
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.star_rounded,
-                            size: 16,
-                            color: Colors.amber.shade700,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            rating.toStringAsFixed(1),
-                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          if (reviewCount > 0) ...[
-                            const SizedBox(width: 6),
-                            Text(
-                              '($reviewCount)',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                    Text(
-                      formatRupee(item.unitPrice),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: AppColors.priceText,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
+                    _CartItemImage(imageUrl: imageUrl),
                     const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${item.quantity} × ${formatRupee(item.unitPrice)}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: AppColors.priceText.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              formatRupee(item.lineTotal),
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: AppColors.priceText,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: [
-                        TextButton(
-                          onPressed: () => _confirmRemoveCartLine(context, ref, item),
-                          child: Text(AppLocalizations.of(context).remove),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pushNamed(
-                              '/checkout',
-                              arguments: <String, dynamic>{
-                                'productId': item.productId,
-                                if (item.variantId != null && item.variantId!.trim().isNotEmpty)
-                                  'variantId': item.variantId,
-                                'quantity': item.quantity,
-                              },
-                            );
-                          },
-                          child: Text(AppLocalizations.of(context).buyNow),
-                        ),
-                      ],
+                    ProductQuantityStepper(
+                      quantity: item.quantity,
+                      minQuantity: 1,
+                      maxQuantity: item.availableStock == null
+                          ? 999
+                          : item.availableStock!.clamp(1, 999),
+                      compact: true,
+                      allowZeroOnDecrement: true,
+                      onChanged: (q) {
+                        if (q <= 0) {
+                          _confirmRemoveCartLine(context, ref, item);
+                        } else {
+                          ref
+                              .read(cartControllerProvider.notifier)
+                              .updateQuantity(
+                                productId: item.productId,
+                                variantId: item.variantId,
+                                quantity: q,
+                              );
+                        }
+                      },
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.title,
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 4),
+                      if (rating != null && rating > 0) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.star_rounded,
+                              size: 16,
+                              color: Colors.amber.shade700,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            if (reviewCount > 0) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '($reviewCount)',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                      Text(
+                        formatRupee(item.unitPrice),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: AppColors.priceText,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      if (!item.isAvailableForCheckout) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          color: Theme.of(context).colorScheme.errorContainer,
+                          child: Text(
+                            item.isOutOfStock
+                                ? 'Out of stock. Remove this item to continue.'
+                                : 'Only ${item.availableStock} available. Reduce the quantity to continue.',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${item.quantity} × ${formatRupee(item.unitPrice)}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.priceText.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                formatRupee(item.lineTotal),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
+                                    ?.copyWith(
+                                      color: AppColors.priceText,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                _confirmRemoveCartLine(context, ref, item),
+                            child: Text(AppLocalizations.of(context).remove),
+                          ),
+                          TextButton(
+                            onPressed: item.isAvailableForCheckout
+                                ? () {
+                                    Navigator.of(context).pushNamed(
+                                      '/checkout',
+                                      arguments: <String, dynamic>{
+                                        'productId': item.productId,
+                                        if (item.variantId != null &&
+                                            item.variantId!.trim().isNotEmpty)
+                                          'variantId': item.variantId,
+                                        'quantity': item.quantity,
+                                      },
+                                    );
+                                  }
+                                : null,
+                            child: Text(AppLocalizations.of(context).buyNow),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -364,6 +418,9 @@ class _CartSummary extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final checkoutItems =
+        cart.items.where((item) => item.isAvailableForCheckout).toList();
+    final unavailableCount = cart.items.length - checkoutItems.length;
     return SafeArea(
       top: false,
       child: Container(
@@ -371,26 +428,46 @@ class _CartSummary extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+            top:
+                BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              AppLocalizations.of(context).totalAmount(formatRupee(cart.total)),
+              AppLocalizations.of(context).totalAmount(
+                formatRupee(
+                  checkoutItems.fold<double>(
+                    0,
+                    (sum, item) => sum + item.lineTotal,
+                  ),
+                ),
+              ),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: AppColors.priceText,
                     fontWeight: FontWeight.w800,
                   ),
             ),
             const SizedBox(height: 12),
+            if (unavailableCount > 0) ...[
+              Text(
+                unavailableCount == 1
+                    ? '1 item is unavailable and will not be included.'
+                    : '$unavailableCount items are unavailable and will not be included.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: () {
-                  Navigator.of(context).pushNamed('/checkout');
-                },
+                onPressed: checkoutItems.isEmpty
+                    ? null
+                    : () => Navigator.of(context).pushNamed('/checkout'),
                 child: Text(AppLocalizations.of(context).checkout),
               ),
             ),
@@ -400,4 +477,3 @@ class _CartSummary extends ConsumerWidget {
     );
   }
 }
-

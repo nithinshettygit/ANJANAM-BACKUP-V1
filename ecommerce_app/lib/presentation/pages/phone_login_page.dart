@@ -12,7 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecommerce_app/firebase_options.dart';
 import 'package:ecommerce_app/core/network/network_request_guard.dart';
 
-final firebasePhoneAuthServiceProvider = Provider<FirebasePhoneAuthService>((ref) {
+final firebasePhoneAuthServiceProvider =
+    Provider<FirebasePhoneAuthService>((ref) {
   return FirebasePhoneAuthService(
     FirebaseAuth.instance,
     ref.read(supabaseClientProvider),
@@ -20,7 +21,9 @@ final firebasePhoneAuthServiceProvider = Provider<FirebasePhoneAuthService>((ref
 });
 
 class PhoneLoginPage extends ConsumerStatefulWidget {
-  const PhoneLoginPage({super.key});
+  const PhoneLoginPage({super.key, this.authReturnArguments});
+
+  final Map<String, dynamic>? authReturnArguments;
 
   @override
   ConsumerState<PhoneLoginPage> createState() => _PhoneLoginPageState();
@@ -75,11 +78,13 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
     }
     if (kIsWeb && Firebase.apps.isEmpty) {
       try {
-        await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+        await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform);
       } catch (_) {}
     }
     if (kIsWeb && Firebase.apps.isEmpty) {
-      _show('Phone login is unavailable right now. Please refresh and try again.');
+      _show(
+          'Phone login is unavailable right now. Please refresh and try again.');
       return;
     }
     final phone = _phoneCtrl.text.trim();
@@ -106,7 +111,8 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
       _show('OTP sent successfully');
     } catch (e) {
       _show(
-        _networkAwareMessage(e, fallback: 'Failed to send OTP. Please try again.'),
+        _networkAwareMessage(e,
+            fallback: 'Failed to send OTP. Please try again.'),
         onRetry: () => _sendOtp(isResend: isResend),
       );
     } finally {
@@ -143,17 +149,20 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
     }
     setState(() => _isVerifyingOtp = true);
     try {
-      final credential = await ref.read(firebasePhoneAuthServiceProvider).verifyOtp(
-            smsCode: code,
-            verificationId: _verificationId,
-            confirmationResult: _confirmationResult,
-          );
+      final credential =
+          await ref.read(firebasePhoneAuthServiceProvider).verifyOtp(
+                smsCode: code,
+                verificationId: _verificationId,
+                confirmationResult: _confirmationResult,
+              );
       final phone = credential.user?.phoneNumber ?? _phoneCtrl.text.trim();
       final firebaseUid = credential.user?.uid;
       if (firebaseUid == null || firebaseUid.isEmpty) {
         throw Exception('Phone verification failed. Please retry.');
       }
-      final appUser = await ref.read(firebasePhoneAuthServiceProvider).signInToSupabaseFromPhoneUser(
+      final appUser = await ref
+          .read(firebasePhoneAuthServiceProvider)
+          .signInToSupabaseFromPhoneUser(
             phoneNumber: phone,
             firebaseUid: firebaseUid,
           );
@@ -163,7 +172,11 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
           );
       if (!mounted) return;
       _show('Login successful');
-      goToStorefrontAfterCustomerAuth(ref, context);
+      goToStorefrontAfterCustomerAuth(
+        ref,
+        context,
+        authReturnArguments: widget.authReturnArguments,
+      );
     } on FirebaseAuthException catch (e) {
       final code = e.code.toLowerCase().trim();
       if (code == 'code-expired') {
@@ -177,13 +190,15 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
         _show('Too many OTP attempts. Please wait a few minutes and retry.');
       } else {
         _show(
-          _networkAwareMessage(e, fallback: 'OTP verification failed. Please try again.'),
+          _networkAwareMessage(e,
+              fallback: 'OTP verification failed. Please try again.'),
           onRetry: _verifyOtp,
         );
       }
     } catch (e) {
       _show(
-        _networkAwareMessage(e, fallback: 'OTP verification failed. Please try again.'),
+        _networkAwareMessage(e,
+            fallback: 'OTP verification failed. Please try again.'),
         onRetry: _verifyOtp,
       );
     } finally {
@@ -196,7 +211,8 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
     if (lower.contains('timed out') || lower.contains('timeoutexception')) {
       return NetworkRequestGuard.timeoutMessage;
     }
-    if (lower.contains("you're offline")) return NetworkRequestGuard.offlineMessage;
+    if (lower.contains("you're offline"))
+      return NetworkRequestGuard.offlineMessage;
     if (NetworkRequestGuard.isTransientNetworkError(error)) {
       return NetworkRequestGuard.noInternetMessage;
     }
@@ -208,7 +224,9 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        action: onRetry == null ? null : SnackBarAction(label: 'Retry', onPressed: onRetry),
+        action: onRetry == null
+            ? null
+            : SnackBarAction(label: 'Retry', onPressed: onRetry),
       ),
     );
   }
@@ -254,7 +272,9 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _isSendingOtp || _isVerifyingOtp ? null : () => _sendOtp(),
+                  onPressed: _isSendingOtp || _isVerifyingOtp
+                      ? null
+                      : () => _sendOtp(),
                   child: Text(_isSendingOtp ? 'Sending OTP...' : 'Send OTP'),
                 ),
               ),
@@ -273,17 +293,23 @@ class _PhoneLoginPageState extends ConsumerState<PhoneLoginPage> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: _isVerifyingOtp || _isSendingOtp ? null : _verifyOtp,
-                    child: Text(_isVerifyingOtp ? 'Verifying...' : 'Verify OTP'),
+                    onPressed:
+                        _isVerifyingOtp || _isSendingOtp ? null : _verifyOtp,
+                    child:
+                        Text(_isVerifyingOtp ? 'Verifying...' : 'Verify OTP'),
                   ),
                 ),
                 const SizedBox(height: 6),
                 TextButton(
-                  onPressed: (_resendSeconds == 0 && !_isSendingOtp && !_isVerifyingOtp)
+                  onPressed: (_resendSeconds == 0 &&
+                          !_isSendingOtp &&
+                          !_isVerifyingOtp)
                       ? () => _sendOtp(isResend: true)
                       : null,
                   child: Text(
-                    _resendSeconds == 0 ? 'Resend OTP' : 'Resend OTP in ${_resendSeconds}s',
+                    _resendSeconds == 0
+                        ? 'Resend OTP'
+                        : 'Resend OTP in ${_resendSeconds}s',
                   ),
                 ),
               ],

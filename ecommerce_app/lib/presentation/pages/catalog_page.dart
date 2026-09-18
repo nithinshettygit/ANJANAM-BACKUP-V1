@@ -107,7 +107,10 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients || _loadingMore || !_hasMore || _loadError != null) {
+    if (!_scrollController.hasClients ||
+        _loadingMore ||
+        !_hasMore ||
+        _loadError != null) {
       return;
     }
     final pos = _scrollController.position;
@@ -217,7 +220,8 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
     final cart = ref.watch(
       cartControllerProvider.select((async) => async.valueOrNull),
     );
-    final cartItemCount = cart?.items.fold<int>(0, (sum, e) => sum + e.quantity) ?? 0;
+    final cartItemCount =
+        cart?.items.fold<int>(0, (sum, e) => sum + e.quantity) ?? 0;
 
     final canPop = Navigator.of(context).canPop();
     return Scaffold(
@@ -233,7 +237,8 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             } else {
-              Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/', (route) => false);
             }
           },
         ),
@@ -252,7 +257,8 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
             icon: Badge(
               isLabelVisible: wishlist.isNotEmpty,
               label: Text('${wishlist.length}'),
-              child: Icon(Icons.favorite_border, size: WishlistHeartSizes.appBar),
+              child:
+                  Icon(Icons.favorite_border, size: WishlistHeartSizes.appBar),
             ),
           ),
           IconButton(
@@ -274,7 +280,10 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                 Expanded(
                   flex: 4,
                   child: Material(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(24),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(24),
@@ -315,19 +324,25 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                                     child: Icon(
                                       Icons.tune_rounded,
                                       size: 18,
-                                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onPrimaryContainer,
                                     ),
                                   )
                                 : Icon(
                                     Icons.tune_rounded,
                                     size: 18,
-                                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimaryContainer,
                                   ),
                             const SizedBox(width: 6),
                             Text(
                               'Filter',
                               style: TextStyle(
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onPrimaryContainer,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -380,7 +395,8 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
         child: PageEmptyState(
           icon: Icons.filter_alt_off_outlined,
           title: 'No matching products',
-          subtitle: 'Try widening the price range, another category, or turning off “In stock only”.',
+          subtitle:
+              'Try widening the price range, another category, or turning off “In stock only”.',
           action: FilledButton.tonal(
             onPressed: _openFilterSheet,
             child: const Text('Adjust filters'),
@@ -396,11 +412,12 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
         final spacing = catalogGridSpacing(width);
         final hPad = catalogHorizontalPadding(context);
         final aspectRatio = catalogGridChildAspectRatio(width);
-        final cardWidth =
-            (width - hPad * 2 - (crossAxisCount - 1) * spacing) / crossAxisCount;
+        final cardWidth = (width - hPad * 2 - (crossAxisCount - 1) * spacing) /
+            crossAxisCount;
 
         List<CartItem> cartLinesFor(String productId) {
-          return cart?.items.where((e) => e.productId == productId).toList() ?? const [];
+          return cart?.items.where((e) => e.productId == productId).toList() ??
+              const [];
         }
 
         int? lineQty(String productId) {
@@ -455,7 +472,8 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                       }
                       final product = _items[index];
                       final inCart =
-                          cart?.items.any((e) => e.productId == product.id) ?? false;
+                          cart?.items.any((e) => e.productId == product.id) ??
+                              false;
                       return ProductCard(
                         product: product,
                         width: cardWidth,
@@ -466,7 +484,9 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                         ),
                         isWishlisted: wishlist.contains(product.id),
                         onToggleWishlist: () {
-                          ref.read(wishlistControllerProvider.notifier).toggle(product.id);
+                          ref
+                              .read(wishlistControllerProvider.notifier)
+                              .toggle(product.id);
                         },
                         isInCart: inCart,
                         cartLineQuantity: lineQty(product.id),
@@ -489,23 +509,20 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                         },
                         onGoToCart: () => navigateToCartPage(ref, context),
                         onAddToCart: (qty) async {
-                          await ref.read(cartControllerProvider.notifier).addItem(
-                                productId: product.id,
-                                quantity: qty,
-                              );
-                          if (!context.mounted) return;
-                          showAddedToCartSnackBar(
-                            ref,
+                          await addItemOrRequestLogin(
                             context,
+                            ref,
+                            productId: product.id,
+                            quantity: qty,
                             productTitle: product.title,
                           );
                         },
                         onBuyNow: (qty) => openBuyNowCheckout(
-                              context,
-                              ref,
-                              productId: product.id,
-                              quantity: qty,
-                            ),
+                          context,
+                          ref,
+                          productId: product.id,
+                          quantity: qty,
+                        ),
                       );
                     },
                     childCount: childCount,
@@ -547,10 +564,14 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
   void initState() {
     super.initState();
     _minController = TextEditingController(
-      text: widget.initialMin != null ? _trimTrailingZeros(widget.initialMin!) : '',
+      text: widget.initialMin != null
+          ? _trimTrailingZeros(widget.initialMin!)
+          : '',
     );
     _maxController = TextEditingController(
-      text: widget.initialMax != null ? _trimTrailingZeros(widget.initialMax!) : '',
+      text: widget.initialMax != null
+          ? _trimTrailingZeros(widget.initialMax!)
+          : '',
     );
     _inStockOnly = widget.initialInStockOnly;
     _sort = widget.initialSort;
@@ -560,7 +581,9 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
     final s = v.toStringAsFixed(2);
     if (s.endsWith('.00')) return s.substring(0, s.length - 3);
     if (s.endsWith('0') && s.contains('.')) {
-      return s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+      return s
+          .replaceFirst(RegExp(r'0+$'), '')
+          .replaceFirst(RegExp(r'\.$'), '');
     }
     return s;
   }
@@ -613,7 +636,8 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(AppLocalizations.of(context).sort, style: Theme.of(context).textTheme.titleSmall),
+            Text(AppLocalizations.of(context).sort,
+                style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             ...ProductSortOption.values.map(
               (o) => RadioListTile<ProductSortOption>(
@@ -627,7 +651,8 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
               ),
             ),
             const Divider(height: 24),
-            Text(AppLocalizations.of(context).priceInr, style: Theme.of(context).textTheme.titleSmall),
+            Text(AppLocalizations.of(context).priceInr,
+                style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -639,7 +664,8 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -651,7 +677,8 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                   ),
                 ),
               ],

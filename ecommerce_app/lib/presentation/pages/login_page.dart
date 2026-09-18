@@ -21,7 +21,9 @@ const int _kMaxEmailFailures = 5;
 const Duration _kEmailLockDuration = Duration(minutes: 15);
 
 class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.authReturnArguments});
+
+  final Map<String, dynamic>? authReturnArguments;
 
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
@@ -65,7 +67,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
-  bool _isLocked(DateTime? until) => until != null && DateTime.now().isBefore(until);
+  bool _isLocked(DateTime? until) =>
+      until != null && DateTime.now().isBefore(until);
 
   Future<void> _finishSuccessfulLogin() async {
     final client = ref.read(supabaseClientProvider);
@@ -99,7 +102,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (isAdmin) {
       Navigator.of(context).pushReplacementNamed('/admin');
     } else {
-      goToStorefrontAfterCustomerAuth(ref, context);
+      goToStorefrontAfterCustomerAuth(
+        ref,
+        context,
+        authReturnArguments: widget.authReturnArguments,
+      );
     }
   }
 
@@ -164,7 +171,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
     if (kIsWeb && Firebase.apps.isEmpty) {
       try {
-        await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+        await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform);
       } catch (_) {}
     }
     if (kIsWeb && Firebase.apps.isEmpty) {
@@ -194,14 +202,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context).loginSuccessful)),
       );
-      goToStorefrontAfterCustomerAuth(ref, context);
+      goToStorefrontAfterCustomerAuth(
+        ref,
+        context,
+        authReturnArguments: widget.authReturnArguments,
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       final code = e.code.toLowerCase().trim();
       final isCancel = code == 'google-sign-in-cancelled' ||
           code == 'popup-closed-by-user' ||
           code == 'cancelled-popup-request';
-      final isPopupIssue = code == 'popup-blocked' || code == 'operation-not-allowed';
+      final isPopupIssue =
+          code == 'popup-blocked' || code == 'operation-not-allowed';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -211,7 +224,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ? 'Google popup blocked or not enabled in Firebase Auth (${e.code}).'
                     : _networkAwareMessage(e),
           ),
-          action: isCancel ? null : SnackBarAction(label: 'Retry', onPressed: _submitGoogle),
+          action: isCancel
+              ? null
+              : SnackBarAction(label: 'Retry', onPressed: _submitGoogle),
         ),
       );
     } catch (e) {
@@ -232,7 +247,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (lower.contains('timed out') || lower.contains('timeoutexception')) {
       return NetworkRequestGuard.timeoutMessage;
     }
-    if (lower.contains("you're offline")) return NetworkRequestGuard.offlineMessage;
+    if (lower.contains("you're offline"))
+      return NetworkRequestGuard.offlineMessage;
     if (NetworkRequestGuard.isTransientNetworkError(error)) {
       return NetworkRequestGuard.noInternetMessage;
     }
@@ -251,13 +267,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final emailErr = validateEmailField(email);
     if (emailErr != null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emailErr)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(emailErr)));
       return;
     }
 
     setState(() => _isSubmitting = true);
     try {
-      await ref.read(authActionsProvider.notifier).sendPasswordResetEmail(email: email);
+      await ref
+          .read(authActionsProvider.notifier)
+          .sendPasswordResetEmail(email: email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -306,7 +325,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (isAdmin) {
       Navigator.of(context).pushReplacementNamed('/admin');
     } else {
-      goToStorefrontAfterCustomerAuth(ref, context);
+      goToStorefrontAfterCustomerAuth(
+        ref,
+        context,
+        authReturnArguments: widget.authReturnArguments,
+      );
     }
   }
 
@@ -342,7 +365,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.username],
-                  decoration: InputDecoration(labelText: AppLocalizations.of(context).email),
+                  decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context).email),
                   validator: validateEmailField,
                 ),
                 const SizedBox(height: 12),
@@ -350,8 +374,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   controller: _passwordController,
                   obscureText: true,
                   autofillHints: const [AutofillHints.password],
-                    decoration: InputDecoration(labelText: AppLocalizations.of(context).password),
-                    validator: (v) => (v == null || v.isEmpty)
+                  decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context).password),
+                  validator: (v) => (v == null || v.isEmpty)
                       ? AppLocalizations.of(context).passwordRequired
                       : null,
                 ),
@@ -378,7 +403,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: (_isSubmitting || _isGoogleSubmitting) ? null : _submitGoogle,
+                    onPressed: (_isSubmitting || _isGoogleSubmitting)
+                        ? null
+                        : _submitGoogle,
                     icon: _isGoogleSubmitting
                         ? const SizedBox(
                             width: 18,
@@ -387,7 +414,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           )
                         : const Icon(Icons.g_mobiledata_rounded),
                     label: Text(
-                        _isGoogleSubmitting
+                      _isGoogleSubmitting
                           ? AppLocalizations.of(context).connectingToGoogle
                           : AppLocalizations.of(context).continueWithGoogle,
                     ),
@@ -395,7 +422,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 4),
                 TextButton(
-                  onPressed: () => Navigator.of(context).pushNamed('/signup'),
+                  onPressed: () => Navigator.of(context).pushNamed(
+                    '/signup',
+                    arguments: widget.authReturnArguments,
+                  ),
                   child: Text(AppLocalizations.of(context).noAccountSignUp),
                 ),
               ],

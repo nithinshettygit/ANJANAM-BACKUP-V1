@@ -12,8 +12,9 @@ class AuthGuard extends ConsumerStatefulWidget {
   static const String loginRouteName = '/login';
 
   final Widget child;
+  final Map<String, dynamic>? loginArguments;
 
-  const AuthGuard({super.key, required this.child});
+  const AuthGuard({super.key, required this.child, this.loginArguments});
 
   @override
   ConsumerState<AuthGuard> createState() => _AuthGuardState();
@@ -30,14 +31,20 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
     if (session.hasError) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed(AuthGuard.loginRouteName);
+        Navigator.of(context).pushReplacementNamed(
+          AuthGuard.loginRouteName,
+          arguments: widget.loginArguments,
+        );
       });
       return;
     }
     if (session.hasValue && session.value == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed(AuthGuard.loginRouteName);
+        Navigator.of(context).pushReplacementNamed(
+          AuthGuard.loginRouteName,
+          arguments: widget.loginArguments,
+        );
       });
       return;
     }

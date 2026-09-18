@@ -46,6 +46,7 @@ class CartItemModel {
     required String title,
     required List<String> imageUrls,
     String? variantName,
+    int? availableStock,
   }) {
     return CartItem(
       productId: productId,
@@ -56,7 +57,7 @@ class CartItemModel {
       unitPrice: unitPrice,
       currency: currency,
       quantity: quantity,
+      availableStock: availableStock,
     );
   }
 }
-

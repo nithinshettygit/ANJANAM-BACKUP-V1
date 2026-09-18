@@ -16,9 +16,15 @@ class AuthChoicePage extends ConsumerStatefulWidget {
   const AuthChoicePage({
     super.key,
     this.fromLogout = false,
+    this.returnRoute,
+    this.returnArguments,
+    this.authReturnArguments,
   });
 
   final bool fromLogout;
+  final String? returnRoute;
+  final Map<String, dynamic>? returnArguments;
+  final Map<String, dynamic>? authReturnArguments;
 
   @override
   ConsumerState<AuthChoicePage> createState() => _AuthChoicePageState();
@@ -27,6 +33,16 @@ class AuthChoicePage extends ConsumerStatefulWidget {
 class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
   bool _resuming = false;
   bool _googleLoading = false;
+
+  Map<String, dynamic>? get _authReturnArguments =>
+      widget.authReturnArguments ??
+      (widget.returnRoute == null
+          ? null
+          : <String, dynamic>{
+              'returnRoute': widget.returnRoute,
+              if (widget.returnArguments != null)
+                'returnArguments': widget.returnArguments,
+            });
 
   void _handleBackNavigation() {
     final nav = Navigator.of(context);
@@ -41,7 +57,8 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
     if (!kIsWeb) return true;
     if (Firebase.apps.isNotEmpty) return true;
     try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform);
       return true;
     } catch (_) {
       return false;
@@ -62,19 +79,29 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
     if (!mounted) return;
     final current = ref.read(supabaseClientProvider).auth.currentUser;
     if (local != null && current != null && current.id == local.userId) {
-      goToStorefrontAfterCustomerAuth(ref, context);
+      goToStorefrontAfterCustomerAuth(
+        ref,
+        context,
+        authReturnArguments: _authReturnArguments,
+      );
       return;
     }
     if (local?.loginType == LoginType.phone) {
       try {
-        final appUser = await ref.read(firebasePhoneAuthServiceProvider).resumePhoneSessionIfAvailable();
+        final appUser = await ref
+            .read(firebasePhoneAuthServiceProvider)
+            .resumePhoneSessionIfAvailable();
         if (!mounted || appUser == null) return;
         await ref.read(authLocalSessionStoreProvider).save(
               userId: appUser.id,
               loginType: LoginType.phone,
             );
         if (!mounted) return;
-        goToStorefrontAfterCustomerAuth(ref, context);
+        goToStorefrontAfterCustomerAuth(
+          ref,
+          context,
+          authReturnArguments: _authReturnArguments,
+        );
         return;
       } catch (_) {
         // Silent fallback to chooser.
@@ -90,7 +117,8 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(NetworkRequestGuard.offlineMessage),
-          action: SnackBarAction(label: 'Retry', onPressed: _continueWithGoogle),
+          action:
+              SnackBarAction(label: 'Retry', onPressed: _continueWithGoogle),
         ),
       );
       return;
@@ -122,14 +150,19 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
             loginType: LoginType.google,
           );
       if (!mounted) return;
-      goToStorefrontAfterCustomerAuth(ref, context);
+      goToStorefrontAfterCustomerAuth(
+        ref,
+        context,
+        authReturnArguments: _authReturnArguments,
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       final code = e.code.toLowerCase().trim();
       final isCancel = code == 'google-sign-in-cancelled' ||
           code == 'popup-closed-by-user' ||
           code == 'cancelled-popup-request';
-      final isPopupIssue = code == 'popup-blocked' || code == 'operation-not-allowed';
+      final isPopupIssue =
+          code == 'popup-blocked' || code == 'operation-not-allowed';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -139,7 +172,9 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
                     ? 'Google popup blocked or not enabled in Firebase Auth (${e.code}).'
                     : _networkAwareMessage(e),
           ),
-          action: isCancel ? null : SnackBarAction(label: 'Retry', onPressed: _continueWithGoogle),
+          action: isCancel
+              ? null
+              : SnackBarAction(label: 'Retry', onPressed: _continueWithGoogle),
         ),
       );
     } catch (e) {
@@ -147,7 +182,8 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_networkAwareMessage(e)),
-          action: SnackBarAction(label: 'Retry', onPressed: _continueWithGoogle),
+          action:
+              SnackBarAction(label: 'Retry', onPressed: _continueWithGoogle),
         ),
       );
     } finally {
@@ -160,7 +196,8 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
     if (lower.contains('timed out') || lower.contains('timeoutexception')) {
       return NetworkRequestGuard.timeoutMessage;
     }
-    if (lower.contains("you're offline")) return NetworkRequestGuard.offlineMessage;
+    if (lower.contains("you're offline"))
+      return NetworkRequestGuard.offlineMessage;
     if (NetworkRequestGuard.isTransientNetworkError(error)) {
       return NetworkRequestGuard.noInternetMessage;
     }
@@ -212,13 +249,20 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
                     child: LinearProgressIndicator(minHeight: 3),
                   ),
                 FilledButton.icon(
-                  onPressed: _resuming ? null : () => Navigator.of(context).pushNamed('/login/phone'),
+                  onPressed: _resuming
+                      ? null
+                      : () => Navigator.of(context).pushNamed(
+                            '/login/phone',
+                            arguments: _authReturnArguments,
+                          ),
                   icon: const Icon(Icons.phone_android_outlined),
                   label: const Text('Continue with Mobile Number'),
                 ),
                 const SizedBox(height: 10),
                 FilledButton.icon(
-                  onPressed: (_resuming || _googleLoading) ? null : _continueWithGoogle,
+                  onPressed: (_resuming || _googleLoading)
+                      ? null
+                      : _continueWithGoogle,
                   icon: _googleLoading
                       ? const SizedBox(
                           width: 18,
@@ -226,11 +270,18 @@ class _AuthChoicePageState extends ConsumerState<AuthChoicePage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.g_mobiledata_rounded),
-                  label: Text(_googleLoading ? 'Connecting to Google...' : 'Continue with Google'),
+                  label: Text(_googleLoading
+                      ? 'Connecting to Google...'
+                      : 'Continue with Google'),
                 ),
                 const SizedBox(height: 10),
                 FilledButton.icon(
-                  onPressed: _resuming ? null : () => Navigator.of(context).pushNamed('/login/email'),
+                  onPressed: _resuming
+                      ? null
+                      : () => Navigator.of(context).pushNamed(
+                            '/login/email',
+                            arguments: _authReturnArguments,
+                          ),
                   icon: const Icon(Icons.email_outlined),
                   label: const Text('Continue with Email'),
                 ),

@@ -1,4 +1,3 @@
-import 'package:ecommerce_app/core/errors/app_exception.dart';
 import 'package:ecommerce_app/core/layout/storefront_web_layout.dart';
 import 'package:ecommerce_app/features/catalog/state/product_list_providers.dart';
 import 'package:ecommerce_app/features/catalog/domain/product_sort_option.dart';
@@ -13,7 +12,6 @@ import 'package:ecommerce_app/presentation/utils/price_formatter.dart';
 import 'package:ecommerce_app/presentation/utils/storefront_title_styles.dart';
 import 'package:ecommerce_app/presentation/utils/product_price_display.dart';
 import 'package:ecommerce_app/presentation/utils/buy_now_navigation.dart';
-import 'package:ecommerce_app/presentation/utils/auth_issue_presenter.dart';
 import 'package:ecommerce_app/presentation/utils/cart_feedback_snackbar.dart';
 import 'package:ecommerce_app/presentation/utils/main_shell_navigation.dart';
 import 'package:ecommerce_app/presentation/utils/product_availability.dart';
@@ -83,10 +81,12 @@ class ProductDetailsPage extends ConsumerStatefulWidget {
 
 class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
   int _pendingQty = 1;
+
   /// When [null], [Product.defaultVariant] is used for multi-SKU products.
   String? _selectedVariantId;
 
-  String? _resolveShareImageUrl(Product product, ProductVariant? sv, Product displayProduct) {
+  String? _resolveShareImageUrl(
+      Product product, ProductVariant? sv, Product displayProduct) {
     final variantImage = sv?.imageUrl.trim();
     if (variantImage != null && variantImage.isNotEmpty) return variantImage;
     for (final url in displayProduct.imageUrls) {
@@ -151,7 +151,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.storefront_outlined, color: AppColors.darkGreen, size: 26),
+              Icon(Icons.storefront_outlined,
+                  color: AppColors.darkGreen, size: 26),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -168,7 +169,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                     Text(
                       'New here? Visit our home page for deals, categories, and more products.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                             height: 1.35,
                           ),
                     ),
@@ -177,7 +179,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
               ),
               Padding(
                 padding: const EdgeInsets.only(left: 8, top: 2),
-                child: Icon(Icons.arrow_forward_rounded, color: AppColors.deepGold, size: 22),
+                child: Icon(Icons.arrow_forward_rounded,
+                    color: AppColors.deepGold, size: 22),
               ),
             ],
           ),
@@ -240,8 +243,10 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
             false;
         final outOfStock = productIsOutOfStock(displayProduct);
         final localizations = AppLocalizations.of(context);
-        final stockBanner = productStockBannerText(displayProduct, localizations);
-        final shareImageUrl = _resolveShareImageUrl(product, sv, displayProduct);
+        final stockBanner =
+            productStockBannerText(displayProduct, localizations);
+        final shareImageUrl =
+            _resolveShareImageUrl(product, sv, displayProduct);
         if (kIsWeb) {
           WebSeo.updateSharePage(
             title: '${product.title} — ANJANAM',
@@ -283,8 +288,9 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
             },
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final useWide =
-                    kIsWeb && constraints.maxWidth > StorefrontBreakpoints.twoColumnDetail;
+                final useWide = kIsWeb &&
+                    constraints.maxWidth >
+                        StorefrontBreakpoints.twoColumnDetail;
                 final galleryH = useWide
                     ? (constraints.maxWidth * 0.28).clamp(300.0, 420.0)
                     : 260.0;
@@ -298,7 +304,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       switchInCurve: Curves.easeOut,
                       switchOutCurve: Curves.easeIn,
                       child: ProductImageCarousel(
-                        key: ValueKey<String>('${product.id}_${sv?.id ?? 'base'}'),
+                        key: ValueKey<String>(
+                            '${product.id}_${sv?.id ?? 'base'}'),
                         imageUrls: displayProduct.imageUrls,
                         height: galleryH,
                         borderRadius: BorderRadius.circular(12),
@@ -309,7 +316,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         left: 12,
                         top: 12,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: AppColors.marigoldOrange,
                             borderRadius: BorderRadius.circular(12),
@@ -331,8 +339,9 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         extent: WishlistHeartSizes.productGalleryChipExtent,
                         iconSize: WishlistHeartSizes.productGallery,
                         isWishlisted: isWishlisted,
-                        onTap: () =>
-                            ref.read(wishlistControllerProvider.notifier).toggle(product.id),
+                        onTap: () => ref
+                            .read(wishlistControllerProvider.notifier)
+                            .toggle(product.id),
                       ),
                     ),
                     Positioned(
@@ -377,9 +386,10 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         const SizedBox(height: 14),
                         Text(
                           'Options',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
                         ),
                         const SizedBox(height: 8),
                         ...(() {
@@ -388,7 +398,9 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                             final key = option.variantType.trim().isEmpty
                                 ? 'option'
                                 : option.variantType.trim().toLowerCase();
-                            byType.putIfAbsent(key, () => <ProductVariant>[]).add(option);
+                            byType
+                                .putIfAbsent(key, () => <ProductVariant>[])
+                                .add(option);
                           }
                           final widgets = <Widget>[];
                           for (final entry in byType.entries) {
@@ -399,8 +411,12 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                             }
                             widgets.add(
                               Text(
-                                typeLabel[0].toUpperCase() + typeLabel.substring(1),
-                                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                typeLabel[0].toUpperCase() +
+                                    typeLabel.substring(1),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
+                                    ?.copyWith(
                                       fontWeight: FontWeight.w700,
                                     ),
                               ),
@@ -414,7 +430,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                   for (final v in typeOptions)
                                     Builder(
                                       builder: (context) {
-                                        final oosV = (v.sellableStock ?? 0) <= 0;
+                                        final oosV =
+                                            (v.sellableStock ?? 0) <= 0;
                                         final sel = sv?.id == v.id;
                                         return ChoiceChip(
                                           label: Text(
@@ -422,16 +439,22 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                                 ? '${v.variantName} · ${localizations.outOfStock}'
                                                 : v.variantName,
                                             style: TextStyle(
-                                              fontWeight: sel ? FontWeight.w800 : FontWeight.w500,
+                                              fontWeight: sel
+                                                  ? FontWeight.w800
+                                                  : FontWeight.w500,
                                             ),
                                           ),
                                           selected: sel,
                                           onSelected: oosV
                                               ? null
-                                              : (_) => setState(() => _selectedVariantId = v.id),
-                                          selectedColor: AppColors.marigoldOrange.withValues(alpha: 0.35),
-                                          disabledColor:
-                                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                                              : (_) => setState(() =>
+                                                  _selectedVariantId = v.id),
+                                          selectedColor: AppColors
+                                              .marigoldOrange
+                                              .withValues(alpha: 0.35),
+                                          disabledColor: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainerHighest,
                                         );
                                       },
                                     ),
@@ -447,7 +470,9 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest
                                   .withValues(alpha: 0.45),
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -468,26 +493,35 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                             .colorScheme
                                             .surfaceContainerHighest,
                                         alignment: Alignment.center,
-                                        child: const Icon(Icons.image_not_supported_outlined, size: 18),
+                                        child: const Icon(
+                                            Icons.image_not_supported_outlined,
+                                            size: 18),
                                       ),
                                     ),
                                   ),
-                                if (displayProduct.imageUrls.isNotEmpty) const SizedBox(width: 10),
+                                if (displayProduct.imageUrls.isNotEmpty)
+                                  const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         'Selected: ${sv.variantType.trim().isNotEmpty ? '${sv.variantType}: ' : ''}${sv.variantName}',
-                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
                                               fontWeight: FontWeight.w800,
                                             ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
                                         formatRupee(sv.price),
-                                        style: Theme.of(context).textTheme.bodySmall,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
                                       ),
                                     ],
                                   ),
@@ -501,25 +535,32 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       if (pricing.showPromo) ...[
                         Text(
                           'MRP',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                         ),
                         Text(
                           formatRupee(pricing.mrp!),
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                decoration: TextDecoration.lineThrough,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    decoration: TextDecoration.lineThrough,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'You pay',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: AppColors.priceText,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppColors.priceText,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                         ),
                       ],
                       Text(
@@ -532,9 +573,11 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       if (product.category != null) ...[
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: AppColors.forestGreen.withValues(alpha: 0.16),
+                            color:
+                                AppColors.forestGreen.withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -551,23 +594,30 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         const SizedBox(height: 10),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
                             color: outOfStock
                                 ? AppColors.errorRed.withValues(alpha: 0.12)
-                                : AppColors.marigoldOrange.withValues(alpha: 0.16),
+                                : AppColors.marigoldOrange
+                                    .withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: outOfStock
                                   ? AppColors.errorRed.withValues(alpha: 0.5)
-                                  : AppColors.marigoldOrange.withValues(alpha: 0.6),
+                                  : AppColors.marigoldOrange
+                                      .withValues(alpha: 0.6),
                             ),
                           ),
                           child: Text(
                             stockBanner,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  color:
-                                      outOfStock ? AppColors.errorRed : AppColors.charcoalBlack,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  color: outOfStock
+                                      ? AppColors.errorRed
+                                      : AppColors.charcoalBlack,
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
@@ -580,7 +630,10 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         children: [
                           Text(
                             'Quantity',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
@@ -593,12 +646,16 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                             onChanged: (q) async {
                               if (lineQty != null) {
                                 if (q <= 0) {
-                                  await ref.read(cartControllerProvider.notifier).removeItem(
+                                  await ref
+                                      .read(cartControllerProvider.notifier)
+                                      .removeItem(
                                         productId: product.id,
                                         variantId: sv?.id,
                                       );
                                 } else {
-                                  await ref.read(cartControllerProvider.notifier).updateQuantity(
+                                  await ref
+                                      .read(cartControllerProvider.notifier)
+                                      .updateQuantity(
                                         productId: product.id,
                                         variantId: sv?.id,
                                         quantity: q,
@@ -635,13 +692,17 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                   YouAlsoLikeSection(currentProductId: product.id),
                 ];
 
-                final webDirectProductVisit = kIsWeb && !Navigator.of(context).canPop();
-                final shippingWeight = sv?.shippingWeightKg ?? product.shippingWeightKg;
-                final shippingDimensions = sv?.shippingDimensionsCm ?? product.shippingDimensionsCm;
+                final webDirectProductVisit =
+                    kIsWeb && !Navigator.of(context).canPop();
+                final shippingWeight =
+                    sv?.shippingWeightKg ?? product.shippingWeightKg;
+                final shippingDimensions =
+                    sv?.shippingDimensionsCm ?? product.shippingDimensionsCm;
 
                 final top = <Widget>[
                   if (webDirectProductVisit) _webStoreEngagementBanner(context),
-                  if (webDirectProductVisit) SizedBox(height: useWide ? 16 : 12),
+                  if (webDirectProductVisit)
+                    SizedBox(height: useWide ? 16 : 12),
                   if (useWide)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -683,7 +744,10 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                         children: [
                           Text(
                             'Shipping details',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
@@ -752,7 +816,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                 color: Theme.of(context).colorScheme.surface,
                 border: Border(
                   top: BorderSide(
-                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                    color:
+                        Theme.of(context).dividerColor.withValues(alpha: 0.5),
                   ),
                 ),
               ),
@@ -763,9 +828,12 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                         side: BorderSide(
-                          color: inCart ? AppColors.forestGreen : AppColors.deepGold,
+                          color: inCart
+                              ? AppColors.forestGreen
+                              : AppColors.deepGold,
                         ),
-                        foregroundColor: inCart ? AppColors.forestGreen : AppColors.deepGold,
+                        foregroundColor:
+                            inCart ? AppColors.forestGreen : AppColors.deepGold,
                       ),
                       onPressed: inCart
                           ? () => navigateToCartPage(ref, context)
@@ -773,25 +841,20 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                               ? null
                               : () async {
                                   try {
-                                    await ref.read(cartControllerProvider.notifier).addItem(
-                                          productId: product.id,
-                                          variantId: sv?.id,
-                                          quantity: displayQty,
-                                        );
-                                    if (!context.mounted) return;
-                                    showAddedToCartSnackBar(
-                                      ref,
+                                    await addItemOrRequestLogin(
                                       context,
+                                      ref,
+                                      productId: product.id,
+                                      variantId: sv?.id,
+                                      quantity: displayQty,
                                       productTitle: product.title,
                                     );
-                                  } on AuthException catch (_) {
-                                    if (!context.mounted) return;
-                                    await presentSignInToManageCartDialog(context);
                                   } catch (e) {
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Failed to add to cart: $e'),
+                                        content:
+                                            Text('Failed to add to cart: $e'),
                                         duration: const Duration(seconds: 4),
                                         behavior: SnackBarBehavior.fixed,
                                       ),
@@ -799,14 +862,16 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                   }
                                 },
                       icon: Icon(
-                        inCart ? Icons.shopping_cart_outlined : Icons.add_shopping_cart,
+                        inCart
+                            ? Icons.shopping_cart_outlined
+                            : Icons.add_shopping_cart,
                       ),
                       label: Text(
                         inCart
-                          ? AppLocalizations.of(context).goToCart
-                          : outOfStock
-                            ? AppLocalizations.of(context).outOfStock
-                            : AppLocalizations.of(context).addToCart,
+                            ? AppLocalizations.of(context).goToCart
+                            : outOfStock
+                                ? AppLocalizations.of(context).outOfStock
+                                : AppLocalizations.of(context).addToCart,
                       ),
                     ),
                   ),
@@ -948,7 +1013,8 @@ class SimilarProductsSection extends ConsumerWidget {
               itemCount: products.length,
               itemBuilder: (context, index) {
                 final product = products[index];
-                final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(card.width);
+                final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(
+                    card.width);
                 return HomeProductDiscoveryCard(
                   product: product,
                   width: card.width,
@@ -957,7 +1023,9 @@ class SimilarProductsSection extends ConsumerWidget {
                   wishlistChipExtent: wl.chipExtent,
                   isWishlisted: wishlist.contains(product.id),
                   onToggleWishlist: () {
-                    ref.read(wishlistControllerProvider.notifier).toggle(product.id);
+                    ref
+                        .read(wishlistControllerProvider.notifier)
+                        .toggle(product.id);
                   },
                   onTap: () => navigateToStorefrontProductDetails(
                     context,
@@ -983,7 +1051,8 @@ class SimilarProductsSection extends ConsumerWidget {
           _similarProductsHorizontalScroller(
             listHeight: card.height,
             itemCount: 5,
-            itemBuilder: (context, _) => _SuggestionSkeletonCard(width: card.width),
+            itemBuilder: (context, _) =>
+                _SuggestionSkeletonCard(width: card.width),
           ),
         ],
       ),
@@ -1106,7 +1175,8 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
             _similarProductsHorizontalScroller(
               listHeight: card.height,
               itemCount: 5,
-              itemBuilder: (_, __) => _SuggestionSkeletonCard(width: card.width),
+              itemBuilder: (_, __) =>
+                  _SuggestionSkeletonCard(width: card.width),
             )
           else
             SizedBox(
@@ -1115,7 +1185,8 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
                 scrollDirection: Axis.horizontal,
                 itemCount: 5,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, __) => _SuggestionSkeletonCard(width: card.width),
+                itemBuilder: (_, __) =>
+                    _SuggestionSkeletonCard(width: card.width),
               ),
             ),
         ],
@@ -1135,7 +1206,8 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
             return _SuggestionSkeletonCard(width: card.width);
           }
           final product = _items[index];
-          final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(card.width);
+          final wl =
+              WishlistHeartSizes.homeShelfWishlistForImageWidth(card.width);
           return HomeProductDiscoveryCard(
             product: product,
             width: card.width,
@@ -1199,7 +1271,8 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
                 return _SuggestionSkeletonCard(width: card.width);
               }
               final product = _items[index];
-              final wl = WishlistHeartSizes.homeShelfWishlistForImageWidth(card.width);
+              final wl =
+                  WishlistHeartSizes.homeShelfWishlistForImageWidth(card.width);
               return HomeProductDiscoveryCard(
                 product: product,
                 width: card.width,
@@ -1208,7 +1281,9 @@ class _YouAlsoLikeSectionState extends ConsumerState<YouAlsoLikeSection> {
                 wishlistChipExtent: wl.chipExtent,
                 isWishlisted: wishlist.contains(product.id),
                 onToggleWishlist: () {
-                  ref.read(wishlistControllerProvider.notifier).toggle(product.id);
+                  ref
+                      .read(wishlistControllerProvider.notifier)
+                      .toggle(product.id);
                 },
                 onTap: () => navigateToStorefrontProductDetails(
                   context,
@@ -1231,7 +1306,10 @@ class _SuggestionSkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65);
+    final base = Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withValues(alpha: 0.65);
     return SizedBox(
       width: width,
       child: Card(
