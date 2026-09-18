@@ -601,6 +601,7 @@ class StorefrontHomeHeaderBody extends ConsumerWidget {
                   error: (_, __) => const Icon(Icons.notifications_none_rounded, size: 22),
                 ),
               ),
+              const SizedBox(width: 8),
               IconButton(
                 tooltip: 'Cart',
                 style: IconButton.styleFrom(
