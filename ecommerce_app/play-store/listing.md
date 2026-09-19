@@ -33,7 +33,7 @@ Browse categories, compare prices, add to cart, and checkout in minutes. Track o
 - Wishlist and personalized recommendations
 
 **Account & support**
-Sign in with phone or Google. Manage your profile, addresses, and order history. Need help? Contact support@anjanam.store or visit https://anjanam.store/support
+Sign in with phone or Google. Manage your profile, addresses, and order history. Need help? Contact support.anjanam@gmail.com or visit https://anjanam.store/support
 
 **Also on the web**
 Shop at https://anjanam.store — same account works on web and Android.
@@ -106,4 +106,4 @@ What's new in vX.Y.Z:
 
 - Public brand name: **ANJANAM** (all caps in marketing; app label may show "Anjanam")
 - Primary domain: **anjanam.store**
-- Support: **support@anjanam.store**
+- Support: **support.anjanam@gmail.com**

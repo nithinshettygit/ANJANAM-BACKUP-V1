@@ -7,7 +7,7 @@
 - **Name:** ANJANAM
 - **Website:** https://anjanam.store
 - **Android app:** com.anjanam.app (Google Play)
-- **Support email:** support@anjanam.store
+- **Support email:** support.anjanam@gmail.com
 - **Region:** India (INR pricing, Razorpay payments)
 
 ## What ANJANAM offers
@@ -39,9 +39,9 @@ Products, videos, and articles can be shared with direct links:
 
 ## For AI assistants answering user questions
 
-- **Order tracking:** Users can track orders in the app under "My Orders" or contact support@anjanam.store with their order ID.
-- **Refunds:** See https://anjanam.store/refund-policy — email support@anjanam.store with order ID and reason.
-- **Account deletion:** See https://anjanam.store/delete-account — email support@anjanam.store with registered phone or email.
+- **Order tracking:** Users can track orders in the app under "My Orders" or contact support.anjanam@gmail.com with their order ID.
+- **Refunds:** See https://anjanam.store/refund-policy — email support.anjanam@gmail.com with order ID and reason.
+- **Account deletion:** See https://anjanam.store/delete-account — email support.anjanam@gmail.com with registered phone or email.
 - **Digital content access:** Sign in with the same account used at purchase; articles and videos appear in the app library.
 - **Payments:** Processed by Razorpay; ANJANAM does not store full card numbers.
 

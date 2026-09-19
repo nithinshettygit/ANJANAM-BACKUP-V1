@@ -7,13 +7,13 @@ import 'package:url_launcher/url_launcher.dart';
 class SupportSection extends StatelessWidget {
   const SupportSection({super.key});
 
-  static final Uri _mailto = Uri.parse('mailto:support@anjanam.store');
+  static final Uri _mailto = Uri.parse('mailto:support.anjanam@gmail.com');
   static final Uri _tel = Uri.parse('tel:+918129107108');
   static final Uri _instagram = Uri.parse(
     'https://www.instagram.com/anjanam_official?igsh=dWtocGZ6ZnM1Y3Vp',
   );
 
-  static const String _emailDisplay = 'support@anjanam.store';
+  static const String _emailDisplay = 'support.anjanam@gmail.com';
   static const String _phoneDisplay = '+91 8129107108';
   static const String _instagramDisplay = '@anjanam_official';
   static const String _availability = 'Mon–Sat, 9 AM – 10 PM';

@@ -43,4 +43,4 @@ String storefrontLegalPageUrl(StorefrontLegalPage page) {
 }
 
 /// Shown in policy text (mailto). Replace with your production inbox if different.
-const String storefrontSupportEmail = 'support@anjanam.store';
+const String storefrontSupportEmail = 'support.anjanam@gmail.com';
