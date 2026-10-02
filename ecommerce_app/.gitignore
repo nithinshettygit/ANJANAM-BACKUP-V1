@@ -127,3 +127,4 @@ coverage/
 # Cursor local skill state / agent scratch (if nested under app)
 .cursor/
 *.canvas.local.tsx
+android/app/src/main/assets/adi-registration.properties
